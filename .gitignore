@@ -1,0 +1,5 @@
+.omo
+.env
+
+docker/postgres/data_
+docker/redis/data
