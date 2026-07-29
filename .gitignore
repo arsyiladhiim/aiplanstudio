@@ -1,6 +1,7 @@
 .omo
 .env
 .opencode
+.graphify
 
 docker/postgres/data_
 docker/redis/data
