@@ -28,9 +28,18 @@ function csrfHeaders(method: string): HeadersInit {
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
     if (typeof window !== 'undefined') window.location.href = '/login';
-    throw new Error('Unauthorized');
+    throw new Error('Sesi telah berakhir. Silakan login ulang.');
   }
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    let msg = 'Terjadi kesalahan.';
+    try {
+      const body = await res.json();
+      msg = body.message || body.error || msg;
+    } catch {
+      msg = `Error ${res.status}`;
+    }
+    throw new Error(msg);
+  }
   if (res.status === 204) return undefined as T;
   return res.json();
 }
@@ -71,10 +80,18 @@ export function createSSE(
   onError?: (error: Event) => void
 ): EventSource {
   const url = `${BASE}/api${path}`;
-  const es = new EventSource(url, { withCredentials: true });
+  const es = new EventSource(url);
+  let receivedAnyEvent = false;
+  let finished = false;
 
-  ['status', 'token', 'artifact', 'done', 'error'].forEach(eventType => {
+  es.onopen = () => {
+    console.log('SSE connection opened:', url);
+  };
+
+  ['status', 'token', 'artifact'].forEach(eventType => {
     es.addEventListener(eventType, (e: MessageEvent) => {
+      if (finished) return;
+      receivedAnyEvent = true;
       try {
         const data = JSON.parse(e.data);
         onEvent(eventType, data);
@@ -84,10 +101,39 @@ export function createSSE(
     });
   });
 
-  es.onerror = (err) => {
-    console.error('SSE connection error:', err);
-    onError?.(err);
+  es.addEventListener('done', (e: MessageEvent) => {
+    if (finished) return;
+    finished = true;
+    receivedAnyEvent = true;
+    try {
+      const data = JSON.parse(e.data);
+      onEvent('done', data);
+    } catch (err) {
+      console.error('SSE parse error: done', e.data, err);
+    }
     es.close();
+  });
+
+  es.addEventListener('fail', (e: MessageEvent) => {
+    if (finished) return;
+    finished = true;
+    receivedAnyEvent = true;
+    try {
+      const data = JSON.parse(e.data);
+      onEvent('fail', data);
+    } catch (err) {
+      console.error('SSE parse error: fail', e.data, err);
+    }
+    es.close();
+  });
+
+  es.onerror = () => {
+    if (finished) return;
+    if (!receivedAnyEvent) {
+      console.error('SSE connection error. readyState:', es.readyState);
+      onError?.(new Event('error'));
+    }
+    // Do NOT close — let browser auto-reconnect for transient errors
   };
 
   return es;

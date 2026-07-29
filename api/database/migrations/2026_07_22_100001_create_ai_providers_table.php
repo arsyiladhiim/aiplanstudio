@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('ai_providers', function (Blueprint $table) {
+        Schema::create('aiplanstudio_settings.ai_providers', function (Blueprint $table) {
             $table->id();
             $table->string('base_url');
             $table->text('api_key'); // encrypted
@@ -19,6 +19,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('ai_providers');
+        Schema::dropIfExists('aiplanstudio_settings.ai_providers');
     }
 };

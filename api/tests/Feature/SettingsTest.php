@@ -42,8 +42,16 @@ class SettingsTest extends TestCase
 
     public function test_admin_can_update_provider_settings(): void
     {
+        $provider = \App\Models\AiProvider::create([
+            'name' => 'Test',
+            'base_url' => 'https://api.openai.com/v1',
+            'api_key' => 'sk-old-key',
+            'model' => 'gpt-3',
+            'provider_type' => 'openai',
+        ]);
+
         $response = $this->actingAs($this->admin, 'sanctum')
-            ->putJson('/api/settings/provider', [
+            ->patchJson("/api/settings/provider/{$provider->id}", [
                 'base_url' => 'https://api.openai.com/v1',
                 'api_key' => 'sk-test-key-123',
                 'model' => 'gpt-4',
@@ -54,8 +62,16 @@ class SettingsTest extends TestCase
 
     public function test_member_cannot_update_provider_settings(): void
     {
+        $provider = \App\Models\AiProvider::create([
+            'name' => 'Test',
+            'base_url' => 'https://api.openai.com/v1',
+            'api_key' => 'sk-old-key',
+            'model' => 'gpt-3',
+            'provider_type' => 'openai',
+        ]);
+
         $response = $this->actingAs($this->member, 'sanctum')
-            ->putJson('/api/settings/provider', [
+            ->patchJson("/api/settings/provider/{$provider->id}", [
                 'base_url' => 'https://api.openai.com/v1',
                 'api_key' => 'sk-test-key-123',
                 'model' => 'gpt-4',
@@ -110,6 +126,134 @@ class SettingsTest extends TestCase
             ->patchJson("/api/settings/users/{$user->id}", [
                 'role' => 'admin',
             ]);
+
+        $response->assertStatus(403);
+    }
+
+    // ── Provider Settings: store ─────────────────────────────────────────
+
+    public function test_admin_can_create_provider(): void
+    {
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/settings/provider', [
+                'name' => 'Test OpenAI',
+                'base_url' => 'https://api.openai.com/v1',
+                'api_key' => 'sk-test-create',
+                'model' => 'gpt-4',
+                'provider_type' => 'openai',
+            ]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('ai_providers', ['name' => 'Test OpenAI']);
+    }
+
+    public function test_member_cannot_create_provider(): void
+    {
+        $response = $this->actingAs($this->member, 'sanctum')
+            ->postJson('/api/settings/provider', [
+                'name' => 'Test OpenAI',
+                'base_url' => 'https://api.openai.com/v1',
+                'api_key' => 'sk-test-create',
+                'model' => 'gpt-4',
+                'provider_type' => 'openai',
+            ]);
+
+        $response->assertStatus(403);
+    }
+
+    // ── Provider Settings: destroy ──────────────────────────────────────
+
+    public function test_admin_can_delete_provider(): void
+    {
+        $provider = \App\Models\AiProvider::create([
+            'name' => 'To Delete',
+            'base_url' => 'https://api.example.com',
+            'api_key' => 'sk-del',
+            'model' => 'gpt-3',
+            'provider_type' => 'openai',
+        ]);
+
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->deleteJson("/api/settings/provider/{$provider->id}");
+
+        $response->assertStatus(204);
+        $this->assertDatabaseMissing('ai_providers', ['id' => $provider->id]);
+    }
+
+    public function test_member_cannot_delete_provider(): void
+    {
+        $provider = \App\Models\AiProvider::create([
+            'name' => 'To Delete',
+            'base_url' => 'https://api.example.com',
+            'api_key' => 'sk-del',
+            'model' => 'gpt-3',
+            'provider_type' => 'openai',
+        ]);
+
+        $response = $this->actingAs($this->member, 'sanctum')
+            ->deleteJson("/api/settings/provider/{$provider->id}");
+
+        $response->assertStatus(403);
+    }
+
+    // ── User Settings: create ───────────────────────────────────────────
+
+    public function test_admin_can_create_user(): void
+    {
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/settings/users', [
+                'name' => 'New User',
+                'email' => 'newuser@example.com',
+                'password' => 'password123',
+                'role' => 'member',
+            ]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('users', ['email' => 'newuser@example.com']);
+    }
+
+    public function test_member_cannot_create_user(): void
+    {
+        $response = $this->actingAs($this->member, 'sanctum')
+            ->postJson('/api/settings/users', [
+                'name' => 'New User',
+                'email' => 'newuser@example.com',
+                'password' => 'password123',
+                'role' => 'member',
+            ]);
+
+        $response->assertStatus(403);
+    }
+
+    // ── User Settings: destroy ──────────────────────────────────────────
+
+    public function test_admin_can_delete_member_user(): void
+    {
+        $target = User::factory()->create(['role' => 'member']);
+
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->deleteJson("/api/settings/users/{$target->id}");
+
+        $response->assertStatus(204);
+        $this->assertDatabaseMissing('users', ['id' => $target->id]);
+    }
+
+    public function test_admin_cannot_delete_admin_user(): void
+    {
+        $target = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->deleteJson("/api/settings/users/{$target->id}");
+
+        $response->assertStatus(422);
+    }
+
+    public function test_member_cannot_delete_user(): void
+    {
+        $target = User::factory()->create(['role' => 'member']);
+
+        $response = $this->actingAs($this->member, 'sanctum')
+            ->deleteJson("/api/settings/users/{$target->id}");
 
         $response->assertStatus(403);
     }

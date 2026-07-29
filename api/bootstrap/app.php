@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AuthenticateProjectToken;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role.admin' => EnsureUserIsAdmin::class,
+            'auth.project-token' => AuthenticateProjectToken::class,
         ]);
         $middleware->api(prepend: [
             EncryptCookies::class,

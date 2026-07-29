@@ -51,22 +51,22 @@ Semua `/api/*`, `/sanctum/*` masuk ke Next.js → Next.js proxy ke Laravel inter
 | `redis` | redis:alpine | 6379 (internal) | tidak |
 
 ## Jaringan
-- Satu Docker network internal (mis. `aistack_net`).
+- Satu Docker network internal (`aistack`).
 - Referensi antar-service pakai hostname = nama service: `db`, `api`, `web`, `redis`.
 - Contoh Laravel `.env`: `DB_HOST=db`, `REDIS_HOST=redis`.
 - Contoh nginx: `proxy_pass http://web:3000;` (BFF — semua melalui Next.js).
 
 ## Aliran Request Utama (BFF)
 1. Browser → `http://localhost/` → nginx → `web` (render UI).
-2. Frontend fetch `http://localhost/api/...` (dengan Authorization: Bearer header) → nginx → `web` (BFF) → `api:8000` (Laravel).
+2. Frontend fetch `http://localhost/api/...` (dengan cookie session + CSRF header) → nginx → `web` (BFF) → `api:8000` (Laravel).
 3. Pipeline AI: frontend buka **SSE** ke `/api/generate/stream` → Next.js BFF proxy → Laravel → AI Provider streaming → relay token & status per stage ke frontend realtime.
 
 ## Keamanan Arsitektur
-- Auth: **Bearer Token** via Sanctum PersonalAccessTokens. Tidak ada session cookie.
-- Tidak ada CSRF — Bearer token tidak otomatis dikirim browser (harus via JavaScript).
-- Token expires dalam **120 menit**.
+- Auth: **Sanctum SPA Session** — HttpOnly session cookie + CSRF (`XSRF-TOKEN`).
+- CSRF aktif: state-changing requests wajib menyertakan `X-XSRF-TOKEN` header.
+- Session lifetime: **120 menit** (konfigurasi di `config/session.php`).
 - API key AI Provider disimpan **encrypted di DB**, hanya dipakai backend. Tak pernah dikirim ke client.
 - DB/redis/api/web tidak dapat diakses dari host langsung — hanya lewat nginx.
-- Nginx menambahkan header keamanan: CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy.
+- Nginx menambahkan header keamanan: CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy.
 
 Detail deployment & perintah: [07-docker-setup](07-docker-setup.md).

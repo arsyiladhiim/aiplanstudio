@@ -3,8 +3,9 @@
 > Lihat juga: [06-ai-pipeline](06-ai-pipeline.md) · [04-api-contract](04-api-contract.md) · [08-frontend](08-frontend.md)
 
 ## Prinsip
-- **Wizard 6 tahap** dengan **checkpoint approve** tiap tahap: user bisa review/edit sebelum lanjut.
-- Tombol **"Auto-run semua"**: jalankan tahap 1→6 tanpa henti (query `auto=1`).
+- **Wizard 6 tahap** dengan mode **auto-run** (default): semua tahap dijalankan berurutan tanpa henti, user review di akhir.
+- Tersedia mode **checkpoint** (toggle): user bisa approve tiap tahap sebelum lanjut.
+- **Target-aware**: output menyesuaikan `target` project (Web / Mobile / Both).
 - **Target-aware**: output menyesuaikan `target` project (Web / Mobile / Both).
 - Tiap tahap = 1 panggilan LLM streaming (SSE), output menjadi konteks tahap berikutnya. Hasil disimpan sebagai **Version**.
 
@@ -13,7 +14,7 @@ Sebelum tahap 1, user isi:
 - **Ide** (deskripsi bebas)
 - **Target**: `web` | `mobile` | `both`
 - **Stack** (opsional; kosong = AI sarankan)
-- (opsional) pilih **Template** untuk pre-fill
+- **Template** (opsional) untuk pre-fill idea/target/stack
 
 ## 6 Tahap
 | # | Stage key | Nama | Input konteks | Output |
@@ -26,11 +27,12 @@ Sebelum tahap 1, user isi:
 | 6 | `master` | Master Prompt + Prompt/Phase | semua di atas | master prompt + prompt siap-copy tiap fase |
 
 ## Checkpoint
-- Setelah tiap stage `done`, wizard berhenti (mode default). User dapat:
-  - **Edit** artefak inline (disimpan ke Version).
+- Saat mode **checkpoint**: setelah tiap stage `done`, wizard berhenti. User dapat:
+  - **Review** artefak.
   - **Approve & lanjut** ke stage berikut.
   - **Re-run** stage (regenerate).
-- Mode **Auto-run**: langsung lanjut ke stage berikut tanpa berhenti; user review di akhir.
+  - **Edit** artefak inline — **belum diimplementasikan** (lihat [16-audit-fix-plan](16-audit-fix-plan.md#rw)).
+- Mode **Auto-run** (default mode checkpoint): langsung lanjut ke stage berikut tanpa berhenti; user review di akhir.
 
 ## Target-aware (contoh perbedaan)
 | Aspek | Web | Mobile (APK/iOS) |

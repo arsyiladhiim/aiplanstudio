@@ -8,14 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('aiplanstudio_master.users', function (Blueprint $table) {
             $table->enum('role', ['admin', 'member'])->default('member')->after('password');
         });
     }
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('aiplanstudio_master.users', function (Blueprint $table) {
             $table->dropColumn('role');
         });
     }

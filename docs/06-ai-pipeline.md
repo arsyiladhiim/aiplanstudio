@@ -15,6 +15,7 @@ app/Prompts/*.php                # template prompt per stage (target-aware)
 - Request: `POST {base_url}/chat/completions` dengan header `Authorization: Bearer {api_key}`, body `{model, messages, stream:true}`.
 - Relay stream token (SSE OpenAI-style `data: {...}`) ke pemanggil.
 - Kompatibel OpenAI, Deepseek, Groq, OpenRouter, Ollama, LM Studio (cukup ganti `base_url` + `model`).
+- **Anthropic/Claude** didukung via `provider_type: 'anthropic'` — endpoint `/messages`, header `x-api-key`, dan format response berbeda (parse `content_block_delta` + `message_stop` untuk stream).
 - **Error handling:** timeout, 4xx/5xx dari provider → lempar error yang **tidak** membocorkan `api_key`; teruskan sebagai SSE `event: error`.
 
 ## PipelineRunner
@@ -30,19 +31,20 @@ app/Prompts/*.php                # template prompt per stage (target-aware)
 | Stage | Konteks masuk | Simpan ke |
 |-------|---------------|-----------|
 | `analisa` | idea, target, stack | `analysis` |
-| `prd` | analysis | `prd` |
+| `prd` | analysis + idea | `prd` |
 | `architecture` | prd, target | `architecture` |
 | `erd` | prd, architecture | `erd` (jsonb), `api_contract` (jsonb) |
 | `phases` | prd, architecture, erd | `phases` (jsonb) |
-| `master` | semua | `master_prompt` |
+| `master` | prd, architecture, erd, phases | `master_prompt` |
 
 ## Output Terstruktur (JSON stage)
-- Stage `erd` & `phases` **wajib JSON valid**. Prompt memaksa format:
+- Stage `erd`, `phases`, dan `master` **wajib JSON valid**. Prompt memaksa format:
   - ERD: `{ "nodes": [{id,label,fields:[...]}], "edges": [{from,to,relation}] }`.
-  - phases: `[{ "key","title","tasks":[...],"prompt":"..." }]`.
-- Backend **validasi** JSON (mis. via `json_decode` + skema/Validator). Bila gagal parse:
-  1. Retry sekali dengan instruksi perbaikan format, atau
-  2. Simpan raw + tandai `stage_status.erd = 'error'` dan tampilkan ke user.
+  - Phases: `[{ "key","title","tasks":[...],"prompt":"..." }]`.
+  - Master: `{ "master": "...", "phases": [...] }`.
+- Backend **validasi** JSON via `json_decode`. Bila gagal parse:
+  1. Retry **sekali** dengan instruksi perbaikan format.
+  2. Jika retry masih gagal → lempar `RuntimeException` dan stage ditandai `error`.
 - **Jangan** percaya output AI mentah — selalu validasi sebelum simpan/render. Lihat [11-development-rules](11-development-rules.md).
 
 ## Prompt Template (`app/Prompts`)

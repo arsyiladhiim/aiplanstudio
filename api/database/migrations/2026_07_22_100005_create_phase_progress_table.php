@@ -8,9 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('phase_progress', function (Blueprint $table) {
+        Schema::create('aiplanstudio_project.phase_progress', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('version_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('version_id')->constrained('aiplanstudio_project.versions')->cascadeOnDelete();
             $table->string('phase_key'); // merujuk phases[].key
             $table->boolean('done')->default(false);
             $table->timestamps();
@@ -21,6 +21,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('phase_progress');
+        Schema::dropIfExists('aiplanstudio_project.phase_progress');
     }
 };

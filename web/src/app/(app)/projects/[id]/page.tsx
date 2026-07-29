@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { notFound } from "next/navigation";
 import { use } from "react";
@@ -6,9 +7,10 @@ import { Card, Badge } from "@/components/ui";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { TargetBadge } from "@/components/common";
 import { ErdDiagram } from "@/components/wizard/ErdDiagram";
-import { apiGet, apiPost, apiPatch, type Project, type Version } from "@/lib/api";
+import { STAGES } from "@/lib/mock";
+import { apiGet, apiPost, apiDelete, apiPatch, type Project, type Version } from "@/lib/api";
 import {
-  ArrowLeft, GitBranch, Download, Plus, Copy, FileText, Database, ListChecks, Check, Loader2,
+  ArrowLeft, GitBranch, Download, Plus, Copy, FileText, Database, ListChecks, Check, Loader2, Play, Trash2,
 } from "lucide-react";
 
 const TABS = [
@@ -23,6 +25,7 @@ type TabKey = typeof TABS[number]["key"];
 
 export default function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [project, setProject] = useState<Project & { versions?: Version[] } | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,12 +51,48 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Silent auto-refresh for real-time progress (no loading flash)
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (!selectedVersion?.id) return;
+    setLastRefreshed(new Date());
+    setCountdown(0);
+    const interval = setInterval(async () => {
+      try {
+        const v = await apiGet<Version>(`/versions/${selectedVersion.id}`);
+        setSelectedVersion(v);
+        setLastRefreshed(new Date());
+        setCountdown(0);
+      } catch { /* silent skip */ }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [selectedVersion?.id]);
+
+  // Update countdown every second for the timer display
+  useEffect(() => {
+    if (!lastRefreshed) return;
+    const tick = setInterval(() => setCountdown(c => c + 1), 1000);
+    return () => clearInterval(tick);
+  }, [lastRefreshed]);
+
   function fetchVersion(versionId: number) {
     setVersionLoading(true);
     apiGet<Version>(`/versions/${versionId}`)
       .then(setSelectedVersion)
       .catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat version"))
       .finally(() => setVersionLoading(false));
+  }
+
+  async function handleDelete() {
+    if (!window.confirm("Yakin ingin menghapus project ini? Semua versi & data akan hilang.")) return;
+    try {
+      await apiDelete(`/projects/${id}`);
+      router.push('/projects');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal menghapus project');
+    }
   }
 
   async function handleCreateVersion() {
@@ -89,7 +128,17 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
   }
 
   function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).catch(() => {
+      // Clipboard write denied by browser permissions — fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
   }
 
   if (loading) {
@@ -132,6 +181,9 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
           </Button>
           <Button size="sm" onClick={handleCreateVersion} disabled={creatingVersion}>
             {creatingVersion ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Versi Baru
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleDelete}>
+            <Trash2 size={15} /> Hapus
           </Button>
         </div>
       </div>
@@ -298,6 +350,82 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                 <Copy size={15} /> Salin Master Prompt
               </Button>
             </Card>
+
+            {selectedVersion && (
+              <Card className="p-5">
+                <h3 className="mb-3 font-semibold">Standards & Rules</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-block h-2 w-2 rounded-full ${selectedVersion.standards ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                      <span className="text-xs">{selectedVersion.standards ? 'STANDARDS.md tersedia' : 'STANDARDS.md belum tersedia'}</span>
+                    </div>
+                    {selectedVersion.standards ? (
+                      <Button variant="secondary" size="sm" onClick={() => window.open(`/api/versions/${selectedVersion.id}/standards`, '_blank')}>
+                        <Copy size={13} /> Download
+                      </Button>
+                    ) : (
+                      <Button variant="secondary" size="sm" onClick={() => {
+                        apiPost(`/versions/${selectedVersion.id}/regenerate-standards`).then(() => window.location.reload()).catch(err => alert(err.message));
+                      }}>
+                        <Copy size={13} /> Generate
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-block h-2 w-2 rounded-full ${selectedVersion.agents ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                      <span className="text-xs">{selectedVersion.agents ? 'AGENTS.md tersedia' : 'AGENTS.md belum tersedia'}</span>
+                    </div>
+                    {selectedVersion.agents ? (
+                      <Button variant="secondary" size="sm" onClick={() => window.open(`/api/versions/${selectedVersion.id}/agents`, '_blank')}>
+                        <Copy size={13} /> Download
+                      </Button>
+                    ) : (
+                      <Button variant="secondary" size="sm" onClick={() => {
+                        apiPost(`/versions/${selectedVersion.id}/regenerate-standards`).then(() => window.location.reload()).catch(err => alert(err.message));
+                      }}>
+                        <Copy size={13} /> Generate
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {selectedVersion.stage_status && (
+              <Card className="p-5">
+                <h3 className="mb-3 font-semibold">Pipeline</h3>
+                <div className="space-y-1.5">
+                  {STAGES.map((s) => {
+                    const st = (selectedVersion.stage_status as Record<string, string>)[s.key];
+                    return (
+                      <div key={s.key} className="flex items-center gap-2 text-xs">
+                        <span>
+                          {st === 'done' ? '✅' : st === 'running' ? '⏳' : st === 'error' ? '❌' : '⭕'}
+                        </span>
+                        <span className={st === 'done' ? 'text-[var(--color-fg-subtle)]' : ''}>{s.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {!STAGES.every(s => (selectedVersion.stage_status as Record<string, string>)[s.key] === 'done') && (
+                  <Button
+                    size="sm"
+                    className="mt-3 w-full"
+                    onClick={() => router.push(`/new?resume=1&version=${selectedVersion.id}`)}
+                  >
+                    <Play size={14} /> Lanjutkan Pipeline
+                  </Button>
+                )}
+              </Card>
+            )}
+
+            {lastRefreshed && (
+              <div className="text-center text-[10px] text-[var(--color-fg-subtle)]">
+                otomatis {countdown}s yang lalu
+              </div>
+            )}
           </div>
         </div>
       )}

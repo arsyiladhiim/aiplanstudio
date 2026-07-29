@@ -10,7 +10,7 @@ class TemplateController extends Controller
 {
     public function index(): JsonResponse
     {
-        return response()->json(Template::all());
+        return response()->json(Template::paginate(50)->items());
     }
 
     public function store(Request $request): JsonResponse
@@ -27,7 +27,11 @@ class TemplateController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        Template::destroy($id);
+        $template = Template::find($id);
+        if (! $template) {
+            return response()->json(['message' => 'Template tidak ditemukan.'], 404);
+        }
+        $template->delete();
 
         return response()->json(null, 204);
     }

@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  allowedDevOrigins: ["aiplan.arsyiladm.site"],
   // Allow cross-origin from nginx
   async headers() {
     return [

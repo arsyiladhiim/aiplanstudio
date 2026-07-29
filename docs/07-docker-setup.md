@@ -89,6 +89,10 @@ Semua `/api/*` dan `/sanctum/*` ditangani oleh Next.js BFF (route `src/app/api/*
 `web/.env` (Next.js): `LARAVEL_URL=http://api:8000` (BFF points to Laravel internal).
 `docker-compose.yml`: `DB_USERNAME`, `DB_PASSWORD` vars.
 
+### Multi-Schema
+
+Database menggunakan 3 PostgreSQL schema: `aiplanstudio_master`, `aiplanstudio_project`, `aiplanstudio_settings`. `search_path` di `config/database.php` mencakup ketiganya agar mapping model tetap sederhana.
+
 ## Perintah Kunci
 ```bash
 # 1. Build & jalankan semua
@@ -119,3 +123,68 @@ docker compose exec web wget -qO- http://api:8000/api/health  # internal OK
 - [x] Volume DB baru (fresh).
 - [x] Rahasia via env, bukan hardcode; `.env` tidak di-commit.
 - [x] BFF: semua request masuk via nginx → Next.js, tidak ada route langsung ke Laravel.
+
+---
+
+## Development Tanpa Docker
+
+Untuk development cepat, semua service bisa dijalankan langsung di host tanpa Docker.
+
+### Prasyarat
+- PHP 8.3+ dengan ekstensi `pdo_pgsql`, `curl`, `mbstring`, `xml`, `zip`
+- Composer (dependency sudah terinstall: `api/vendor/`)
+- Node.js 20+ (dependency sudah terinstall: `web/node_modules/`)
+- PostgreSQL berjalan di `localhost:5432`
+- **Redis tidak diperlukan** — session/cache/queue semua pakai database
+
+### Konfigurasi
+
+**`api/.env`** — sudah di-set untuk development:
+```env
+APP_ENV=local
+APP_KEY=base64:8HPpQ3zWuC7l0QoOJLKz/NCfKK2f+zUxMobQZXDOUD8=
+DB_CONNECTION=pgsql
+DB_HOST=localhost
+DB_PORT=5432
+DB_DATABASE=aiplanstudio
+DB_USERNAME=postgres
+DB_PASSWORD=arsyiladhiim
+SESSION_DRIVER=database
+SANCTUM_STATEFUL_DOMAINS=localhost,localhost:3000
+FRONTEND_URL=http://localhost
+# Redis tidak diperlukan (semua driver pakai database)
+# REDIS_HOST=localhost
+```
+
+**`web/.env`** — dibuat otomatis saat setup:
+```env
+LARAVEL_URL=http://localhost:8000
+```
+
+### Perintah
+
+```bash
+# 1. Setup database (cukup sekali)
+cd api
+php artisan migrate
+php artisan storage:link
+
+# 2. Start backend (terminal 1)
+cd api
+php artisan serve --port=8000
+
+# 3. Start frontend (terminal 2)
+cd web
+npm run dev
+
+# 4. Akses
+# Frontend: http://localhost:3000
+# API:      http://localhost:8000/api/health → {"status":"ok"}
+# BFF:      http://localhost:3000/api/health → {"status":"ok"} (via proxy Next.js)
+```
+
+### Catatan
+- `APP_DEBUG=true` di `.env` untuk melihat stack trace saat development.
+- User pertama yang register otomatis jadi admin.
+- Pipeline SSE streaming kompatibel dengan `php artisan serve`.
+- Untuk beralih ke Docker, cukup setel ulang `.env` (lihat bagian Docker Setup di atas).

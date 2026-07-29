@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('cache', function (Blueprint $table) {
+        Schema::create('aiplanstudio_settings.cache', function (Blueprint $table) {
             $table->string('key')->primary();
             $table->mediumText('value');
             $table->bigInteger('expiration')->index();
         });
 
-        Schema::create('cache_locks', function (Blueprint $table) {
+        Schema::create('aiplanstudio_settings.cache_locks', function (Blueprint $table) {
             $table->string('key')->primary();
             $table->string('owner');
             $table->bigInteger('expiration')->index();
@@ -29,7 +29,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('cache');
-        Schema::dropIfExists('cache_locks');
+        Schema::dropIfExists('aiplanstudio_settings.cache');
+        Schema::dropIfExists('aiplanstudio_settings.cache_locks');
     }
 };

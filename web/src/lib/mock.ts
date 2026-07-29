@@ -1,6 +1,6 @@
 // Mock data untuk preview UI. ponytail: diganti fetch /api saat F3–F7 backend siap.
 export type Target = "web" | "mobile" | "both";
-export type StageKey = "analisa" | "prd" | "architecture" | "erd" | "phases" | "master";
+export type StageKey = "analisa" | "prd" | "architecture" | "erd" | "phased_master";
 export type StageState = "pending" | "running" | "done" | "error";
 
 export const STAGES: { key: StageKey; label: string; desc: string }[] = [
@@ -8,8 +8,7 @@ export const STAGES: { key: StageKey; label: string; desc: string }[] = [
   { key: "prd", label: "PRD", desc: "Dokumen kebutuhan produk terstruktur." },
   { key: "architecture", label: "Arsitektur & Stack", desc: "Struktur folder & pilihan teknologi." },
   { key: "erd", label: "ERD + API", desc: "Skema database & kontrak endpoint." },
-  { key: "phases", label: "Breakdown Phase", desc: "Roadmap fase pembangunan + task." },
-  { key: "master", label: "Master Prompt", desc: "Prompt siap-pakai untuk AI agent tiap fase." },
+  { key: "phased_master", label: "Phases & Master Prompt", desc: "Fase pembangunan + master prompt + standards + rules." },
 ];
 
 export type Project = {

@@ -7,11 +7,18 @@ use App\Http\Controllers\ProviderSettingsController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UserSettingsController;
 use App\Http\Controllers\VersionController;
+use App\Http\Controllers\WebhookController;
+use App\Models\ProjectApiToken;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 Route::get('/health', fn() => response()->json(['status' => 'ok']));
+
+// Webhook — external access via Project API Token (not session auth)
+Route::post('/webhooks/phase-complete', [WebhookController::class, 'phaseComplete'])
+    ->middleware('auth.project-token');
 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -24,8 +31,28 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/versions/{id}', [VersionController::class, 'show']);
     Route::patch('/versions/{id}/phases/{phaseKey}', [VersionController::class, 'togglePhase']);
     Route::get('/versions/{id}/export', [VersionController::class, 'export']);
+    Route::post('/versions/{id}/regenerate-standards', [VersionController::class, 'regenerateStandards']);
+    Route::get('/versions/{id}/standards', [VersionController::class, 'downloadStandards']);
+    Route::get('/versions/{id}/agents', [VersionController::class, 'downloadAgents']);
     Route::get('/templates', [TemplateController::class, 'index']);
     Route::get('/generate/stream', GenerateStreamController::class);
+
+    // Project API Token management
+    Route::get('/projects/{id}/tokens', function (Request $request, int $id) {
+        $project = \App\Models\Project::where('user_id', $request->user()->id)->findOrFail($id);
+        return response()->json($project->apiTokens()->select('id', 'name', 'last_used_at', 'expires_at', 'created_at')->get());
+    });
+    Route::post('/projects/{id}/tokens', function (Request $request, int $id) {
+        $data = $request->validate(['name' => ['required', 'string', 'max:255']]);
+        $project = \App\Models\Project::where('user_id', $request->user()->id)->findOrFail($id);
+        $result = ProjectApiToken::generate($project, $data['name']);
+        return response()->json(['token' => $result['token'], 'id' => $result['model']->id, 'name' => $result['model']->name], 201);
+    });
+    Route::delete('/projects/{id}/tokens/{tokenId}', function (Request $request, int $id, int $tokenId) {
+        $project = \App\Models\Project::where('user_id', $request->user()->id)->findOrFail($id);
+        $project->apiTokens()->where('id', $tokenId)->delete();
+        return response()->json(null, 204);
+    });
 
     Route::middleware(['role.admin'])->group(function () {
         Route::get('/settings/provider', [ProviderSettingsController::class, 'index']);

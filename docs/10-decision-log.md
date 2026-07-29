@@ -2,6 +2,18 @@
 
 > Catatan keputusan penting + alasan. Tambah entri baru di atas (terbaru dulu). Format: tanggal · keputusan · alasan · alternatif ditolak.
 
+## 2026-07-26
+
+### D-016 · Kembali ke Sanctum SPA Session Auth (Cookies + CSRF)
+- **Keputusan:** Batalkan D-012 (Migrasi ke Bearer Token). Kembali ke Sanctum SPA Session auth (HttpOnly cookies + CSRF).
+- **Alasan:** Audit sinkronisasi menemukan bahwa implementasi Bearer Token hanya ada di dokumentasi & decision log — kode aktual masih menggunakan SPA Session Auth. Alih-alih migrasi ulang, yang lebih efisien adalah sinkronisasi dokumentasi dengan kode aktual. Ini menghindari rewrite besar-besaran di frontend, backend, dan BFF.
+- **Ditolak:** Migrasi paksa ke Bearer Token (banyak kerja ulang di 17 BFF routes + frontend auth flow + backend middlewares).
+
+### D-017 · Decision Log D-012/D-013 dianggap tidak berlaku
+- **Keputusan:** D-012 (Bearer Token) dan D-013 (sessionStorage) dibatalkan. Kode tetap menggunakan SPA Session Auth.
+- **Alasan:** D-012 dan D-013 mencatat keputusan yang tidak pernah diimplementasikan di kode. Dokumentasi dan decision log harus mencerminkan realitas kode.
+- **Ditolak:** Menghapus entri dari log (riwayat keputusan tetap penting untuk audit trail).
+
 ## 2026-07-24
 
 ### D-012 · Migrasi Auth: Session Cookie → Bearer Token (Pure Token)

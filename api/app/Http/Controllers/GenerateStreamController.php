@@ -20,7 +20,7 @@ class GenerateStreamController extends Controller
             abort(422, 'Parameter "version" dan "stage" wajib diisi.');
         }
 
-        $validStages = ['analisa', 'prd', 'architecture', 'erd', 'phases', 'master'];
+        $validStages = ['analisa', 'prd', 'architecture', 'erd', 'phased_master'];
         if (!in_array($stage, $validStages)) {
             abort(422, 'Stage tidak valid. Pilih: ' . implode(', ', $validStages));
         }
@@ -30,13 +30,16 @@ class GenerateStreamController extends Controller
 
         $pipeline = new PipelineRunner($version, $client);
 
+        @ini_set('output_buffering', 'off');
+        @ini_set('zlib.output_compression', false);
+        ob_implicit_flush(true);
+
         return response()->stream(
             fn() => $pipeline->run($stage, $auto),
             200,
             [
                 'Content-Type' => 'text/event-stream',
                 'Cache-Control' => 'no-cache',
-                'Connection' => 'keep-alive',
                 'X-Accel-Buffering' => 'no',
             ]
         );

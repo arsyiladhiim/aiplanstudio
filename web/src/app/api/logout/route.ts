@@ -1,4 +1,4 @@
-import { LARAVEL_URL, cookieHeaders } from '@/lib/bff';
+import { LARAVEL_URL, cookieHeaders, setCookieHeaders } from '@/lib/bff';
 
 export function GET() {
   return Response.redirect('/login');
@@ -11,9 +11,7 @@ export async function POST(request: Request) {
   });
 
   const data = res.status === 204 ? null : await res.text();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const setCookie = res.headers.get('set-cookie');
-  if (setCookie) headers['Set-Cookie'] = setCookie;
+  const headers: [string, string][] = [['Content-Type', 'application/json'], ...setCookieHeaders(res)];
 
   return new Response(data, { status: res.status, headers });
 }

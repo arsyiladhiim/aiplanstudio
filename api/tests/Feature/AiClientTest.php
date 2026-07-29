@@ -8,19 +8,25 @@ use App\Models\User;
 use App\Models\Version;
 use App\Services\AiClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AiClientTest extends TestCase
 {
     use RefreshDatabase;
 
+    private AiProvider $provider;
+
     protected function setUp(): void
     {
         parent::setUp();
-        AiProvider::create([
+        $this->provider = AiProvider::create([
+            'name' => 'Test Provider',
             'base_url' => 'https://api.openai.com/v1',
-            'api_key' => 'sk-test-key-for-mocking',
+            'api_key' => 'sk-test-invalid',
             'model' => 'gpt-4o',
+            'provider_type' => 'openai',
+            'is_active' => true,
         ]);
     }
 
@@ -74,6 +80,53 @@ class AiClientTest extends TestCase
         $client = new AiClient();
 
         $this->expectException(\RuntimeException::class);
+        $client->stream([['role' => 'user', 'content' => 'Hi']], fn($t) => null);
+    }
+
+    public function test_stream_sends_post_to_provider_endpoint(): void
+    {
+        Http::fake();
+
+        $client = new AiClient();
+        try {
+            $client->stream([['role' => 'user', 'content' => 'Hi']], fn($t) => null);
+        } catch (\Throwable) {
+        }
+
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+            return str_contains($request->url(), 'chat/completions')
+                && $request->method() === 'POST';
+        });
+    }
+
+    public function test_stream_parses_sse_response(): void
+    {
+        Http::fake([
+            $this->provider->chatEndpoint() => Http::response(
+                "data: " . json_encode(['choices' => [['delta' => ['content' => 'Hello']]]]) . "\n\ndata: [DONE]\n\n",
+            ),
+            '*' => Http::response('', 500),
+        ]);
+
+        $client = new AiClient();
+        $output = '';
+        $client->stream([['role' => 'user', 'content' => 'Hi']], function (string $delta) use (&$output) {
+            $output .= $delta;
+        });
+
+        $this->assertSame('Hello', $output);
+    }
+
+    public function test_stream_throws_on_http_error(): void
+    {
+        Http::fake([
+            '*' => Http::response('{"error":{"message":"Bad request"}}', 400),
+        ]);
+
+        $client = new AiClient();
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Bad request');
+
         $client->stream([['role' => 'user', 'content' => 'Hi']], fn($t) => null);
     }
 }

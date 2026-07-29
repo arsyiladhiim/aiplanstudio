@@ -22,9 +22,11 @@ export default function LoginPage() {
     try {
       await fetchCsrfCookie();
 
+      const xsrfCookie = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+      const xsrfToken = xsrfCookie ? decodeURIComponent(xsrfCookie[1]) : '';
       const res = await fetch("/api/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(xsrfToken ? { "X-XSRF-TOKEN": xsrfToken } : {}) },
         credentials: "include",
         body: JSON.stringify({ email, password }),
       });

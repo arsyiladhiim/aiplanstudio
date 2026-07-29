@@ -51,9 +51,12 @@ class AiProviderTest extends TestCase
     {
         $admin = \App\Models\User::factory()->create(['role' => 'admin']);
         AiProvider::create([
+            'name' => 'Test Provider',
             'base_url' => 'https://api.openai.com/v1',
             'api_key' => 'sk-secret-key-9999',
             'model' => 'gpt-4o',
+            'provider_type' => 'openai',
+            'is_active' => false,
         ]);
 
         $response = $this->actingAs($admin, 'sanctum')
@@ -61,8 +64,9 @@ class AiProviderTest extends TestCase
 
         $response->assertStatus(200);
         $data = $response->json();
-        $this->assertArrayHasKey('api_key_masked', $data);
-        $this->assertStringNotContainsString('secret-key', $data['api_key_masked']);
+        $this->assertIsArray($data);
+        $this->assertArrayHasKey('api_key_masked', $data[0]);
+        $this->assertStringNotContainsString('secret-key', $data[0]['api_key_masked']);
     }
 
     public function test_prompt_files_exist_for_all_stages(): void

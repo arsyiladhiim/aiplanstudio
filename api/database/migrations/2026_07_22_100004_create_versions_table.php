@@ -8,9 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('versions', function (Blueprint $table) {
+        Schema::create('aiplanstudio_project.versions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('project_id')->constrained('aiplanstudio_project.projects')->cascadeOnDelete();
             $table->integer('version_no');
             $table->jsonb('stage_status')->nullable(); // {analisa: 'done', prd: 'running', ...}
             $table->text('analysis')->nullable();
@@ -28,6 +28,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('versions');
+        Schema::dropIfExists('aiplanstudio_project.versions');
     }
 };

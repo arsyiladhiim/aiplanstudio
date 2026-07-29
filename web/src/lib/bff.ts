@@ -23,4 +23,21 @@ export function fwd(method: string, request: Request, body?: unknown): RequestIn
   return { method, headers: cookieHeaders(request), body: body ? JSON.stringify(body) : undefined };
 }
 
+/** Forward Set-Cookie headers from Laravel response, preserving multiple cookies */
+export function setCookieHeaders(res: Response): [string, string][] {
+  const h: [string, string][] = [];
+  for (const cookie of res.headers.getSetCookie()) {
+    h.push(['Set-Cookie', cookie]);
+  }
+  return h;
+}
+
 export { LARAVEL_URL };
+
+/** Forward only Cookie header for SSE/streaming requests (no Content-Type, no XSRF) */
+export function sseCookieHeaders(request: Request): Record<string, string> {
+  const headers: Record<string, string> = { Accept: 'text/event-stream' };
+  const cookie = request.headers.get('cookie');
+  if (cookie) headers['Cookie'] = cookie;
+  return headers;
+}

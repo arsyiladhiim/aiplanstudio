@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('ai_providers', function (Blueprint $table) {
+        Schema::table('aiplanstudio_settings.ai_providers', function (Blueprint $table) {
             $table->string('name', 100)->default('AI Provider')->after('id');
             $table->string('provider_type', 20)->default('openai')->after('base_url');
             $table->boolean('is_active')->default(false)->after('model');
@@ -19,7 +19,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('ai_providers', function (Blueprint $table) {
+        Schema::table('aiplanstudio_settings.ai_providers', function (Blueprint $table) {
             $table->dropColumn(['name', 'provider_type', 'is_active', 'last_test_response', 'last_test_at']);
         });
     }

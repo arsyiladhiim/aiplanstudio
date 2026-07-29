@@ -27,6 +27,11 @@ class Project extends Model
         return $this->hasMany(Version::class)->orderByDesc('version_no');
     }
 
+    public function apiTokens(): HasMany
+    {
+        return $this->hasMany(ProjectApiToken::class);
+    }
+
     public function latestVersion(): ?Version
     {
         return $this->versions()->first();

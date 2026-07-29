@@ -1,0 +1,1 @@
+{"nodes":[{"id":"console_promptsformissinginput","label":"PromptsForMissingInput.php","file_type":"code","source_file":"api/vendor/laravel/framework/src/Illuminate/Contracts/Console/PromptsForMissingInput.php","source_location":"L1"}],"edges":[]}

@@ -12,9 +12,25 @@ class ProjectController extends Controller
     public function index(Request $request): JsonResponse
     {
         $projects = $request->user()->projects()
+            ->with(['versions' => fn($q) => $q->latest()->limit(1)])
             ->withCount('versions')
             ->latest()
             ->get();
+
+        $projects->each(function ($project) {
+            $latest = $project->versions->first();
+            if ($latest && $latest->stage_status) {
+                $done = collect($latest->stage_status)->filter(fn($s) => $s === 'done')->count();
+                $project->setAttribute('progress', $done);
+                $project->setAttribute('stage_status', $latest->stage_status);
+                $project->setAttribute('latest_version_id', $latest->id);
+            } else {
+                $project->setAttribute('progress', 0);
+                $project->setAttribute('stage_status', null);
+                $project->setAttribute('latest_version_id', null);
+            }
+            unset($project->versions);
+        });
 
         return response()->json($projects);
     }

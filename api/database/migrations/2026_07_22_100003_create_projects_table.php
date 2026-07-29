@@ -8,9 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('projects', function (Blueprint $table) {
+        Schema::create('aiplanstudio_project.projects', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained('aiplanstudio_master.users')->cascadeOnDelete();
             $table->string('title');
             $table->text('idea');
             $table->enum('target', ['web', 'mobile', 'both'])->default('web');
@@ -21,6 +21,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('projects');
+        Schema::dropIfExists('aiplanstudio_project.projects');
     }
 };

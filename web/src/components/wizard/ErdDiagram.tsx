@@ -21,7 +21,7 @@ function TableNode({ data }: { data: { label: string; fields: string[] } }) {
   );
 }
 
-const nodeTypes = { table: TableNode };
+const NODE_TYPES = { table: TableNode };
 
 type ErdData = {
   nodes: Array<{ id: string; label: string; fields: string[] }>;
@@ -29,6 +29,7 @@ type ErdData = {
 };
 
 export function ErdDiagram({ erd }: { erd?: object }) {
+  const nodeTypes = useMemo(() => NODE_TYPES, []);
   const { nodes, edges } = useMemo(() => {
     const erdData = (erd as ErdData) || sampleErd;
     const cols = 2;

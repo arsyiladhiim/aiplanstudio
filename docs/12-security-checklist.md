@@ -10,15 +10,16 @@
 - [x] Volume DB baru (fresh `aistack_db` volume).
 - [x] `.env` tidak di-commit; hanya `.env.example` (tanpa rahasia).
 - [x] Image dasar versi terkunci (`postgres:16-alpine`, `nginx:alpine`, `node:22-alpine`).
+- [ ] (R1) Hardcoded credentials di docker-compose.yml dipindah ke env (lihat [16-audit-fix-plan](16-audit-fix-plan.md#rs)).
 
-## B. Autentikasi — Bearer Token (PersonalAccessTokens)
-- [x] Auth menggunakan **Sanctum PersonalAccessTokens** — Bearer token, bukan session cookie.
-- [x] Token expiry: **120 menit** (`sanctum.expiration = 120`).
-- [x] Token tersimpan di **sessionStorage** (client-side, hilang saat tab ditutup).
-- [x] Tidak ada CSRF — Browser tidak otomatis mengirim Authorization header.
+## B. Autentikasi — Sanctum SPA Session (HttpOnly Cookie + CSRF)
+- [x] Auth menggunakan **Sanctum SPA session** — HttpOnly cookie, bukan Bearer token.
+- [x] Session lifetime: **120 menit** (`session.lifetime = 120`).
+- [x] Cookie `HttpOnly=true`, `SameSite=Lax` — tidak bisa dibaca JavaScript.
+- [x] CSRF aktif: `XSRF-TOKEN` cookie (readable JS) → `X-XSRF-TOKEN` header untuk non-GET.
 - [x] Password hash **bcrypt** (bawaan Laravel); tak pernah simpan plaintext.
-- [x] Logout **revoke token** — token tidak bisa dipakai lagi.
-- [x] `HasApiTokens` trait di User model, `personal_access_tokens` table ter-migrate.
+- [x] Logout **invalidate session** — session cookie tidak bisa dipakai lagi.
+- [ ] (R1) `SESSION_SECURE_COOKIE=true` di `.env.example` untuk production (lihat [16-audit-fix-plan](16-audit-fix-plan.md#rs)).
 
 ## C. Otorisasi (RBAC & kepemilikan)
 - [x] Endpoint admin dijaga middleware `role.admin` (uji member → 403).
@@ -32,20 +33,22 @@
 - [x] Response API selalu **masked** (`sk-...abcd`), tak pernah kirim key mentah.
 - [x] Key tak pernah muncul di log, error, atau response SSE.
 - [x] Panggilan ke provider hanya dari backend (tak ada API key di client JavaScript).
+- [ ] (R1) SSRF mitigation: validasi `base_url` tidak指向 internal IP (lihat [16-audit-fix-plan](16-audit-fix-plan.md#rs)).
 
 ## E. Input & Output
-- [x] Semua input divalidasi (FormRequest/Validator) di trust boundary.
-- [x] Output AI (JSON `erd`/`phases`) divalidasi sebelum simpan/render (anti-sampah/injection).
-- [x] Render markdown aman (react-markdown, tanpa `dangerouslySetInnerHTML`).
+- [x] Semua input divalidasi (Validator) di trust boundary.
+- [x] Output AI (JSON `erd`/`phases`/`master`) divalidasi sebelum simpan (anti-sampah/injection).
+- [x] Render konten aman (React auto-escape, tanpa `dangerouslySetInnerHTML`).
 - [x] Query pakai Eloquent/binding (tak ada SQL string concat) — anti SQL injection.
 - [x] Error ke client tak bocorkan stack/detail sensitif (`APP_DEBUG=false` di non-lokal).
+- [ ] (R1) Error handling: batasi error message exposure di `api.ts` (lihat [16-audit-fix-plan](16-audit-fix-plan.md#rs)).
 
 ## F. Transport & Header
 - [ ] (Produksi) HTTPS + redirect http→https.
-- [x] Header keamanan via nginx: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Content-Security-Policy`, `Strict-Transport-Security`.
+- [x] Header keamanan via nginx: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Content-Security-Policy`, `Strict-Transport-Security`, `Permissions-Policy`.
 - [x] CORS: karena same-origin via BFF, tidak perlu CORS.
 - [x] SSE header aman (`X-Accel-Buffering: no`) tanpa membocorkan info.
-- [x] Tidak ada cookie session — tidak perlu `SameSite`/`Secure` cookie config.
+- [x] Session cookie HttpOnly + SameSite=Lax.
 
 ## G. Dependency & Build
 - [ ] `composer audit` / `npm audit` bersih dari kerentanan kritikal.
@@ -65,6 +68,7 @@ docker compose exec web wget -qO- http://api:8000/api/health   # internal OK
 # dari host, Laravel TIDAK reachable langsung:
 curl localhost:8000                     # connection refused ✅
 psql -h localhost -p 5432               # connection refused ✅
-curl http://localhost/api/user           # 401 (no Bearer token) ✅
-curl -H "Authorization: Bearer test" http://localhost/api/user # 401 (invalid token) ✅
+curl http://localhost/api/user           # 401 (no session) ✅
+# BFF bekerja:
+curl -c /tmp/cookies -b /tmp/cookies http://localhost/api/user  # harus login dulu ✅
 ```

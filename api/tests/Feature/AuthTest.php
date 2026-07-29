@@ -89,4 +89,52 @@ class AuthTest extends TestCase
 
         $response->assertStatus(204);
     }
+
+    public function test_register_validates_required_fields(): void
+    {
+        $response = $this->postJson('/api/register', []);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['name', 'email', 'password']);
+    }
+
+    public function test_register_validates_email_format(): void
+    {
+        $response = $this->postJson('/api/register', [
+            'name' => 'Test',
+            'email' => 'not-an-email',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_register_rejects_duplicate_email(): void
+    {
+        User::factory()->create(['email' => 'dupe@example.com']);
+
+        $response = $this->postJson('/api/register', [
+            'name' => 'Dupe',
+            'email' => 'dupe@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_register_requires_password_confirmation(): void
+    {
+        $response = $this->postJson('/api/register', [
+            'name' => 'Test',
+            'email' => 'test@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['password']);
+    }
 }

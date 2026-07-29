@@ -1,23 +1,24 @@
-FROM node:22-alpine AS base
+# Stage 1: Install Dependencies
+FROM node:20-alpine AS deps
 WORKDIR /app
-
-FROM base AS deps
-COPY web/package.json web/package-lock.json ./
+COPY package*.json ./
 RUN npm ci
 
-FROM base AS builder
+# Stage 2: Build Aplikasi
+FROM node:20-alpine AS builder
+WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY web/ .
+COPY . .
 RUN npm run build
 
-FROM base AS runner
+# Stage 3: Runner (Produksi)
+FROM node:20-alpine AS runner
+WORKDIR /app
 ENV NODE_ENV=production
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
 USER nextjs
 EXPOSE 3000
-ENV PORT=3000
-CMD ["node", "server.js"]
+CMD ["npm", "run", "start"]

@@ -1,0 +1,1 @@
+{"nodes":[{"id":"lang_ru","label":"ru.php","file_type":"code","source_file":"api/vendor/nesbot/carbon/src/Carbon/Lang/ru.php","source_location":"L1"}],"edges":[{"source":"lang_ru","target":"carboninterface","relation":"imports","confidence":"EXTRACTED","source_file":"api/vendor/nesbot/carbon/src/Carbon/Lang/ru.php","source_location":"L40","weight":1}]}

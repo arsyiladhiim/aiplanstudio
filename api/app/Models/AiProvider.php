@@ -48,7 +48,7 @@ class AiProvider extends Model
         };
     }
 
-    public function chatBody(array $messages, int $maxTokens = 200, bool $stream = false): array
+    public function chatBody(array $messages, int $maxTokens = 4096, bool $stream = false): array
     {
         $body = match ($this->provider_type) {
             'anthropic' => [

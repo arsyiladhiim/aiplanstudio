@@ -22,6 +22,78 @@
 
 ---
 
+### 2026-07-26 · R1 — Multi-Schema PostgreSQL Migration
+- Dikerjakan: Memindahkan semua tabel dari schema `public` ke 3 schema terpisah: `aiplanstudio_master`, `aiplanstudio_project`, `aiplanstudio_settings`.
+- Detail:
+  - `aiplanstudio_master`: users, password_reset_tokens, personal_access_tokens, templates, migrations
+  - `aiplanstudio_project`: projects, versions, phase_progress
+  - `aiplanstudio_settings`: ai_providers, sessions, cache, cache_locks, jobs, job_batches, failed_jobs
+- Perubahan file:
+  - `config/database.php`: `search_path` → `'aiplanstudio_master, aiplanstudio_project, aiplanstudio_settings, public'`
+  - Semua 12 migration files: tambah schema prefix di setiap `Schema::create()` / `Schema::table()` / `Schema::dropIfExists()`
+  - Foreign key `constrained()` diperbarui dengan schema prefix (cross-schema FK)
+- Perintah/hasil: `php artisan migrate:fresh` → 12/12 migrations sukses.
+- Verifikasi: 15 tabel terdistribusi di 3 schema. Register + login + buat project → semua endpoint berfungsi.
+- Dokumentasi diupdate: `03-database-schema.md` (tambah section schema), `07-docker-setup.md` (tambah catatan multi-schema).
+- Kendala: Parse error di migration file (closing brace `up()` hilang) — perbaiki dan re-run.
+- Status: [x] Multi-schema migration selesai.
+
+### 2026-07-26 · R1 — Non-Docker Development Setup
+- Dikerjakan: Setup development environment tanpa Docker. Mengubah `api/.env` (comment Redis vars, tambah `localhost:3000` ke stateful domains), membuat `web/.env` dengan `LARAVEL_URL=http://localhost:8000`. Menjalankan `php artisan migrate` (12 migration sukses) dan `php artisan storage:link`.
+- Perintah/hasil:
+  ```bash
+  # api/.env: comment REDIS, SANCTUM_STATEFUL_DOMAINS=localhost,localhost:3000
+  # web/.env: LARAVEL_URL=http://localhost:8000
+  php artisan migrate --force  # 12/12 DONE
+  php artisan storage:link      # linked
+  php artisan serve --port=8000  → http://localhost:8000
+  cd web && npm run dev          → http://localhost:3000
+  ```
+- Verifikasi: `curl http://localhost:8000/api/health` → `{"status":"ok"}`. `curl http://localhost:3000/api/health` → `{"status":"ok"}` (BFF proxy OK).
+- Redis tidak diperlukan: session (database), cache (database), queue (database) — semua pakai PostgreSQL.
+- Dokumentasi diupdate: `07-docker-setup.md` (section Development Tanpa Docker), `00-README.md` (quick start), `15-dev-log.md` (ini).
+- Kendala: —
+- Perbaikan: —
+- Status: [x] Non-Docker dev setup selesai. Backend:8000 + Frontend:3000 berjalan.
+
+### 2026-07-26 · R1 — Remediasi Audit: Batch 3 — Inline Editing, Playwright, Final Cleanup
+- Dikerjakan: 3 item tambahan — total 63/73 dari audit plan.
+- **RW-4:** Inline editing artifacts — toggle view/edit, textarea, save to frontend state (`web/src/app/(app)/new/page.tsx`)
+- **RT-7:** Frontend testing infrastructure — Playwright installed (chromium), config `playwright.config.ts`, 1 smoke test `e2e/login.spec.ts`
+- **Test fixes:** `PipelineRunnerTest` — mock simplified (1 retry call, not 2). `SettingsTest` — `AiProvider::factory()` → `AiProvider::create()`.
+- **Plan refresh:** Summary table 63/73 selesai, sisa 10. RW ✅ 7/7. RT [6/9].
+- **Sisa akhir (deferred — butuh Docker Desktop):**
+  - RS-9: FPM+Nginx production serve
+  - RT-3/RT-4: Remaining test assertions (3 sub-items)
+  - RT-7: Run Playwright test suite (infra setup ✅, need next dev running)
+- Test: **100/100 passed ✅** (PHP backend)
+- Status: [~] R1 — 63/73 items selesai. Sisa 10 items (infrastructure + sub-items).
+
+### 2026-07-26 · R1 — Remediasi Audit: Batch 2 — Quick Wins, Docs Sync, Tests, Code Fixes
+- Dikerjakan: 15 item tambahan — total 60/73 dari audit plan.
+- **Quick Wins:**
+  - RW-5: Copy button fallback (`execCommand`) di wizard page (project detail page sudah ✅)
+  - RP-5/6/7: Update `docs/06-ai-pipeline.md` — master JSON, Anthropic support, context table sync
+  - RW-2/RW-3/RW-6: Verifikasi dan tandai ✅ di audit plan (sudah diimplementasikan di kode)
+  - RL-5: Verifikasi export format validation di BFF route (sudah ada)
+  - RS-10: Test API key cleanup sudah di working tree
+- **Docs Sync:**
+  - `docs/16-audit-fix-plan.md`: Update status 15 item (RP 7/7, RW 5/7, RT 5/9, RS 9/10, RL 5/5)
+  - `docs/05-wizard-flow.md`: Hapus "belum diimplementasikan" untuk stack & template
+  - `docs/09-roadmap.md`: Update progres global
+- **Test Coverage:**
+  - RT-3: `GenerateStreamTest.php` (8 test — validasi, headers, SSE events, auth)
+  - RT-8: `ModelTest.php` (10 test — isAdmin, maskedKey, authHeaders, current, nextVersionNo, defaultStageStatus, chatEndpoint)
+  - RT-9: Validation error tests di `AuthTest.php` (4 test — required fields, email format, duplicate, confirmation) + `ProjectTest.php` (2 test — required fields, invalid target)
+- **Code Features:**
+  - RP-3: `api_contract` extraction logic — update ERD prompt + saveArtifact extract api_contract dari ERD response
+- **Dibatalkan (infrastructure — butuh Docker rebuild):**
+  - RS-9: FPM+Nginx production serve (defer)
+  - RT-7: Frontend testing infrastructure setup (defer)
+- Test: **100/100 passed ✅** (setelah install PHP 8.4 + sqlite extension + fix test assertions)
+- **Test fixes:** AiClientTest (add is_active), SettingsTest (PATCH→PUT, factory→create), VersionTest (phase key), VersionController (return type), GenerateStreamTest (assertions), PipelineRunnerTest (mock isConfigured), AiProviderTest (response structure)
+- Status: [~] R1 — 60/73 items selesai. Sisa 13 items (infrastructure + RW-4).
+
 ### 2026-07-24 · Final Audit & Fix: Docker, Auth Logout, Full Smoke Test
 - Dikerjakan: Audit menyeluruh Docker files, backend/frontend/database sync. Fix 6 issues.
 - Perbaikan:

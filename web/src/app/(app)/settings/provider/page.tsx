@@ -30,7 +30,6 @@ export default function ProviderSettings() {
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
-  const [promptText, setPromptText] = useState("Halo");
   const [promptBusy, setPromptBusy] = useState<number | null>(null);
   const [testBusy, setTestBusy] = useState<number | null>(null);
   const [promptRes, setPromptRes] = useState<{id: number; resp: string} | null>(null);
@@ -86,7 +85,7 @@ export default function ProviderSettings() {
     setPromptBusy(id); setPromptRes(null);
     try {
       await fetchCsrfCookie();
-      const r = await apiPost<{ok: boolean; message: string; response: string | null}>(`/settings/provider/${id}/test-prompt`, { prompt: promptText });
+      const r = await apiPost<{ok: boolean; message: string; response: string | null}>(`/settings/provider/${id}/test-prompt`, { prompt: "Halo" });
       setPromptRes({ id, resp: r.response || r.message });
     } catch (e: any) { setPromptRes({ id, resp: e.message || "Gagal" }); }
     finally { setPromptBusy(null); load(); }
@@ -142,15 +141,6 @@ export default function ProviderSettings() {
               </div>
             </div>
 
-            <div className="mt-3 flex items-center gap-2">
-              <textarea rows={1} value={promptText} onChange={e => setPromptText(e.target.value)}
-                className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-soft)] px-3 py-1.5 text-xs outline-none focus:border-[var(--color-brand)]"
-                placeholder="Tulis prompt..." />
-              <Button variant="secondary" size="sm" onClick={() => testPrompt(p.id)} disabled={promptBusy === p.id}>
-                <Zap size={13} /> {promptBusy === p.id ? "..." : "Test"}
-              </Button>
-            </div>
-
             {p.last_test_response && !(promptRes?.id === p.id) && (
               <div className="mt-2 rounded-lg bg-[var(--color-bg-soft)] px-3 py-2 text-xs text-[var(--color-fg-muted)] border border-[var(--color-border)] max-h-20 overflow-y-auto">
                 {p.last_test_response}
@@ -166,6 +156,9 @@ export default function ProviderSettings() {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button variant="secondary" size="sm" onClick={() => testConn(p.id)} disabled={testBusy === p.id}>
                 {testBusy === p.id ? "..." : "Test Koneksi"}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => testPrompt(p.id)} disabled={promptBusy === p.id}>
+                <Zap size={13} /> {promptBusy === p.id ? "..." : "Test Prompt"}
               </Button>
               {!p.is_active && (
                 <Button variant="outline" size="sm" onClick={() => setActive(p.id)}>

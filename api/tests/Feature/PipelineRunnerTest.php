@@ -24,7 +24,7 @@ class PipelineRunnerTest extends TestCase
 
         AiProvider::create([
             'base_url' => 'https://api.openai.com/v1',
-            'api_key' => 'sk-test-key-for-mocking',
+            'api_key' => 'sk-test-invalid',
             'model' => 'gpt-4o',
         ]);
 
@@ -137,7 +137,6 @@ class PipelineRunnerTest extends TestCase
 
         $this->version->refresh();
         $status = $this->version->stage_status;
-        // auto mode runs all stages even if one fails
         $this->assertNotNull($status);
     }
 
@@ -187,7 +186,6 @@ class PipelineRunnerTest extends TestCase
 
     public function test_pipeline_runner_emits_token_with_stage_key(): void
     {
-        // Verify SSE token event format uses real stage key
         $client = new AiClient();
         $runner = new PipelineRunner($this->version, $client);
 
@@ -195,9 +193,98 @@ class PipelineRunnerTest extends TestCase
         $runner->run('analisa', false);
         $output = ob_get_clean();
 
-        // Should include event: token with stage: analisa (not 'pending')
         if ($client->isConfigured()) {
             $this->assertStringNotContainsString('"stage":"pending"', $output);
         }
+    }
+
+    public function test_save_artifact_stores_non_json_as_string(): void
+    {
+        $client = new AiClient();
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'analisa', 'plain text analysis');
+
+        $this->version->refresh();
+        $this->assertSame('plain text analysis', $this->version->analysis);
+    }
+
+    public function test_save_artifact_decodes_valid_json(): void
+    {
+        $content = json_encode(['tables' => [['name' => 'users']]]);
+
+        $client = new AiClient();
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'erd', $content);
+
+        $this->version->refresh();
+        $this->assertIsArray($this->version->erd);
+        $this->assertSame('users', $this->version->erd['tables'][0]['name']);
+    }
+
+    public function test_save_artifact_retries_on_invalid_json(): void
+    {
+        $mockClient = $this->createMock(AiClient::class);
+        $mockClient->method('isConfigured')->willReturn(true);
+        $mockClient->method('stream')
+            ->willReturnCallback(function ($messages, $callback) {
+                $callback(json_encode(['retried' => true]));
+            });
+
+        $runner = new PipelineRunner($this->version, $mockClient);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+        $ref->invoke($runner, 'erd', 'not valid json');
+
+        $this->version->refresh();
+        $this->assertIsArray($this->version->erd);
+        $this->assertTrue($this->version->erd['retried']);
+    }
+
+    public function test_save_artifact_throws_when_retry_also_invalid(): void
+    {
+        $mockClient = $this->createMock(AiClient::class);
+        $mockClient->method('isConfigured')->willReturn(true);
+        $mockClient->method('stream')
+            ->willReturnCallback(function ($messages, $callback) {
+                $callback('still not json');
+            });
+
+        $runner = new PipelineRunner($this->version, $mockClient);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('setelah retry');
+        $ref->invoke($runner, 'erd', 'not valid json');
+    }
+
+    public function test_run_uses_idea_and_target_from_project(): void
+    {
+        $client = new AiClient();
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'contextPrompt');
+        $ref->setAccessible(true);
+
+        $prompt = $ref->invoke($runner, 'analisa', $this->version);
+        $this->assertStringContainsString('Aplikasi kasir sederhana', $prompt);
+        $this->assertStringContainsString('web', $prompt);
+    }
+
+    public function test_run_uses_stack_when_present(): void
+    {
+        $this->project->update(['stack' => 'Laravel + React']);
+        $client = new AiClient();
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'contextPrompt');
+        $ref->setAccessible(true);
+
+        $prompt = $ref->invoke($runner, 'analisa', $this->version);
+        $this->assertStringContainsString('Laravel + React', $prompt);
     }
 }

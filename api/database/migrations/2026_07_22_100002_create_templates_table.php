@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('templates', function (Blueprint $table) {
+        Schema::create('aiplanstudio_master.templates', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->enum('target', ['web', 'mobile', 'both']);
@@ -20,6 +20,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('templates');
+        Schema::dropIfExists('aiplanstudio_master.templates');
     }
 };

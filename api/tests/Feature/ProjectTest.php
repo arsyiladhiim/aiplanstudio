@@ -104,4 +104,26 @@ class ProjectTest extends TestCase
 
         $response->assertStatus(401);
     }
+
+    public function test_create_project_validates_required_fields(): void
+    {
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/projects', []);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['title', 'idea', 'target']);
+    }
+
+    public function test_create_project_rejects_invalid_target(): void
+    {
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/projects', [
+                'title' => 'Test',
+                'idea' => 'Some idea',
+                'target' => 'desktop',
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['target']);
+    }
 }

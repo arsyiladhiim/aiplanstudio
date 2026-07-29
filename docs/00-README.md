@@ -31,11 +31,26 @@ Saat memulai/melanjutkan sesi development, baca urut:
 | [13-backend-testing.md](13-backend-testing.md) | Test backend Laravel (PHPUnit/Pest) |
 | [14-frontend-testing.md](14-frontend-testing.md) | Test frontend Playwright + Chrome |
 | [15-dev-log.md](15-dev-log.md) | Log setiap proses development |
+| [16-audit-fix-plan.md](16-audit-fix-plan.md) | Rencana perbaikan hasil audit sinkronisasi docs vs code |
 
 ## Status ringkas
-- **Semua F0–F9 selesai** ✅
-- **Backend:** Laravel 100% (28 tests) ✅
-- **Frontend:** Next.js 100% (50+ E2E tests) ✅
-- **BFF Pattern:** nginx → Next.js → Laravel (service.token removed)
+- **Semua F0–F9 selesai** ✅ (perlu remediasi — lihat [16-audit-fix-plan.md](16-audit-fix-plan.md))
+- **Backend:** Laravel ~43 tests ✅
+- **Frontend:** Next.js UI 100% ✅ (frontend tests: belum ada)
+- **BFF Pattern:** nginx → Next.js → Laravel ✅
 - **Docker:** 5 containers running (nginx/web/api/db/redis)
-- Selengkapnya di [09-roadmap.md](09-roadmap.md).
+- **Non-Docker Dev:** Jalan langsung di host — lihat [07-docker-setup.md](07-docker-setup.md#development-tanpa-docker)
+- **Audit findings:** 31 discrepancies docs vs code, 23 code quality issues, 14 test gaps
+- Selengkapnya di [09-roadmap.md](09-roadmap.md) dan [16-audit-fix-plan.md](16-audit-fix-plan.md).
+
+## Quick Start (Non-Docker)
+```bash
+# Backend
+cd api && php artisan serve --port=8000
+
+# Frontend (terminal lain)
+cd web && npm run dev
+
+# Buka http://localhost:3000
+```
+Detail setup lengkap: [07-docker-setup.md → Development Tanpa Docker](07-docker-setup.md#development-tanpa-docker)

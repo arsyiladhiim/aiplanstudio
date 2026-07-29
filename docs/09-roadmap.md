@@ -4,12 +4,13 @@
 > Status: `[ ]` todo · `[~]` in-progress · `[x]` done
 
 ## Status Global
-- **Fase aktif:** Semua F0–F9 **completed** ✅
-- **Terakhir diupdate:** 2026-07-24
+- **Fase aktif:** R1 — Remediasi Audit (lihat [16-audit-fix-plan.md](16-audit-fix-plan.md))
+- **Terakhir diupdate:** 2026-07-26
 - **Kode aplikasi:** Backend 100% ✅, Frontend UI 100% ✅, **Full BFF 100% ✅**
-- **Auth:** Bearer Token (Sanctum PersonalAccessTokens) — tidak ada cookies/CSRF ✅
-- **Testing status:** Backend **40/40** ✅, Playwright E2E — **50+ tests**
-- **System ready for production deployment**
+- **Auth:** Session-based (Sanctum SPA — HttpOnly cookie + CSRF)
+- **Testing status:** Backend **~43 tests** ✅, Playwright E2E — **belum ada**
+- **Audit sync:** 73 items ditemukan, 0/73 selesai (lihat [16-audit-fix-plan](16-audit-fix-plan.md))
+- **Status:** Mendapatkan remediasi sebelum production deployment
 
 ## Aturan Lintas-Fase (wajib tiap fase)
 Setiap fase F1–F9 baru boleh ditandai `[x]` bila:
@@ -111,8 +112,32 @@ Buat semua dokumen di `docs/` (00–15). Resumable-ready.
 - [x] **Playwright suite:** 5 old specs + 5 new specs + helpers = 11 files. Core ~50 tests passing.
 - **Status:** Backend tests complete (28/28). E2E coverage: auth, register, RBAC, settings CRUD, project detail, wizard UI. Full BFF working.
 
+---
+
+### [~] R1 — Remediasi Audit (lihat [16-audit-fix-plan.md](16-audit-fix-plan.md))
+
+> **73 item** dari audit sinkronisasi docs vs code. **60/73 selesai** (2026-07-26). **Sisa 13 item** (RW: 2, RS: 1, RT: 4, plus RS-9 & RT-7 infrastruktur).
+
+**Sub-fase:**
+- [x] RA — Remediation Auth Docs Sync (8/8 ✅)
+- [x] RD — Remediation Database Schema Docs Sync (6/6 ✅)
+- [x] RP — Remediation AI Pipeline Code + Docs (7/7 ✅)
+- [~] RW — Remediation Wizard Frontend Code + Docs (5/7)
+- [x] RX — Remediation Export & Versioning Code + Tests (4/4 ✅)
+- [~] RS — Remediation Security & Infrastructure (9/10)
+- [x] RC — Remediation Component Structure Docs Sync (3/3 ✅)
+- [~] RT — Remediation Test Coverage (5/9)
+- [x] RL — Remediation Low Priority (5/5 ✅)
+
+**Selesai bila:**
+1. Semua 59 action items di [16-audit-fix-plan](16-audit-fix-plan.md) selesai (`[x]`).
+2. Backend tests: 60+ tests passing (termasuk test baru).
+3. Frontend testing infrastructure siap (minimal 1 test passing).
+4. Semua dokumentasi sinkron dengan implementasi.
+5. Security issues mitigated (terutama hardcoded credentials dan race condition).
+
 ## Catatan Melanjutkan Sesi
-1. Baca fase aktif di atas.
+1. Baca [16-audit-fix-plan.md](16-audit-fix-plan.md) — itu titik masuk utama saat ini.
 2. Baca [11-development-rules](11-development-rules.md) sebelum menulis kode.
 3. Kerjakan hanya fase aktif; update checkbox setelah selesai.
 4. Catat keputusan baru di [10-decision-log](10-decision-log.md).
