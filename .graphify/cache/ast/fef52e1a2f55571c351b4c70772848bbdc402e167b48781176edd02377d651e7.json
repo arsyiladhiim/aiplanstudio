@@ -1,1 +1,0 @@
-{"nodes":[{"id":"queue_shouldbeencrypted","label":"ShouldBeEncrypted.php","file_type":"code","source_file":"api/vendor/laravel/framework/src/Illuminate/Contracts/Queue/ShouldBeEncrypted.php","source_location":"L1"}],"edges":[]}
