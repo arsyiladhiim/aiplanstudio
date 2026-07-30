@@ -3,5 +3,7 @@
 .opencode
 .graphify
 
+graphify-out/
+
 docker/postgres/data_
 docker/redis/data
