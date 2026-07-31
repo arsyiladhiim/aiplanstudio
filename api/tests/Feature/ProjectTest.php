@@ -55,7 +55,7 @@ class ProjectTest extends TestCase
             ->getJson('/api/projects');
 
         $response->assertStatus(200)
-            ->assertJsonCount(3);
+            ->assertJsonCount(3, 'data');
     }
 
     public function test_user_can_view_their_project(): void

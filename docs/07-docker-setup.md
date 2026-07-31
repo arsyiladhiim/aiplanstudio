@@ -2,133 +2,143 @@
 
 > Lihat juga: [02-architecture](02-architecture.md) · [09-roadmap](09-roadmap.md) · [11-development-rules](11-development-rules.md)
 > Aturan mutlak: **semua service di Docker**, antar-service via nama container, **hanya nginx expose ke host**. BFF pattern: nginx → Next.js → Laravel.
+> Requirement: host Docker **Linux containers** (image php/node/postgres semuanya Linux; Windows-only daemon tidak bisa build).
 
 ## Struktur Repo
 ```
-aistack/
+aiplanstudio/
   docker-compose.yml
-  nginx/
-    default.conf
-  api/                 # Laravel
-    Dockerfile
-  web/                 # Next.js
-    Dockerfile
-  docs/                # dokumentasi ini
+  .dockerignore
+  docker/
+    nginx/default.conf        # nginx utama (expose ke host, ke web)
+    api-nginx/default.conf    # nginx front untuk Laravel (php-fpm upstream)
+    postgres/data_/           # bind mount data PostgreSQL
+    redis/data/               # bind mount data Redis
+  api/                        # Laravel
+    Dockerfile                # php:8.3-fpm-alpine (php-fpm, bukan artisan serve)
+    .env.production.example   # template env produksi (termasuk SMTP)
+  web/                        # Next.js (BFF)
+    Dockerfile                # 3-stage build → standalone output
+  docs/                       # dokumentasi ini
 ```
 
-## docker-compose.yml
+## Topologi Service
+```
+Host :4197
+  └─ nginx (nginx:alpine) ── / → web:3000 (Next.js standalone, BFF)
+                                └─ /api/* → Laravel via BFF route handler
+  web (Next.js) ── LARAVEL_URL=http://api:8000 ──> api
+  api (nginx:alpine :8000, root /app/public) ── fastcgi ──> api-fpm:9000
+  api-fpm (php:8.3-fpm-alpine, /app) ──> db / redis
+  migrate (one-shot, image yang sama dengan api-fpm)
+  db (postgres:16-alpine) · redis (redis:alpine)
+```
+
+## docker-compose.yml (ringkas)
 ```yaml
 services:
-  nginx:
+  nginx:                    # SATU-SATUNYA publish ke host
     image: nginx:alpine
-    ports:
-      - "80:80"            # SATU-SATUNYA publish ke host
-    volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on: [web]
-    networks: [aistack]
+    ports: ["4197:80"]
+    volumes: [./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro, ./api/storage/logs:/var/log/nginx]
+    depends_on: { web: { condition: service_started }, api: { condition: service_healthy } }
 
-  web:                     # Next.js (BFF)
-    build: ./web
-    expose: ["3000"]       # internal saja
-    depends_on: [api]
-    networks: [aistack]
+  web:                      # Next.js (BFF) — standalone, user nextjs
+    build: { context: ./web, dockerfile: Dockerfile }
+    expose: ["3000"]
+    environment: [LARAVEL_URL=http://api:8000]
 
-  api:                     # Laravel
-    build: ./api
-    expose: ["8000"]       # internal saja (bukan 9000)
-    depends_on: [db]
-    networks: [aistack]
+  api:                      # nginx front untuk Laravel
+    image: nginx:alpine
+    expose: ["8000"]
+    volumes: [./docker/api-nginx/default.conf:ro, ./api/public:/app/public:ro]
+    depends_on: [api-fpm]
+    healthcheck: wget http://localhost:8000/api/health
 
-  db:
+  api-fpm:                  # php-fpm Laravel
+    build: { context: ., dockerfile: api/Dockerfile }
+    image: aiplanstudio-api
+    expose: ["9000"]
+    env_file: ./api/.env
+    working_dir: /app
+    volumes: [./api:/app]
+    depends_on: { db: { condition: service_healthy }, migrate: { condition: service_completed_successfully } }
+
+  migrate:                  # one-shot
+    image: aiplanstudio-api
+    command: ["php", "artisan", "migrate", "--force", "--no-interaction"]
+    depends_on: { db: { condition: service_healthy } }
+    restart: "no"
+
+  db:                       # TANPA ports — tidak diekspos ke host
     image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: aistack
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - aistack_db:/var/lib/postgresql/data
-    # TANPA ports: — tidak diekspos ke host
-    networks: [aistack]
+    environment: { POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD }
+    volumes: [./docker/postgres/data_:/var/lib/postgresql/data]
+    healthcheck: pg_isready
 
   redis:
     image: redis:alpine
-    networks: [aistack]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    expose: ["6379"]
 
-  web-test:               # E2E (profile: test)
-    build: ./web --target test
-    depends_on: [web, api]
-    networks: [aistack]
-    profiles: ["test"]
-
-volumes:
-  aistack_db:
-
-networks:
-  aistack:
+networks: { aiplanstudio: { driver: bridge } }
 ```
 
-## nginx/default.conf (BFF pattern)
-```nginx
-server {
-  listen 80;
-  location / {
-    proxy_pass http://web:3000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
-  location /_next/ {
-    proxy_pass http://web:3000;
-  }
-}
-```
-Semua `/api/*` dan `/sanctum/*` ditangani oleh Next.js BFF (route `src/app/api/**`).
+## nginx/default.conf (nginx utama)
+- gzip, `client_max_body_size 20m`, security headers (CSP, HSTS, X-Frame-Options).
+- Semua request `location /` → `proxy_pass http://web:3000`, `proxy_buffering off`, `proxy_read_timeout 86400` (SSE).
+- Semua `/api/*` dan `/sanctum/*` ditangani Next.js BFF (route `src/app/api/**`).
+
+## docker/api-nginx/default.conf (nginx api)
+- `root /app/public; index index.php` → `fastcgi_pass api-fpm:9000`, `fastcgi_buffering off` (SSE).
+- `try_files $uri $uri/ /index.php?$query_string`; blok `.php$`; deny dotfiles.
 
 ## Env
-`api/.env` (Laravel): `APP_KEY`, `DB_HOST=db`, `DB_DATABASE=aistack`, `DB_USERNAME`, `DB_PASSWORD`, `SESSION_DRIVER=database`, `SANCTUM_STATEFUL_DOMAINS=localhost`, `SESSION_DOMAIN=localhost`, `REDIS_HOST=redis`, `LARAVEL_URL=http://localhost`.
-`web/.env` (Next.js): `LARAVEL_URL=http://api:8000` (BFF points to Laravel internal).
-`docker-compose.yml`: `DB_USERNAME`, `DB_PASSWORD` vars.
+- **`api/.env`** (Laravel, dipakai `api-fpm` via `env_file`): `APP_KEY` (wajib `php artisan key:generate`), `DB_HOST=db`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST=redis`, `REDIS_PASSWORD`, `SESSION_DRIVER=database`, `SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`, `APP_URL`, `FRONTEND_URL`, blok `MAIL_*`.
+- **`api/.env.production.example`**: template produksi lengkap — `APP_ENV=production`, `APP_URL`/`FRONTEND_URL` https publik, `SANCTUM_STATEFUL_DOMAINS` + `SESSION_DOMAIN` domain produksi, `SESSION_SECURE_COOKIE=true`, `SESSION_HTTP_ONLY=true`, `GOOGLE_REDIRECT_URI`, SMTP (`MAIL_MAILER=smtp`, `MAIL_HOST/PORT/USERNAME/PASSWORD/ENCRYPTION/FROM`), `LOG_LEVEL=error`.
+- **`web/.env`** (Next.js): `LARAVEL_URL=http://api:8000` di Docker; `http://localhost:8000` saat dev tanpa Docker.
+- **`.env` root compose**: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`.
+
+### Trusted Proxies
+`api/bootstrap/app.php` sudah set `trustProxies(at: ['api','nginx','localhost','127.0.0.1'], headers: FORWARDED_FOR|HOST|PORT|PROTO)` agar Laravel tahu `https`/host asli di balik nginx (dipakai untuk URL generation & Secure cookies).
 
 ### Multi-Schema
-
 Database menggunakan 3 PostgreSQL schema: `aiplanstudio_master`, `aiplanstudio_project`, `aiplanstudio_settings`. `search_path` di `config/database.php` mencakup ketiganya agar mapping model tetap sederhana.
 
 ## Perintah Kunci
 ```bash
-# 1. Build & jalankan semua
+# 1. Build & jalankan semua (migrasi jalan otomatis via service `migrate`)
 docker compose up -d --build
 
-# 2. Inisialisasi Laravel
-docker compose exec api php artisan key:generate
-docker compose exec api php artisan migrate --seed
-
-# 3. Verifikasi hanya nginx yang publish
+# 2. Verifikasi healthcheck (api harus healthy)
 docker compose ps
+docker compose logs api-fpm migrate
 
-# 4. Jalankan E2E tests
-docker compose --profile test up web-test
-# Atau dari host: cd web && npx playwright test
+# 3. Inisialisasi awal (sekali saja, jika migrate belum jalan)
+docker compose run --rm migrate
 
-# 5. Cek tabel
-docker compose exec db psql -U "$DB_USERNAME" -d aistack -c '\dt'
+# 4. Cek tabel
+docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\dt'
 
-# 6. Antar-service via hostname (uji BFF)
-curl http://localhost/api/health        # nginx → web → api → "ok"
+# 5. Antar-service via hostname (uji BFF)
+curl http://localhost:4197/api/health                 # nginx → web → api → "ok"
 docker compose exec web wget -qO- http://api:8000/api/health  # internal OK
 ```
 
 ## Checklist Keamanan Infra
-- [x] Hanya `nginx` punya `ports:`.
-- [x] `db`, `api`, `web` tanpa `ports:` (host `:5432`/`:8000`/`:3000` tertutup).
-- [x] Volume DB baru (fresh).
-- [x] Rahasia via env, bukan hardcode; `.env` tidak di-commit.
+- [x] Hanya `nginx` punya `ports:` (host `:5432`/`:8000`/`:3000`/`:9000` tertutup).
+- [x] `db`, `api`, `api-fpm`, `web`, `redis` tanpa `ports:`.
+- [x] `migrate` one-shot (`restart: "no"`), depend `api-fpm` menunggu `service_completed_successfully`.
+- [x] Healthcheck di `db` (`pg_isready`) & `api` (wget `/api/health`).
+- [x] `mem_limit` di semua service; `restart: unless-stopped` untuk daemon.
+- [x] Rahasia via env (`.env`/`.env.production`), tidak di-commit; `REDIS_PASSWORD` via compose.
 - [x] BFF: semua request masuk via nginx → Next.js, tidak ada route langsung ke Laravel.
 
 ---
 
 ## Development Tanpa Docker
 
-Untuk development cepat, semua service bisa dijalankan langsung di host tanpa Docker.
+Untuk development cepat, semua service bisa dijalankan langsung di host tanpa Docker (keputusan saat ini: **dev pakai host, Docker untuk produksi**).
 
 ### Prasyarat
 - PHP 8.3+ dengan ekstensi `pdo_pgsql`, `curl`, `mbstring`, `xml`, `zip`
@@ -142,13 +152,13 @@ Untuk development cepat, semua service bisa dijalankan langsung di host tanpa Do
 **`api/.env`** — sudah di-set untuk development:
 ```env
 APP_ENV=local
-APP_KEY=base64:8HPpQ3zWuC7l0QoOJLKz/NCfKK2f+zUxMobQZXDOUD8=
+APP_KEY=base64:<isi dari php artisan key:generate>
 DB_CONNECTION=pgsql
 DB_HOST=localhost
 DB_PORT=5432
 DB_DATABASE=aiplanstudio
 DB_USERNAME=postgres
-DB_PASSWORD=arsyiladhiim
+DB_PASSWORD=<password postgres>
 SESSION_DRIVER=database
 SANCTUM_STATEFUL_DOMAINS=localhost,localhost:3000
 FRONTEND_URL=http://localhost
@@ -187,4 +197,4 @@ npm run dev
 - `APP_DEBUG=true` di `.env` untuk melihat stack trace saat development.
 - User pertama yang register otomatis jadi admin.
 - Pipeline SSE streaming kompatibel dengan `php artisan serve`.
-- Untuk beralih ke Docker, cukup setel ulang `.env` (lihat bagian Docker Setup di atas).
+- Untuk beralih ke Docker, cukup setel ulang `.env` (lihat bagian Docker Setup di atas) — Docker butuh host dengan **Linux containers**.

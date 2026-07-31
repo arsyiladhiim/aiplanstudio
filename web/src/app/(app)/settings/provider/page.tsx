@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Card, Input, Label, Badge } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
-import { CheckCircle2, Cpu, Zap, Plus, Trash2, Star, X } from "lucide-react";
+import { CheckCircle2, AlertCircle, Zap, Plus, Trash2, Star, X } from "lucide-react";
 import { apiGet, apiPost, apiPatch, apiDelete, fetchCsrfCookie } from "@/lib/api";
 
 type Provider = {
@@ -18,8 +18,9 @@ const PROVIDER_TYPES = [
 ];
 
 function emptyForm(type?: string) {
-  const t = PROVIDER_TYPES.find(p => p.key === (type || 'openai'))!;
-  return { name: "", base_url: t.defaultUrl, api_key: "", model: t.defaultModel, provider_type: type || "openai" };
+  const key = type || 'openai';
+  const t = PROVIDER_TYPES.find(p => p.key === key) ?? PROVIDER_TYPES[0];
+  return { name: "", base_url: t.defaultUrl, api_key: "", model: t.defaultModel, provider_type: key };
 }
 
 export default function ProviderSettings() {
@@ -30,21 +31,26 @@ export default function ProviderSettings() {
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  const [saveError, setSaveError] = useState(false);
   const [promptBusy, setPromptBusy] = useState<number | null>(null);
   const [testBusy, setTestBusy] = useState<number | null>(null);
   const [promptRes, setPromptRes] = useState<{id: number; resp: string} | null>(null);
 
   function load() {
-    apiGet<Provider[]>("/settings/provider").then(setProviders).catch(() => {}).finally(() => setLoading(false));
+    apiGet<Provider[]>("/settings/provider").then(setProviders).catch((err) => console.error('Failed to load providers:', err)).finally(() => setLoading(false));
   }
   useEffect(load, []);
 
+interface ProviderFormData {
+  name: string; base_url: string; model: string; provider_type: string; api_key?: string;
+}
+
   async function save() {
-    setSaving(true); setSaveMsg("");
+    setSaving(true); setSaveMsg(""); setSaveError(false);
     try {
       await fetchCsrfCookie();
       if (editId) {
-        const b: Record<string, any> = { name: form.name, base_url: form.base_url, model: form.model, provider_type: form.provider_type };
+        const b: ProviderFormData = { name: form.name, base_url: form.base_url, model: form.model, provider_type: form.provider_type };
         if (form.api_key) b.api_key = form.api_key;
         await apiPatch(`/settings/provider/${editId}`, b);
       } else {
@@ -52,7 +58,7 @@ export default function ProviderSettings() {
       }
       setShowForm(false); setEditId(null); setForm(emptyForm()); setSaveMsg("Tersimpan!");
       load();
-    } catch (e: any) { setSaveMsg(e.message || "Gagal"); }
+    } catch (e: unknown) { setSaveMsg(e instanceof Error ? e.message : "Gagal"); setSaveError(true); }
     finally { setSaving(false); }
   }
 
@@ -76,8 +82,8 @@ export default function ProviderSettings() {
     try {
       await fetchCsrfCookie();
       const r = await apiPost<{ok: boolean; message: string}>(`/settings/provider/${id}/test`);
-      setSaveMsg(r.message);
-    } catch (e: any) { setSaveMsg(e.message || "Gagal"); }
+      setSaveMsg(r.message); setSaveError(!r.ok);
+    } catch (e: unknown) { setSaveMsg(e instanceof Error ? e.message : "Gagal"); setSaveError(true); }
     finally { setTestBusy(null); load(); }
   }
 
@@ -87,7 +93,7 @@ export default function ProviderSettings() {
       await fetchCsrfCookie();
       const r = await apiPost<{ok: boolean; message: string; response: string | null}>(`/settings/provider/${id}/test-prompt`, { prompt: "Halo" });
       setPromptRes({ id, resp: r.response || r.message });
-    } catch (e: any) { setPromptRes({ id, resp: e.message || "Gagal" }); }
+    } catch (e: unknown) { setPromptRes({ id, resp: e instanceof Error ? e.message : "Gagal" }); }
     finally { setPromptBusy(null); load(); }
   }
 
@@ -95,7 +101,11 @@ export default function ProviderSettings() {
 
   return (
     <div className="space-y-6">
-      {saveMsg && <Badge tone="success"><CheckCircle2 size={13} /> {saveMsg}</Badge>}
+      {saveMsg && (
+        <Badge tone={saveError ? "danger" : "success"}>
+          {saveError ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />} {saveMsg}
+        </Badge>
+      )}
 
       {activeProvider && (
         <Card className="p-4 border-[var(--color-brand)]/40 bg-[color-mix(in_oklab,var(--color-brand)_6%,transparent)]">
@@ -131,6 +141,9 @@ export default function ProviderSettings() {
                   <span className="font-semibold">{p.name}</span>
                   <Badge tone="muted" className="text-[10px]">{p.provider_type}</Badge>
                   {p.is_active && <Badge tone="brand" className="text-[10px]"><Star size={10} /> Global</Badge>}
+                  {p.last_test_response && (
+                    <span className={`inline-block h-2 w-2 rounded-full ${p.last_test_response.toLowerCase().includes('ok') || p.last_test_response.toLowerCase().includes('berhasil') ? 'bg-green-500' : 'bg-yellow-500'}`} title={p.last_test_response} />
+                  )}
                 </div>
                 <div className="mt-1 text-xs text-[var(--color-fg-muted)] space-y-0.5">
                   <div>Model: <span className="font-mono">{p.model}</span></div>

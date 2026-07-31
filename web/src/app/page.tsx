@@ -160,8 +160,8 @@ export default function LandingPage() {
             <Sparkles size={15} className="text-[var(--color-brand)]" /> AI Planning Studio © 2026
           </div>
           <div className="flex items-center gap-4">
-            <a href="#" className="hover:text-[var(--color-fg)]">Privasi</a>
-            <a href="#" className="hover:text-[var(--color-fg)]">Ketentuan</a>
+            <a href="/privacy" className="hover:text-[var(--color-fg)]">Privasi</a>
+            <a href="/terms" className="hover:text-[var(--color-fg)]">Ketentuan</a>
             <a href="#" className="inline-flex items-center gap-1.5 hover:text-[var(--color-fg)]"><Star size={15} /> GitHub</a>
           </div>
         </div>

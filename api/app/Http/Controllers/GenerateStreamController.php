@@ -20,7 +20,7 @@ class GenerateStreamController extends Controller
             abort(422, 'Parameter "version" dan "stage" wajib diisi.');
         }
 
-        $validStages = ['analisa', 'prd', 'architecture', 'erd', 'phased_master'];
+        $validStages = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'phased_master', 'phased_master_mobile'];
         if (!in_array($stage, $validStages)) {
             abort(422, 'Stage tidak valid. Pilih: ' . implode(', ', $validStages));
         }

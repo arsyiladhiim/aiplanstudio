@@ -3,6 +3,26 @@
 > **Catat setiap proses development di sini** (aturan wajib [11-development-rules](11-development-rules.md)). Entri terbaru di atas.
 > Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
 
+### 2026-07-31 · Phase 4 — Activity Log, Favorites, Search/Filter, Provider Health, Dashboard
+- Dikerjakan: Lint sweep (27→0 errors) + 5 fitur baru + build fix + graphify update.
+- **Fitur Baru:**
+  - **Activity Log:** migration `create_activities_table`, Model, `ActivityController` (paginated index), `Project::logActivity()`, BFF route, "Aktivitas" tab di project detail. Wired ke `VersionController::store()`/`destroy()`.
+  - **Favorites:** migration `add_is_favorite_to_projects`, toggle endpoint (PATCH), heart button di project header, filter toggle di projects list.
+  - **Search/Filter:** `ProjectController::index()` menerima `q` (ilike title+idea) dan `favorite` (boolean). BFF `/projects` GET forward searchParams.
+  - **Provider Health:** status dot (green/yellow) di provider list berdasarkan `last_test_response`.
+  - **Dashboard:** `dashboardStats()` return `favorite_projects` + `recent_activities`. Frontend stat card + activity feed.
+- **Lint Sweep (27→0):**
+  - `ThemeToggle.tsx`: `useEffect` + `setLight` → `useState(() => ...)` + `document` guard untuk SSR.
+  - `projects/page.tsx`: hapus unused `searching`/`setSearching`. Tambah `Suspense` untuk `useSearchParams()`.
+  - `projects/[id]/page.tsx`: pindah `setLastRefreshed` ke async interval callback.
+  - `settings/provider/page.tsx`: `ProviderFormData` interface, `catch (e: unknown)` + `instanceof Error`.
+  - `new/page.tsx`: 14 errors fixed — `setTargetAndReset()` helper, `questions` useMemo, `handleSSEEvent(data: unknown)`, computed property names, optional chaining IIFE.
+- **Build Fixes:** `ThemeToggle` SSR `document is not defined` → guard `typeof document !== "undefined"`. `projects` Suspense boundary.
+- **Migrations:** 2 migration files, both ran clean.
+- **TypeScript:** `tsc --noEmit` 0 errors. `next build` 17/17 pages.
+- **Graphify:** `graphify update .` selesai — 1110 nodes, 1889 edges, 101 communities.
+- **Status:** [x] Phase 4 selesai.
+
 ## Template Entri
 ```
 ### YYYY-MM-DD · Fx — Judul

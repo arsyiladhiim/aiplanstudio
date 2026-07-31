@@ -61,6 +61,28 @@ Semua `/api/*`, `/sanctum/*` masuk ke Next.js → Next.js proxy ke Laravel inter
 2. Frontend fetch `http://localhost/api/...` (dengan cookie session + CSRF header) → nginx → `web` (BFF) → `api:8000` (Laravel).
 3. Pipeline AI: frontend buka **SSE** ke `/api/generate/stream` → Next.js BFF proxy → Laravel → AI Provider streaming → relay token & status per stage ke frontend realtime.
 
+## Fitur Kunci
+### Dashboard Analytics (`GET /api/dashboard/stats`)
+- Server-computed stats: total projects, versions, active projects, weekly counts, recent projects.
+- BFF route: `web/src/app/api/dashboard/stats/route.ts`.
+- Frontend: `web/src/app/(app)/dashboard/page.tsx`.
+
+### Inline Artifact Editing (`PATCH /api/versions/{id}/artifacts`)
+- Wizard page allows editing any completed artifact inline via textarea.
+- Stage key → DB column mapping: analisa→analysis, prd→prd, architecture→architecture, erd→erd, phased_master→master_prompt.
+- ERD content JSON-decoded before storage.
+
+### Version Diff (`GET /api/versions/{id}/diff?compare={otherId}`)
+- Compares all 5 artifact fields between two versions.
+- Returns structured diff with `changed` boolean per field.
+- Frontend: side-by-side diff view at `web/src/app/(app)/projects/[id]/diff/page.tsx`.
+- Accessible from project detail page via "Diff" button in version selector.
+
+### Project API Tokens
+- Three BFF routes under `/api/projects/{id}/tokens`: GET (list), POST (create—shows once), DELETE (revoke).
+- UI embedded as collapsible card in project detail page.
+- Tokens authenticate webhook callbacks (see `middleware/auth.project-token`).
+
 ## Keamanan Arsitektur
 - Auth: **Sanctum SPA Session** — HttpOnly session cookie + CSRF (`XSRF-TOKEN`).
 - CSRF aktif: state-changing requests wajib menyertakan `X-XSRF-TOKEN` header.

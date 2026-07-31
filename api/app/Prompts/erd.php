@@ -1,29 +1,60 @@
 <?php
 
-return fn(string $target) => 'Kamu database engineer. Buat ERD dan API Contract dalam format teks terstruktur berikut:
+return fn(string $target) => 'Kamu analis data. Buat daftar "benda" (data) yang dikelola aplikasi, field-nya, dan hubungan antar benda.
 
-TABEL: {nama_tabel} | {field1}, {field2}, {field3}
-TABEL: {nama_tabel} | {field1}, {field2}, {field3}
-RELASI: {tabel1} -> {tabel2} | {jenis_relasi}
-API: {METHOD} | {path} | {deskripsi} | {auth: true/false}
+[STRUKTUR OUTPUT]
+Output terdiri dari daftar data yang disimpan. Untuk SETIAP benda:
+
+=== {nama benda} ===
+Penjelasan: {apa itu, fungsinya dalam aplikasi, 1 kalimat}
+Field:
+- {field}: {jenis/isinya} — {contoh}
+- {field}: {jenis/isinya} — {contoh}
+- ...
+Hubungan:
+- {benda ini} punya {berapa} {benda lain} — {penjelasan}
+- {benda ini} milik {benda lain} — {penjelasan}
+
+[CONTOH]
+=== Produk ===
+Penjelasan: Barang yang dijual oleh toko
+Field:
+- nama: teks — "Indomie Goreng"
+- harga: angka — 3500
+- stok: angka — 100
+- kategori: pilihan — "Makanan", "Minuman", "Lainnya"
+- foto: gambar — file foto produk
+Hubungan:
+- Produk termasuk dalam SATU Kategori
+- Produk muncul di BANYAK ItemPenjualan
+
+=== Penjualan ===
+Penjelasan: Catatan transaksi penjualan
+Field:
+- tanggal: tanggal — 2026-07-31
+- total: angka — 15000
+- metode_bayar: pilihan — "Tunai", "QRIS", "Transfer"
+- catatan: teks (opsional) — "Pelanggan setia"
+Hubungan:
+- Penjualan punya BANYAK ItemPenjualan
+- Penjualan dicatat oleh SATU Pengguna
+
+=== ItemPenjualan ===
+Penjelasan: Barang yang dibeli dalam satu transaksi
+Field:
+- produk: pilihan dari daftar produk
+- jumlah: angka — 2
+- harga_satuan: angka — 3500
+Hubungan:
+- ItemPenjualan milik SATU Penjualan
+- ItemPenjualan merujuk ke SATU Produk
+
+' . platformSuffix($target) . '
 
 WAJIB:
-- Minimal 4 TABEL (field dipisah koma)
-- Minimal 3 RELASI
-- Minimal 4 API (mencakup GET, POST, PUT, DELETE)
-- Gunakan snake_case
+- Minimal 4 benda
+- Bahasa Indonesia sederhana, mudah dipahami non-teknis
+- Gunakan istilah sehari-hari, bukan teknis (jangan tabel, entity, kolom, dsb)
+- Contoh nilai bantu pengguna membayangkan isi data
 
-Contoh:
-TABEL: users | id, name, email, role, created_at
-TABEL: products | id, sku, name, price, category_id, created_at
-TABEL: orders | id, user_id, total, status, created_at
-TABEL: order_items | id, order_id, product_id, qty, price
-RELASI: users -> orders | 1:N
-RELASI: orders -> order_items | 1:N
-RELASI: products -> order_items | 1:N
-API: GET | /api/users | Ambil daftar user | true
-API: POST | /api/users | Buat user baru | true
-API: PUT | /api/users/{id} | Update user | true
-API: DELETE | /api/users/{id} | Hapus user | true
-
-' . platformSuffix($target);
+Mulai langsung dengan benda pertama. Jangan tulis kalimat pembuka.';

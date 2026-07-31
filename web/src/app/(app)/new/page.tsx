@@ -1,21 +1,39 @@
 "use client";
-import { useState, useRef, useCallback, useEffect, use } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import { Card, Badge, Textarea, Label } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { ErdDiagram } from "@/components/wizard/ErdDiagram";
-import { STAGES, type StageKey, type StageState, type Target } from "@/lib/mock";
-import { apiPost, apiGet, createSSE, type Project, type Template } from "@/lib/api";
+import { getStages, type StageKey, type StageState, type Target } from "@/lib/mock";
+import { apiPost, apiGet, apiPatch, createSSEPost, type Project, type Template, type Version } from "@/lib/api";
 import {
   Wand2, Globe, Smartphone, Layers, Loader2, Check, Copy, ArrowRight,
-  RotateCcw, Zap, CircleDot, Sparkles, AlertCircle, Code2, Pencil,
+  RotateCcw, CircleDot, Sparkles, AlertCircle, Pencil,
 } from "lucide-react";
 
 const TARGETS: { key: Target; label: string; icon: typeof Globe }[] = [
   { key: "web", label: "Web App", icon: Globe },
-  { key: "mobile", label: "Mobile (APK/iOS)", icon: Smartphone },
-  { key: "both", label: "Keduanya", icon: Layers },
+  { key: "mobile", label: "Mobile (APK)", icon: Smartphone },
+  { key: "both", label: "Web + Mobile", icon: Layers },
 ];
+
+interface PhaseItem {
+  key?: string; title?: string; tasks?: string[]; prompt?: string; ac?: string;
+}
+
+interface ApiContractItem {
+  method: string; path: string; description: string; auth: boolean;
+}
+
+interface ErdParsed {
+  nodes?: Array<{ id: string; label: string; fields: string[] }>;
+  edges?: Array<{ from: string; to: string; relation: string }>;
+  api_contract?: ApiContractItem[];
+  phases?: PhaseItem[];
+  master?: string;
+  standards?: boolean;
+  agents?: boolean;
+}
 
 export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ resume?: string; version?: string }> }) {
   const router = useRouter();
@@ -26,14 +44,25 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [idea, setIdea] = useState("");
   const [title, setTitle] = useState("");
   const [target, setTarget] = useState<Target>("web");
-  const [stack, setStack] = useState("");
-  const [auto, setAuto] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [current, setCurrent] = useState(0);
-  const [status, setStatus] = useState<Record<StageKey, StageState>>(
-    Object.fromEntries(STAGES.map((s) => [s.key, "pending"])) as Record<StageKey, StageState>
-  );
+
+  function initStatus(t: Target): Record<StageKey, StageState> {
+    return Object.fromEntries(getStages(t).map((s) => [s.key, "pending"])) as Record<StageKey, StageState>;
+  }
+
+  const [status, setStatus] = useState<Record<StageKey, StageState>>(() => initStatus(target));
+
+  function setTargetAndReset(newTarget: Target) {
+    setTarget(newTarget);
+    setStatus(initStatus(newTarget));
+  }
+
+  const stages = useMemo(() => getStages(target), [target]);
+  const allDone = stages.every((s) => status[s.key] === "done");
+  const activeKey = stages[current]?.key;
 
   // Real backend integration states
   const [projectId, setProjectId] = useState<number | null>(null);
@@ -44,37 +73,137 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [editingStage, setEditingStage] = useState<StageKey | null>(null);
   const [editContent, setEditContent] = useState("");
 
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const cancelled = useRef(false);
   const fallbackFetched = useRef(new Set<string>());
   const outputRef = useRef<HTMLDivElement>(null);
 
-  const allDone = STAGES.every((s) => status[s.key] === "done");
-  const activeKey = STAGES[current].key;
+  // Derive questions from artifacts.pertanyaan (instead of setQuestions in effect)
+  const questions = useMemo(() => {
+    if (!artifacts.pertanyaan) return [] as string[];
+    const lines = artifacts.pertanyaan.split('\n').filter((l: string) => l.trim());
+    let parsed = lines
+      .filter((l: string) => /^\d+[.)]\s/.test(l.trim()))
+      .map((l: string) => l.replace(/^\d+[.)]\s*/, '').trim());
+    if (parsed.length === 0) {
+      parsed = lines.filter((l: string) => l.trim().endsWith('?'));
+    }
+    if (parsed.length === 0) {
+      parsed = ['Jelaskan lebih detail tentang aplikasi yang kamu inginkan?'];
+    }
+    return parsed;
+  }, [artifacts.pertanyaan]);
 
-  // Load templates on mount
-  useEffect(() => {
-    apiGet<Template[]>("/templates").then(setTemplates).catch(() => {});
-  }, []);
+  // handleSSEEvent must be defined before startPipeline
+  const handleSSEEvent = useCallback((event: string, rawData: unknown) => {
+    if (cancelled.current) return;
+    const data = rawData as Record<string, unknown>;
+
+    switch (event) {
+      case 'status': {
+        const stage = data.stage as string | undefined;
+        if (stage) {
+          setStatus(s => ({ ...s, [stage]: data.state as StageState }));
+          if (data.state === 'running') {
+            const idx = stages.findIndex(x => x.key === stage);
+            if (idx >= 0) setCurrent(idx);
+          }
+        }
+        break;
+      }
+
+      case 'token': {
+        const stage = data.stage as string | undefined;
+        if (stage) {
+          setArtifacts(prev => {
+            const key = stage as StageKey;
+            return { ...prev, [key]: ((prev[key] || '') + String(data.delta ?? '')) };
+          });
+        }
+        break;
+      }
+
+      case 'artifact': {
+        const stage = data.stage as string | undefined;
+        if (stage) {
+          setArtifacts(prev => ({ ...prev, [stage as StageKey]: String(data.content ?? '') }));
+        }
+        break;
+      }
+
+      case 'done': {
+        const stage = data.stage as string | undefined;
+        if (stage) {
+          const stageIndex = stages.findIndex(x => x.key === stage);
+          if (stageIndex >= 0) {
+            setCurrent(stageIndex);
+            setStatus(s => ({ ...s, [stage]: 'done' as StageState }));
+          }
+        }
+        break;
+      }
+
+      case 'fail':
+        setError(String(data.message ?? 'Terjadi kesalahan.'));
+        { const stage = data.stage as string | undefined;
+          if (stage) {
+            setStatus(s => ({ ...s, [stage]: 'error' as StageState }));
+          }
+        }
+        if (abortRef.current) {
+          abortRef.current.abort();
+          abortRef.current = null;
+        }
+        break;
+    }
+  }, [stages]);
+
+  const startPipeline = useCallback((versionId: number, stage?: string) => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+
+    const s = stage || stages[0].key;
+    const idx = stages.findIndex(x => x.key === s);
+    if (idx >= 0) setCurrent(idx);
+    setStatus(prev => ({ ...prev, [s]: 'running' }));
+
+    createSSEPost(
+      `/generate/stream`,
+      { version: versionId, stage: s },
+      handleSSEEvent,
+      (err) => {
+        console.error('SSE error:', err);
+        setError('Koneksi SSE terputus');
+      }
+    ).then(ctrl => { abortRef.current = ctrl; });
+  }, [handleSSEEvent, stages]);
 
   // Apply template seed when selected
-  useEffect(() => {
-    if (!selectedTemplate) return;
-    const tpl = templates.find(t => String(t.id) === selectedTemplate);
+  function handleTemplateChange(value: string) {
+    setSelectedTemplate(value);
+    if (!value) return;
+    const tpl = templates.find(t => String(t.id) === value);
     if (!tpl || !tpl.seed) return;
     const seed = tpl.seed as Record<string, string>;
     if (seed.title) setTitle(seed.title);
     if (seed.idea) setIdea(seed.idea);
-    if (seed.stack) setStack(seed.stack);
-    if (seed.target && ["web","mobile","both"].includes(seed.target)) setTarget(seed.target as Target);
-  }, [selectedTemplate, templates]);
+    if (seed.target && ["web","mobile","both"].includes(seed.target)) {
+      setTargetAndReset(seed.target as Target);
+    }
+  }
 
-  // Cleanup EventSource on unmount
+  // Load templates on mount
+  useEffect(() => {
+    apiGet<Template[]>("/templates").then(setTemplates).catch((err) => console.error('Failed to load templates:', err));
+  }, []);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
       }
     };
   }, []);
@@ -82,30 +211,31 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   // Fallback: fetch artifact from DB when SSE artifact event was lost
   useEffect(() => {
     if (!versionId) return;
-    for (const stage of STAGES) {
-      if (status[stage.key] !== 'done') continue;
-      if (artifacts[stage.key]) continue;
-      if (fallbackFetched.current.has(stage.key)) continue;
-      fallbackFetched.current.add(stage.key);
+    const colMap: Record<string, string> = {
+      analisa: 'analysis', prd: 'prd', architecture: 'architecture',
+      erd: 'erd', phased_master: 'master_prompt',
+    };
+    const missing = stages.filter(s =>
+      status[s.key] === 'done' && !artifacts[s.key] && !fallbackFetched.current.has(s.key)
+    );
+    if (missing.length === 0) return;
+    for (const stage of missing) fallbackFetched.current.add(stage.key);
 
-      const colMap: Record<string, string> = {
-        analisa: 'analysis', prd: 'prd', architecture: 'architecture',
-        erd: 'erd', phased_master: 'master_prompt',
-      };
-      const col = colMap[stage.key];
-      if (!col) continue;
-
-      apiGet<Record<string, any>>(`/versions/${versionId}`).then(v => {
-        const content = v[col];
-        setArtifacts(prev => {
-          if (prev[stage.key]) return prev;
-          if (content == null || content === '') return prev;
-          return { ...prev, [stage.key]: typeof content === 'string' ? content : JSON.stringify(content, null, 2) };
-        });
-      }).catch(() => {});
-      break;
-    }
-  }, [status, versionId]);
+    apiGet<Record<string, unknown>>(`/versions/${versionId}`).then(v => {
+      setArtifacts(prev => {
+        const next = { ...prev };
+        for (const stage of missing) {
+          const col = colMap[stage.key];
+          if (!col) continue;
+          if (next[stage.key]) continue;
+          const content = v[col];
+          if (content == null || content === '') continue;
+          next[stage.key] = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+        }
+        return next;
+      });
+    }).catch((err) => console.error('Failed to fetch artifact fallback:', err));
+  }, [status, versionId, stages, artifacts]);
 
   // Resume mode: load existing version data
   useEffect(() => {
@@ -117,92 +247,37 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       setTitle(v.project?.title ?? '');
       setIdea(v.project?.idea ?? '');
       setTarget(v.project?.target ?? 'web');
-      setStack(v.project?.stack ?? '');
+      if (v.answers) setAnswers(v.answers);
       setStarted(true);
 
-      const firstIdx = STAGES.findIndex(s => (v.stage_status as Record<string, string>)?.[s.key] !== 'done');
+      const firstIdx = stages.findIndex(s => (v.stage_status as Record<string, string>)?.[s.key] !== 'done');
       setCurrent(Math.max(0, firstIdx));
 
-      const loadedStatus = Object.fromEntries(STAGES.map(s => [s.key, (v.stage_status as Record<string, string>)?.[s.key] || 'pending'])) as Record<StageKey, StageState>;
-      // Reset error stages to pending so resume can retry
-      STAGES.forEach(s => { if (loadedStatus[s.key] === 'error') loadedStatus[s.key] = 'pending'; });
+      const loadedStatus = Object.fromEntries(stages.map(s => [s.key, (v.stage_status as Record<string, string>)?.[s.key] || 'pending'])) as Record<StageKey, StageState>;
+      stages.forEach(s => { if (loadedStatus[s.key] === 'error') loadedStatus[s.key] = 'pending'; });
       setStatus(loadedStatus);
 
-      const colMap: Record<string, string> = { analisa: 'analysis', prd: 'prd', architecture: 'architecture', erd: 'erd', phased_master: 'master_prompt' };
+      const colMap: Record<string, keyof Version> = { analisa: 'analysis', prd: 'prd', architecture: 'architecture', erd: 'erd', phased_master: 'master_prompt' };
       const loaded: Record<string, string> = {};
-      STAGES.forEach(s => {
-        const val = (v as any)[colMap[s.key]];
+      stages.forEach(s => {
+        const col = colMap[s.key];
+        if (!col) return;
+        const val = v[col];
         if (val) loaded[s.key] = typeof val === 'object' ? JSON.stringify(val) : String(val);
       });
       setArtifacts(loaded as Record<StageKey, string>);
 
-      if (firstIdx >= 0) startPipeline(v.id, STAGES[firstIdx].key);
+      if (firstIdx >= 0) startPipeline(v.id, stages[firstIdx].key);
     }).catch(err => setError(err instanceof Error ? err.message : 'Gagal memuat data project'));
-  }, []);
+  }, [isResume, resumeVersionId, started, stages, startPipeline]);
 
   // Auto-scroll modal output
+  const activeArtifact = artifacts[activeKey];
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
-  }, [artifacts[activeKey]]);
-
-  // Handle SSE events
-  const handleSSEEvent = useCallback((event: string, data: any) => {
-    if (cancelled.current) return;
-
-    switch (event) {
-      case 'status':
-        // data: {stage: "analisa", state: "running" | "done"}
-        if (data.stage && typeof data.stage === 'string') {
-          setStatus(s => ({ ...s, [data.stage]: data.state }));
-          if (data.state === 'running') {
-            const idx = STAGES.findIndex(s => s.key === data.stage);
-            if (idx >= 0) setCurrent(idx);
-          }
-        }
-        break;
-
-      case 'token':
-        // data: {stage: "analisa", delta: "text..."}
-        // Append streaming tokens to artifact
-        if (data.stage && typeof data.stage === 'string') {
-          setArtifacts(prev => ({
-            ...prev,
-            [data.stage]: ((prev as any)[data.stage] || '') + data.delta
-          }));
-        }
-        break;
-
-      case 'artifact':
-        // data: {stage: "analisa", content: "...final..."}
-        if (data.stage && typeof data.stage === 'string') {
-          setArtifacts(prev => ({ ...prev, [data.stage]: data.content }));
-        }
-        break;
-
-      case 'done':
-        // data: {stage: "analisa"}
-        const stageIndex = STAGES.findIndex(s => s.key === data.stage);
-        if (stageIndex >= 0 && data.stage) {
-          setCurrent(stageIndex);
-          setStatus(s => ({ ...s, [data.stage]: 'done' }));
-        }
-        break;
-
-      case 'fail':
-        // data: {stage: "analisa", message: "..."}
-        setError(data.message || 'Terjadi kesalahan.');
-        if (data.stage && typeof data.stage === 'string') {
-          setStatus(s => ({ ...s, [data.stage]: 'error' }));
-        }
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
-          eventSourceRef.current = null;
-        }
-        break;
-    }
-  }, []);
+  }, [activeArtifact]);
 
   async function start() {
     if (!title.trim() || !idea.trim()) return;
@@ -212,31 +287,26 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     cancelled.current = false;
 
     try {
-      // Step 1: Create project (auto-creates version 1)
       const project = await apiPost<Project>("/projects", {
         title: title.trim(),
         idea,
         target,
-        stack: stack || undefined,
       });
 
       setProjectId(project.id);
 
-      // Step 2: Get version 1 from project response
-      // Need to fetch project with versions
       const projectWithVersions = await apiGet<Project & { versions: Array<{ id: number }> }>(`/projects/${project.id}`);
-      const versionId = projectWithVersions.versions?.[0]?.id;
+      const vId = projectWithVersions.versions?.[0]?.id;
 
-      if (!versionId) {
+      if (!vId) {
         throw new Error("Version tidak ditemukan");
       }
 
-      setVersionId(versionId);
+      setVersionId(vId);
       setStarted(true);
       setCreating(false);
 
-      // Step 3: Start SSE pipeline
-      startPipeline(versionId);
+      startPipeline(vId);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Gagal membuat project');
       setCreating(false);
@@ -244,81 +314,60 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     }
   }
 
-  function startPipeline(versionId: number, stage?: string) {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-    const s = stage || STAGES[0].key;
-    const idx = STAGES.findIndex(x => x.key === s);
-    if (idx >= 0) setCurrent(idx);
-    setStatus(prev => ({ ...prev, [s]: 'running' }));
-
-    const autoParam = auto ? '1' : '0';
-
-    eventSourceRef.current = createSSE(
-      `/generate/stream?version=${versionId}&stage=${s}&auto=${autoParam}`,
-      handleSSEEvent,
-      (err) => {
-        console.error('SSE error:', err);
-        setError('Koneksi SSE terputus');
-      }
-    );
-  }
-
   function approveNext() {
-    if (!versionId || current + 1 >= STAGES.length) return;
+    if (!versionId || current + 1 >= stages.length) return;
+    if (stages[current].key === 'pertanyaan') return;
 
-    const nextStage = STAGES[current + 1].key;
+    const nextStage = stages[current + 1].key;
 
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
+    if (abortRef.current) {
+      abortRef.current.abort();
     }
 
-    eventSourceRef.current = createSSE(
-      `/generate/stream?version=${versionId}&stage=${nextStage}&auto=0`,
+    createSSEPost(
+      `/generate/stream`,
+      { version: versionId, stage: nextStage },
       handleSSEEvent,
       (err) => {
         console.error('SSE error:', err);
         setError('Koneksi SSE terputus');
       }
-    );
+    ).then(ctrl => { abortRef.current = ctrl; });
   }
 
   function retryStage() {
     if (!versionId) return;
 
-    const currentStage = STAGES[current].key;
+    const currentStage = stages[current].key;
 
-    // Reset current stage status
     setStatus(s => ({ ...s, [currentStage]: 'pending' }));
     setArtifacts(prev => {
       const newArtifacts = { ...prev };
-      delete (newArtifacts as any)[currentStage];
+      delete newArtifacts[currentStage as StageKey];
       return newArtifacts;
     });
     setError("");
 
-    // Close existing connection and restart
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
+    if (abortRef.current) {
+      abortRef.current.abort();
     }
 
-    eventSourceRef.current = createSSE(
-      `/generate/stream?version=${versionId}&stage=${currentStage}&auto=0`,
+    createSSEPost(
+      `/generate/stream`,
+      { version: versionId, stage: currentStage },
       handleSSEEvent,
       (err) => {
         console.error('SSE error:', err);
         setError('Koneksi SSE terputus');
       }
-    );
+    ).then(ctrl => { abortRef.current = ctrl; });
   }
 
   function cancelGeneration() {
     cancelled.current = true;
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
     }
     setStatus(s => ({ ...s, [activeKey]: 'error' }));
     setError("Pembuatan plan dibatalkan.");
@@ -326,14 +375,14 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
   function reset() {
     cancelled.current = true;
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
     }
     fallbackFetched.current.clear();
     setStarted(false);
     setCurrent(0);
-    setStatus(Object.fromEntries(STAGES.map((s) => [s.key, "pending"])) as Record<StageKey, StageState>);
+    setStatus(initStatus(target));
     setProjectId(null);
     setVersionId(null);
     setArtifacts({} as Record<StageKey, string>);
@@ -371,7 +420,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 <select
                   id="template"
                   value={selectedTemplate}
-                  onChange={(e) => setSelectedTemplate(e.target.value)}
+                  onChange={(e) => handleTemplateChange(e.target.value)}
                   className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm"
                   data-testid="template-select"
                 >
@@ -409,25 +458,12 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
             </div>
 
             <div>
-              <Label htmlFor="stack">Stack Teknologi (opsional)</Label>
-              <input
-                id="stack"
-                type="text"
-                value={stack}
-                onChange={(e) => setStack(e.target.value)}
-                placeholder="Misal: Laravel + React Native + PostgreSQL"
-                className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm"
-                data-testid="stack-input"
-              />
-            </div>
-
-            <div>
               <Label>Target Platform</Label>
               <div className="grid grid-cols-3 gap-2">
                 {TARGETS.map((t) => (
                   <button
                     key={t.key}
-                    onClick={() => setTarget(t.key)}
+                    onClick={() => setTargetAndReset(t.key)}
                     data-testid={`target-${t.key}`}
                     className={`flex flex-col items-center gap-2 rounded-xl border p-4 text-sm font-medium transition ${
                       target === t.key
@@ -440,14 +476,6 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 ))}
               </div>
             </div>
-
-            <label className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] p-3">
-              <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} className="accent-[var(--color-brand)]" data-testid="auto-toggle" />
-              <div className="flex-1">
-                <div className="flex items-center gap-1.5 text-sm font-medium"><Zap size={14} className="text-[var(--color-brand)]" /> Auto-run semua tahap</div>
-                <div className="text-xs text-[var(--color-fg-muted)]">Jalankan 6 tahap tanpa henti. Matikan untuk approve tiap tahap.</div>
-              </div>
-            </label>
 
             <Button onClick={start} disabled={!title.trim() || !idea.trim() || creating} className="w-full" size="lg" data-testid="start-plan">
               <Sparkles size={18} /> {creating ? "Membuat Project..." : "Buat Plan"}
@@ -479,7 +507,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         {/* Stage tracker */}
         <div className="space-y-2">
-          {STAGES.map((s, i) => {
+          {stages.map((s, i) => {
             const st = status[s.key];
             return (
               <div
@@ -515,7 +543,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold">{STAGES[current].label}</h3>
+                <h3 className="font-semibold">{stages[current].label}</h3>
                 {status[activeKey] === "running" && <Badge tone="brand">Menyusun…</Badge>}
                 {status[activeKey] === "done" && <Badge tone="success"><Check size={12} /> Selesai</Badge>}
               </div>
@@ -562,15 +590,18 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
               <div className="space-y-3">
                 <textarea
                   value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
                   className="w-full min-h-[200px] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] p-3 text-sm font-mono text-[var(--color-fg)] resize-y focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
                 />
-                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
                       setArtifacts(prev => ({ ...prev, [activeKey]: editContent }));
                       setEditingStage(null);
                       setEditContent("");
+                      if (versionId) {
+                        apiPatch(`/versions/${versionId}/artifacts`, { stage: activeKey, content: editContent }).catch((err) => console.error('Failed to save artifact:', err));
+                      }
                     }}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs text-white hover:opacity-90"
                   >
@@ -589,7 +620,47 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
               </div>
             ) : (
               <>
-                {(activeKey === "erd" && status.erd === "done") || (activeKey === "architecture" && status.architecture === "done") || (activeKey === "phased_master" && status.phased_master === "done") ? null : (
+                {activeKey === "pertanyaan" && status.pertanyaan === "done" ? (
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Jawab pertanyaan klarifikasi berikut:</h4>
+                    {questions.length === 0 && artifacts.pertanyaan && (
+                      <div className="text-sm text-[var(--color-fg-muted)]">Memproses pertanyaan...</div>
+                    )}
+                    {questions.map((q, i) => (
+                      <div key={i}>
+                        <Label>{q}</Label>
+                        <textarea
+                          rows={2}
+                          value={answers[q] || ''}
+                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setAnswers(prev => ({ ...prev, [q]: e.target.value }))}
+                          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm"
+                          placeholder="Tulis jawaban kamu..."
+                        />
+                      </div>
+                    ))}
+                    <Button
+                      onClick={async () => {
+                        if (!versionId) return;
+                        await apiPatch(`/versions/${versionId}/answers`, { answers });
+                        const nextStage = stages[current + 1]?.key;
+                        if (nextStage && versionId) {
+                          setStatus(s => ({ ...s, [nextStage]: 'running' }));
+                          setCurrent(current + 1);
+                          if (abortRef.current) abortRef.current.abort();
+                          createSSEPost(
+                            `/generate/stream`,
+                            { version: versionId, stage: nextStage },
+                            handleSSEEvent,
+                            (err) => { console.error('SSE error:', err); setError('Koneksi SSE terputus'); }
+                          ).then(ctrl => { abortRef.current = ctrl; });
+                        }
+                      }}
+                      disabled={!Object.values(answers).some(a => a.trim())}
+                    >
+                      <ArrowRight size={15} /> Kirim Jawaban & Lanjutkan
+                    </Button>
+                  </div>
+                ) : (activeKey === "erd" && status.erd === "done") || (activeKey === "architecture" && status.architecture === "done") || (activeKey === "phased_master" && status.phased_master === "done") ? null : (
                   <div className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-fg-muted)]">
                     {status[activeKey] === "done" && !artifacts[activeKey]
                       ? "Tidak ada output"
@@ -599,8 +670,8 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
                 {activeKey === "architecture" && artifacts.architecture && (() => {
                   const text = artifacts.architecture;
-                  const nodes: any[] = [];
-                  const edges: any[] = [];
+                  const nodes: Array<{ id: string; label: string; fields: string[] }> = [];
+                  const edges: Array<{ from: string; to: string; relation: string }> = [];
 
                   for (const line of text.split('\n')) {
                     const cm = line.match(/^KOMPONEN:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+)$/i);
@@ -644,11 +715,11 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     )}
                     {status.erd === "done" && artifacts.erd && (() => {
                       try {
-                        const erdData = JSON.parse(artifacts.erd);
+                        const erdData: ErdParsed = JSON.parse(artifacts.erd);
                         return (
                           <>
                             <div className="mb-6 mt-4"><ErdDiagram erd={erdData} /></div>
-                            {erdData.api_contract?.length > 0 && (
+                            {(() => { const ac = erdData.api_contract; return ac && ac.length > 0 ? <>
                               <div className="mt-6">
                                 <h4 className="mb-3 font-semibold">API Contract</h4>
                                 <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
@@ -662,7 +733,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[var(--color-border)]">
-                                      {erdData.api_contract.map((api: any, i: number) => (
+                                      {ac.map((api: ApiContractItem, i: number) => (
                                         <tr key={i}>
                                           <td className="px-3 py-2">
                                             <Badge tone={
@@ -680,7 +751,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                                   </table>
                                 </div>
                               </div>
-                            )}
+                            </> : null; })()}
                           </>
                         );
                       } catch {
@@ -691,31 +762,30 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 )}
                 {activeKey === "phased_master" && artifacts.phased_master && (() => {
                   try {
-                    const data = JSON.parse(artifacts.phased_master);
-                    const phases: any[] = data.phases || [];
+                    const data: ErdParsed = JSON.parse(artifacts.phased_master);
+                    const phases: PhaseItem[] = data.phases || [];
                     const masterPrompt = data.master || '';
 
                     return (
                       <div className="mt-2 space-y-6">
-                        {/* Phase Breakdown */}
                         {phases.length > 0 && (
                           <Card className="p-4">
                             <h3 className="mb-4 font-semibold">Phase Breakdown ({phases.length} fase)</h3>
                             <div className="space-y-3">
-                              {phases.map((p: any, i: number) => (
+                              {phases.map((p: PhaseItem, i: number) => (
                                 <div key={p.key || i} className="rounded-lg border border-[var(--color-border)] p-4">
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="flex-1">
                                       <div className="text-sm font-semibold">{p.title}</div>
-                                      {p.tasks?.length > 0 && (
+                                      {(() => { const tasks = p.tasks; return tasks && tasks.length > 0 ? (
                                         <ul className="mt-1 list-disc pl-4 text-xs text-[var(--color-fg-muted)]">
-                                          {p.tasks.map((t: string, j: number) => <li key={j}>{t}</li>)}
+                                          {tasks.map((t: string, j: number) => <li key={j}>{t}</li>)}
                                         </ul>
-                                      )}
+                                      ) : null; })()}
                                       {p.ac && <div className="mt-1 text-xs text-[var(--color-fg-muted)]"><span className="font-medium">AC:</span> {p.ac}</div>}
                                     </div>
                                     {p.prompt && (
-                                      <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(p.prompt).catch(() => {}); }}>
+                                      <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(p.prompt ?? '').catch(() => {}); }}>
                                         <Copy size={12} /> Copy Prompt
                                       </Button>
                                     )}
@@ -726,7 +796,6 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                           </Card>
                         )}
 
-                        {/* Master Prompt */}
                         {masterPrompt && (
                           <Card className="p-4">
                             <div className="mb-3 flex items-center justify-between">
@@ -739,7 +808,6 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                           </Card>
                         )}
 
-                        {/* Standards & Rules */}
                         <Card className="p-4">
                           <h3 className="mb-3 font-semibold">Standards & Rules</h3>
                           <p className="mb-3 text-xs text-[var(--color-fg-muted)]">Download dan letakkan di root project sebelum AI coding agent mulai.</p>
@@ -757,7 +825,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                                 <Button variant="secondary" size="sm" onClick={() => {
                                   apiPost(`/versions/${versionId}/regenerate-standards`).then(() => {
                                     window.location.reload();
-                                  }).catch(err => alert(err.message));
+                                  }).catch((err: Error) => alert(err.message));
                                 }}>
                                   <Copy size={13} /> Generate
                                 </Button>
@@ -776,7 +844,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                                 <Button variant="secondary" size="sm" onClick={() => {
                                   apiPost(`/versions/${versionId}/regenerate-standards`).then(() => {
                                     window.location.reload();
-                                  }).catch(err => alert(err.message));
+                                  }).catch((err: Error) => alert(err.message));
                                 }}>
                                   <Copy size={13} /> Generate
                                 </Button>
@@ -794,14 +862,16 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           </Card>
 
           {/* Checkpoint bar */}
-          {!auto && (status[activeKey] === "done" || status[activeKey] === "error") && !allDone && (
+          {(status[activeKey] === "done" || status[activeKey] === "error") && !allDone && (
             <Card className="flex items-center justify-between p-4">
               <span className="text-sm text-[var(--color-fg-muted)]">
                 {status[activeKey] === "error" ? "Terjadi kesalahan pada tahap ini." : "Tahap selesai. Lanjut ke berikutnya?"}
               </span>
               <div className="flex gap-2">
-                <Button variant="secondary" size="sm" onClick={retryStage}><RotateCcw size={15} /> Analisa Ulang</Button>
-                {status[activeKey] === "done" && (
+                {activeKey !== 'pertanyaan' && (
+                  <Button variant="secondary" size="sm" onClick={retryStage}><RotateCcw size={15} /> Analisa Ulang</Button>
+                )}
+                {status[activeKey] === "done" && activeKey !== 'pertanyaan' && (
                   <Button size="sm" onClick={approveNext} data-testid="approve-next">Approve & Lanjut <ArrowRight size={15} /></Button>
                 )}
               </div>
@@ -817,7 +887,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    const mp = artifacts.master;
+                    const mp = artifacts.phased_master;
                     if (mp) navigator.clipboard.writeText(mp).catch(() => {
                       const ta = document.createElement('textarea');
                       ta.value = mp;
@@ -856,9 +926,9 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
               <Loader2 size={24} className="animate-spin text-[var(--color-brand)]" />
               <div className="flex-1">
                 <div className="text-lg font-semibold">
-                  Tahap {current + 1}/{STAGES.length}: {STAGES[current].label}
+                  Tahap {current + 1}/{stages.length}: {stages[current].label}
                 </div>
-                <div className="text-sm text-[var(--color-fg-muted)]">{STAGES[current].desc}</div>
+                <div className="text-sm text-[var(--color-fg-muted)]">{stages[current].desc}</div>
               </div>
             </div>
 
@@ -877,12 +947,12 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
             <div className="mt-4">
               <div className="mb-1 flex items-center justify-between text-xs text-[var(--color-fg-muted)]">
                 <span>Progress</span>
-                <span>{STAGES.filter(s => status[s.key] === "done" || status[s.key] === "running").length}/{STAGES.length} tahap</span>
+                <span>{stages.filter(s => status[s.key] === "done" || status[s.key] === "running").length}/{stages.length} tahap</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
                 <div
                   className="h-full rounded-full bg-[var(--color-brand)] transition-all duration-500"
-                  style={{ width: `${(STAGES.filter(s => status[s.key] === "done").length / STAGES.length) * 100}%` }}
+                  style={{ width: `${(stages.filter(s => status[s.key] === "done").length / stages.length) * 100}%` }}
                 />
               </div>
             </div>

@@ -3,19 +3,60 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui";
 import { ButtonLink } from "@/components/ui/Button";
 import { PageHeader, TargetBadge } from "@/components/common";
-import { apiGet, type Project } from "@/lib/api";
-import { Wand2, FolderKanban, GitBranch, ArrowRight, Plus, Clock, Loader2 } from "lucide-react";
+import { apiGet, type Activity } from "@/lib/api";
+import type { Target } from "@/lib/mock";
+import { Wand2, FolderKanban, GitBranch, ArrowRight, Plus, Clock, Loader2, TrendingUp, CalendarDays, Heart, History, RefreshCw } from "lucide-react";
+
+interface DashboardStats {
+  total_projects: number;
+  total_versions: number;
+  active_projects: number;
+  favorite_projects: number;
+  projects_this_week: number;
+  versions_this_week: number;
+  recent_projects: Array<{
+    id: number;
+    title: string;
+    target: string;
+    idea: string;
+    versions_count: number;
+    is_favorite?: boolean;
+    updated_at: string;
+  }>;
+  recent_activities: Activity[];
+}
 
 export default function DashboardPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    apiGet<Project[]>("/projects")
-      .then(setProjects)
+  function refresh() {
+    setRefreshing(true);
+    setError("");
+    apiGet<DashboardStats>("/dashboard/stats")
+      .then(setStats)
       .catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat data"))
-      .finally(() => setLoading(false));
+      .finally(() => setRefreshing(false));
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    apiGet<DashboardStats>("/dashboard/stats")
+      .then((d) => { if (!cancelled) setStats(d); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Gagal memuat data"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    const handler = () => {
+      setRefreshing(true);
+      setError("");
+      apiGet<DashboardStats>("/dashboard/stats")
+        .then(setStats)
+        .catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat data"))
+        .finally(() => setRefreshing(false));
+    };
+    window.addEventListener('profile-updated', handler);
+    return () => { cancelled = true; window.removeEventListener('profile-updated', handler); };
   }, []);
 
   function formatDate(dateString: string): string {
@@ -45,29 +86,29 @@ export default function DashboardPage() {
     );
   }
 
-  const totalProjects = projects.length;
-  const totalVersions = projects.reduce((sum, p) => sum + (p.versions_count || 0), 0);
-  const activeProjects = projects.filter(p => (p.versions_count || 0) > 0).length;
-
-  const stats = [
-    { label: "Total Project", value: totalProjects.toString(), icon: FolderKanban },
-    { label: "Versi Dibuat", value: totalVersions.toString(), icon: GitBranch },
-    { label: "Project Aktif", value: activeProjects.toString(), icon: Wand2 },
+  const statCards = [
+    { label: "Total Project", value: stats!.total_projects.toString(), icon: FolderKanban },
+    { label: "Total Versi", value: stats!.total_versions.toString(), icon: GitBranch },
+    { label: "Project Aktif", value: stats!.active_projects.toString(), icon: Wand2 },
+    { label: "Favorit", value: stats!.favorite_projects.toString(), icon: Heart },
+    { label: "Project Minggu Ini", value: stats!.projects_this_week.toString(), icon: TrendingUp },
+    { label: "Versi Minggu Ini", value: stats!.versions_this_week.toString(), icon: CalendarDays },
   ];
 
-  const recentProjects = projects.slice(0, 4);
+  const recentProjects = stats!.recent_projects;
+  const recentActivities = stats!.recent_activities;
 
   return (
     <>
       <PageHeader
         title="Dashboard"
         subtitle="Ringkasan planning & lanjutkan pekerjaanmu."
-        action={<ButtonLink href="/new"><Plus size={16} /> Buat Plan Baru</ButtonLink>}
+        action={<><button onClick={refresh} disabled={refreshing} className="mr-2 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-fg-muted)] transition hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]" title="Segarkan"><RefreshCw size={16} /></button><ButtonLink href="/new"><Plus size={16} /> Buat Plan Baru</ButtonLink></>}
       />
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {stats.map((s) => (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {statCards.map((s) => (
           <Card key={s.label} className="p-5">
             <div className="flex items-center justify-between">
               <span className="text-sm text-[var(--color-fg-muted)]">{s.label}</span>
@@ -81,7 +122,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Continue working */}
-      {projects.length > 0 && (
+      {recentProjects.length > 0 && (
         <>
           <div className="mt-8 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Project Terakhir</h2>
@@ -94,7 +135,8 @@ export default function DashboardPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="truncate font-semibold">{p.title}</h3>
-                      <TargetBadge target={p.target} />
+                      <TargetBadge target={p.target as Target} />
+                      {p.is_favorite && <Heart size={12} fill="currentColor" className="text-red-400 shrink-0" />}
                     </div>
                     <p className="mt-1 line-clamp-1 text-sm text-[var(--color-fg-muted)]">{p.idea}</p>
                   </div>
@@ -102,7 +144,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-4 flex items-center gap-4 text-xs text-[var(--color-fg-muted)]">
                   <span className="inline-flex items-center gap-1"><Clock size={12} /> {formatDate(p.updated_at)}</span>
-                  <span className="inline-flex items-center gap-1"><GitBranch size={12} /> {p.versions_count || 0} versi</span>
+                  <span className="inline-flex items-center gap-1"><GitBranch size={12} /> {p.versions_count} versi</span>
                 </div>
               </Card>
             ))}
@@ -110,10 +152,32 @@ export default function DashboardPage() {
         </>
       )}
 
-      {projects.length === 0 && (
+      {recentProjects.length === 0 && (
         <div className="mt-8 text-center py-12">
           <p className="text-[var(--color-fg-muted)] mb-4">Belum ada project. Mulai buat plan pertamamu!</p>
           <ButtonLink href="/new"><Plus size={16} /> Buat Plan Baru</ButtonLink>
+        </div>
+      )}
+
+      {/* Recent Activity */}
+      {recentActivities.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-4 text-lg font-semibold">Aktivitas Terbaru</h2>
+          <Card className="divide-y divide-[var(--color-border)]">
+            {recentActivities.map((a) => (
+              <div key={a.id} className="flex items-start gap-3 p-4">
+                <div className="mt-0.5 grid h-7 w-7 place-items-center rounded-full bg-[var(--color-surface-2)] text-[var(--color-fg-muted)]">
+                  <History size={13} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm">{a.description}</p>
+                  <p className="mt-0.5 text-xs text-[var(--color-fg-subtle)]">
+                    {a.user?.name} &middot; {formatDate(a.created_at)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </Card>
         </div>
       )}
     </>

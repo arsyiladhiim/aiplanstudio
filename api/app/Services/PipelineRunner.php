@@ -13,13 +13,13 @@ class PipelineRunner
     /** @var resource */
     private $stdout;
 
-    private const ALL_STAGES = ['analisa', 'prd', 'architecture', 'erd', 'phased_master'];
+    private const ALL_STAGES = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'phased_master', 'phased_master_mobile'];
 
-    public function __construct(Version $version, AiClient $client)
+    public function __construct(Version $version, AiClient $client, $stdout = null)
     {
         $this->version = $version;
         $this->client = $client;
-        $this->stdout = fopen('php://output', 'w');
+        $this->stdout = $stdout ?? fopen('php://output', 'w');
     }
 
     public function __destruct()
@@ -31,6 +31,9 @@ class PipelineRunner
 
     public function run(string|null $stage, bool $auto): void
     {
+        // Eager load project to avoid N+1 on every stage iteration
+        $this->version->load('project');
+
         if (! $this->client->isConfigured()) {
             $this->emit('fail', ['stage' => $stage ?? 'start', 'message' => 'AI Provider belum dikonfigurasi.']);
             return;
@@ -45,6 +48,12 @@ class PipelineRunner
         }
 
         foreach (array_slice(self::ALL_STAGES, $startIdx) as $key) {
+            // Only run phased_master_mobile for 'both' target
+            if ($key === 'phased_master_mobile' && ($this->version->project->target ?? 'web') !== 'both') {
+                $this->updateStageStatus($key, 'done');
+                continue;
+            }
+
             $this->emit('status', ['stage' => $key, 'state' => 'running']);
             $this->updateStageStatus($key, 'running');
 
@@ -81,15 +90,25 @@ class PipelineRunner
         });
     }
 
-    private function runStage(string $key): string
+    private function runStage(string $key, ?string $overrideTarget = null): string
     {
-        $messages = $this->buildMessages($key);
+        $messages = $this->buildMessages($key, $overrideTarget);
         $buffer = '';
         $maxChunks = 3;
+        $maxBufferBytes = 10 * 1024 * 1024; // 10MB limit
 
         for ($i = 0; $i < $maxChunks; $i++) {
+            if (strlen($buffer) >= $maxBufferBytes) {
+                throw new \RuntimeException("Stage {$key}: Output melebihi batas 10MB. Stage ditandai error.");
+            }
             $prevLen = strlen($buffer);
-            $this->client->stream($messages, function (string $delta) use (&$buffer, $key) {
+            $this->client->stream($messages, function (string $delta) use (&$buffer, $key, $maxBufferBytes) {
+                if (strlen($buffer) + strlen($delta) > $maxBufferBytes) {
+                    $delta = mb_substr($delta, 0, $maxBufferBytes - strlen($buffer));
+                    $buffer .= $delta;
+                    $this->emit('token', ['stage' => $key, 'delta' => $delta]);
+                    return;
+                }
                 $buffer .= $delta;
                 $this->emit('token', ['stage' => $key, 'delta' => $delta]);
             });
@@ -119,12 +138,17 @@ class PipelineRunner
         return $buffer;
     }
 
-    private function buildMessages(string $stage): array
+    private function buildMessages(string $stage, ?string $overrideTarget = null): array
     {
         $v = $this->version;
-        $target = $v->project->target ?? 'web';
+        $target = $overrideTarget ?? $v->project->target ?? 'web';
+        // phased_master_mobile always targets mobile regardless of project target
+        if ($stage === 'phased_master_mobile') {
+            $target = 'mobile';
+            $overrideTarget = 'mobile';
+        }
         $system = $this->systemPrompt($stage, $target);
-        $context = $this->contextPrompt($stage, $v);
+        $context = $this->contextPrompt($stage, $v, $overrideTarget);
 
         return [
             ['role' => 'system', 'content' => $system],
@@ -137,25 +161,37 @@ class PipelineRunner
         $helpers = __DIR__ . '/../Prompts/helpers.php';
         if (file_exists($helpers)) require_once $helpers;
 
-        $path = __DIR__ . "/../Prompts/{$stage}.php";
+        $promptStage = $stage === 'phased_master_mobile' ? 'phased_master' : $stage;
+        $path = __DIR__ . "/../Prompts/{$promptStage}.php";
         if (!file_exists($path)) return '';
 
         $loader = require $path;
         return $loader($target);
     }
 
-    private function contextPrompt(string $stage, Version $v): string
+    private function contextPrompt(string $stage, Version $v, ?string $overrideTarget = null): string
     {
         $idea = $v->project->idea;
-        $target = $v->project->target ?? 'web';
-        $stack = $v->project->stack;
+        $target = $overrideTarget ?? $v->project->target ?? 'web';
+        $answers = $v->answers ?? [];
 
-        $ctx = "### Ide Aplikasi\n{$idea}\n\n### Target Platform\n{$target}";
-        if ($stack) {
-            $ctx .= "\n\n### Tech Stack Pilihan\n{$stack}";
+        $stack = trim((string) ($v->project->stack ?? ''));
+        if ($stack === '') {
+            $stack = $this->techStackForTarget($target);
+        }
+
+        $ctx = "### Ide Aplikasi\n{$idea}\n\n### Target Platform\n{$target}\n\n### Tech Stack\n{$stack}";
+        if (!empty($answers)) {
+            $answersText = '';
+            foreach ($answers as $q => $a) {
+                $answersText .= "- {$q}: {$a}\n";
+            }
+            $ctx .= "\n\n### Jawaban Klarifikasi\n{$answersText}";
         }
 
         return match ($stage) {
+            'pertanyaan' => $ctx,
+
             'analisa' => $ctx,
 
             'prd' => $ctx . "\n\n### Hasil Analisa\n{$v->analysis}\n\n### Ide Awal\n{$idea}\n### Target Platform\n{$target}",
@@ -164,8 +200,9 @@ class PipelineRunner
 
             'erd' => $ctx . "\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}",
 
-            'phased_master' => $ctx . "\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n" . json_encode($v->erd ?? new \stdClass(), JSON_PRETTY_PRINT) . "\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n/api/webhooks/phase-complete",
+            'phased_master' => $ctx . "\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n" . json_encode($v->erd ?? new \stdClass(), JSON_PRETTY_PRINT) . "\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n" . config('app.url') . "/api/webhooks/phase-complete",
 
+            'phased_master_mobile' => $ctx . "\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n" . json_encode($v->erd ?? new \stdClass(), JSON_PRETTY_PRINT) . "\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n" . config('app.url') . "/api/webhooks/phase-complete",
 
             default => $idea,
         };
@@ -179,6 +216,7 @@ class PipelineRunner
             'architecture' => 'architecture',
             'erd' => 'erd',
             'phased_master' => 'master_prompt',
+            'phased_master_mobile' => 'mobile_master_prompt',
         ];
 
         $col = $map[$key] ?? null;
@@ -205,16 +243,22 @@ class PipelineRunner
             } else {
                 throw new \RuntimeException("ERD: Gagal parse output AI. Stage ditandai error.");
             }
-        } elseif ($key === 'phased_master') {
+        } elseif ($key === 'phased_master' || $key === 'phased_master_mobile') {
             $parsed = $this->parsePhasedMaster($content);
             if ($parsed !== null) {
-                $this->version->update([
-                    'phases' => $parsed['phases'],
-                    'standards' => $parsed['standards'],
-                    'agents' => $parsed['agents'],
-                ]);
+                $update = [];
+                if ($key === 'phased_master_mobile') {
+                    $update['mobile_phases'] = $parsed['phases'];
+                    $update['mobile_standards'] = $parsed['standards'];
+                    $update['mobile_agents'] = $parsed['agents'];
+                } else {
+                    $update['phases'] = $parsed['phases'];
+                    $update['standards'] = $parsed['standards'];
+                    $update['agents'] = $parsed['agents'];
+                }
+                $this->version->update($update);
                 $value = $parsed['master'];
-                $this->emit('artifact', ['stage' => 'phased_master', 'content' => json_encode($parsed)]);
+                $this->emit('artifact', ['stage' => $key, 'content' => json_encode($parsed)]);
             } else {
                 throw new \RuntimeException("Phased Master: Gagal parse output AI. Stage ditandai error.");
             }
@@ -408,6 +452,15 @@ class PipelineRunner
         if (json_last_error() === JSON_ERROR_NONE) return $decoded;
 
         return null;
+    }
+
+    private function techStackForTarget(string $target): string
+    {
+        return match ($target) {
+            'mobile' => 'Flutter + Dart + Riverpod + GoRouter + Material Design 3 + drift/sqflite',
+            'both' => 'Web: Laravel 11 + Next.js + React 19 + Tailwind CSS v4 + PostgreSQL 16 | Mobile: Flutter + Dart + Riverpod + GoRouter + Material Design 3',
+            default => 'Laravel 11 (PHP 8.4) + Next.js (App Router, React 19, TypeScript) + Tailwind CSS v4 + PostgreSQL 16',
+        };
     }
 
     private function emit(string $event, array $data): void

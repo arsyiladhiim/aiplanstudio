@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import type { User } from "@/lib/api";
+import { ToastProvider } from "@/components/Toast";
 import {
   Sparkles, LayoutDashboard, FolderKanban, Wand2, LayoutTemplate,
   Settings, Menu, X, Plus, LogOut, Search,
@@ -21,20 +22,40 @@ const nav = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [searchQ, setSearchQ] = useState("");
+
+  const handleSearch = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQ.trim();
+    if (q) router.push(`/projects?q=${encodeURIComponent(q)}`);
+    else router.push("/projects");
+  }, [searchQ, router]);
 
   const isActive = (item: (typeof nav)[number]) =>
     pathname === item.href || (item.match !== undefined && pathname.startsWith(item.match));
 
-  useEffect(() => {
+  const fetchUser = useCallback(() => {
     apiGet<User>("/user")
       .then(setUser)
-      .catch(() => {});
+      .catch((err) => console.error('Failed to fetch user:', err));
   }, []);
 
+  useEffect(() => {
+    fetchUser();
+    const handler = () => fetchUser();
+    window.addEventListener('profile-updated', handler);
+    return () => window.removeEventListener('profile-updated', handler);
+  }, [fetchUser]);
+
   async function logout() {
-    await fetch("/api/logout", { method: "POST", credentials: "include" }).catch(() => {});
+    try {
+      await apiPost("/logout");
+    } catch {
+      // proceed to login page regardless
+    }
     window.location.href = "/login";
   }
 
@@ -94,19 +115,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="glass sticky top-0 z-30 flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-3">
           <button className="lg:hidden" onClick={() => setOpen(true)} aria-label="Buka menu" data-testid="menu-open"><Menu size={22} /></button>
-          <div className="relative hidden flex-1 sm:block">
+          <form onSubmit={handleSearch} className="relative hidden flex-1 sm:block">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-fg-subtle)]" />
             <input
               placeholder="Cari project…"
+              value={searchQ}
+              onChange={e => setSearchQ(e.target.value)}
               className="h-10 w-full max-w-xs rounded-full border border-[var(--color-border)] bg-[var(--color-bg-soft)] pl-9 pr-4 text-sm outline-none focus:border-[var(--color-brand)]"
             />
-          </div>
+          </form>
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
-            <Button variant="secondary" size="sm">Bantuan</Button>
+            <ButtonLink variant="secondary" size="sm" href="/help">Bantuan</ButtonLink>
           </div>
         </header>
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8"><ToastProvider>{children}</ToastProvider></main>
       </div>
     </div>
   );

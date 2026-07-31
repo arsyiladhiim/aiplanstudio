@@ -9,9 +9,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'project_id', 'version_no', 'stage_status', 'analysis', 'prd',
+    'project_id', 'version_no', 'stage_status', 'answers', 'analysis', 'prd',
     'architecture', 'erd', 'api_contract', 'phases', 'master_prompt',
-    'standards', 'agents',
+    'standards', 'agents', 'tracking_token',
+    'mobile_phases', 'mobile_master_prompt', 'mobile_standards', 'mobile_agents',
 ])]
 class Version extends Model
 {
@@ -21,9 +22,11 @@ class Version extends Model
     {
         return [
             'stage_status' => 'array',
+            'answers' => 'array',
             'erd' => 'array',
             'api_contract' => 'array',
             'phases' => 'array',
+            'mobile_phases' => 'array',
         ];
     }
 
@@ -41,12 +44,13 @@ class Version extends Model
     public static function defaultStageStatus(): array
     {
         return [
+            'pertanyaan' => 'pending',
             'analisa' => 'pending',
             'prd' => 'pending',
             'architecture' => 'pending',
             'erd' => 'pending',
-            'phases' => 'pending',
-            'master' => 'pending',
+            'phased_master' => 'pending',
+            'phased_master_mobile' => 'pending',
         ];
     }
 }

@@ -1,14 +1,12 @@
-import { LARAVEL_URL, fwd } from '@/lib/bff';
+import { LARAVEL_URL, fwd, safeFwdResponse } from '@/lib/bff';
 
 export async function GET(request: Request) {
-  const res = await fetch(`${LARAVEL_URL}/api/settings/users`, fwd('GET', request));
-  return new Response(await res.text(), { status: res.status, headers: { 'Content-Type': 'application/json' } });
+  return await safeFwdResponse(fetch(`${LARAVEL_URL}/api/settings/users`, fwd('GET', request)));
 }
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const res = await fetch(`${LARAVEL_URL}/api/settings/users`, fwd('POST', request, body));
-  return new Response(await res.text(), { status: res.status, headers: { 'Content-Type': 'application/json' } });
+  return await safeFwdResponse(fetch(`${LARAVEL_URL}/api/settings/users`, fwd('POST', request, body)));
 }
 
 export const dynamic = 'force-dynamic';

@@ -18,7 +18,11 @@
 - BFF (Backend-for-Frontend): nginx → Next.js (BFF) → Laravel API
 - Auth: Sanctum SPA Session (HttpOnly cookie + CSRF), NOT Bearer token
 - All API calls go through Next.js route handlers, never direct to Laravel
-- AI pipeline: analisa → prd → architecture → erd → phases → master
+- AI pipeline: pertanyaan (klarifikasi) → analisa → prd → architecture → erd → phased_master → phased_master_mobile (hanya untuk target 'both')
+- Default stage status: pertanyaan, analisa, prd, architecture, erd, phased_master, phased_master_mobile
+- [PATCH] /api/projects/{id} — update project title/idea/target
+- [DELETE] /api/versions/{id} — hapus versi (tidak bisa hapus versi terakhir)
+- [GET/PATCH] /api/settings/profile — lihat/edit profil user
 - Database: 3 PostgreSQL schemas (aiplanstudio_master, aiplanstudio_project, aiplanstudio_settings)
 
 ## Security
@@ -54,6 +58,7 @@ When the user types `/graphify`, use the installed graphify skill or instruction
 
 Rules:
 - For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- **Graphify first, explore only when needed.** Do NOT launch explore agents for every analysis/audit. Graphify (AST-only, no API cost) is enough for navigation, locating files, and relationship questions. Use explore/read agents only when behavioral reasoning is required: cross-file logic bugs, data-flow, security review, or when the scoped subgraph does not surface enough context.
 - Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.

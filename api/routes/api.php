@@ -1,9 +1,14 @@
 <?php
 
+use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\GenerateStreamController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProviderSettingsController;
+use App\Http\Controllers\ResetPasswordController;
+use App\Http\Controllers\SocialiteController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UserSettingsController;
 use App\Http\Controllers\VersionController;
@@ -14,6 +19,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+Route::post('/forgot-password', ForgotPasswordController::class)->middleware('throttle:5,1');
+Route::post('/reset-password', ResetPasswordController::class)->middleware('throttle:5,1');
+Route::get('/auth/google/redirect', [SocialiteController::class, 'redirect']);
+Route::get('/auth/google/callback', [SocialiteController::class, 'callback']);
 Route::get('/health', fn() => response()->json(['status' => 'ok']));
 
 // Webhook — external access via Project API Token (not session auth)
@@ -23,19 +32,32 @@ Route::post('/webhooks/phase-complete', [WebhookController::class, 'phaseComplet
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+    Route::get('/settings/profile', [ProfileController::class, 'show']);
+    Route::patch('/settings/profile', [ProfileController::class, 'update']);
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::post('/projects', [ProjectController::class, 'store']);
     Route::get('/projects/{id}', [ProjectController::class, 'show']);
+    Route::patch('/projects/{id}', [ProjectController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
     Route::post('/projects/{id}/versions', [VersionController::class, 'store']);
     Route::get('/versions/{id}', [VersionController::class, 'show']);
+    Route::delete('/versions/{id}', [VersionController::class, 'destroy']);
+    Route::patch('/versions/{id}/answers', [VersionController::class, 'updateAnswers']);
     Route::patch('/versions/{id}/phases/{phaseKey}', [VersionController::class, 'togglePhase']);
     Route::get('/versions/{id}/export', [VersionController::class, 'export']);
+    Route::patch('/versions/{id}/artifacts', [VersionController::class, 'updateArtifact']);
+    Route::get('/versions/{id}/diff', [VersionController::class, 'diff']);
+    Route::get('/projects/{project}/activities', [ActivityController::class, 'index']);
+    Route::patch('/projects/{id}/favorite', [ProjectController::class, 'toggleFavorite']);
     Route::post('/versions/{id}/regenerate-standards', [VersionController::class, 'regenerateStandards']);
     Route::get('/versions/{id}/standards', [VersionController::class, 'downloadStandards']);
     Route::get('/versions/{id}/agents', [VersionController::class, 'downloadAgents']);
+    Route::get('/versions/{id}/standards/mobile', [VersionController::class, 'downloadMobileStandards']);
+    Route::get('/versions/{id}/agents/mobile', [VersionController::class, 'downloadMobileAgents']);
+    Route::post('/versions/{id}/regenerate-standards/mobile', [VersionController::class, 'regenerateMobileStandards']);
+    Route::get('/dashboard/stats', [ProjectController::class, 'dashboardStats']);
     Route::get('/templates', [TemplateController::class, 'index']);
-    Route::get('/generate/stream', GenerateStreamController::class);
+    Route::post('/generate/stream', GenerateStreamController::class);
 
     // Project API Token management
     Route::get('/projects/{id}/tokens', function (Request $request, int $id) {
@@ -55,6 +77,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     Route::middleware(['role.admin'])->group(function () {
+        Route::get('/activities', [ActivityController::class, 'globalIndex']);
         Route::get('/settings/provider', [ProviderSettingsController::class, 'index']);
         Route::post('/settings/provider', [ProviderSettingsController::class, 'store']);
         Route::patch('/settings/provider/{id}', [ProviderSettingsController::class, 'update']);

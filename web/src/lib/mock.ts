@@ -1,15 +1,23 @@
-// Mock data untuk preview UI. ponytail: diganti fetch /api saat F3–F7 backend siap.
 export type Target = "web" | "mobile" | "both";
-export type StageKey = "analisa" | "prd" | "architecture" | "erd" | "phased_master";
+export type StageKey = "pertanyaan" | "analisa" | "prd" | "architecture" | "erd" | "phased_master" | "phased_master_mobile";
 export type StageState = "pending" | "running" | "done" | "error";
 
-export const STAGES: { key: StageKey; label: string; desc: string }[] = [
-  { key: "analisa", label: "Analisa & Klarifikasi", desc: "AI menganalisa ide, target user, dan asumsi." },
+const ALL_STAGES: { key: StageKey; label: string; desc: string }[] = [
+  { key: "pertanyaan", label: "Klarifikasi", desc: "AI mengajukan pertanyaan klarifikasi tentang ide kamu." },
+  { key: "analisa", label: "Analisa", desc: "AI menganalisa ide berdasarkan jawaban kamu." },
   { key: "prd", label: "PRD", desc: "Dokumen kebutuhan produk terstruktur." },
-  { key: "architecture", label: "Arsitektur & Stack", desc: "Struktur folder & pilihan teknologi." },
-  { key: "erd", label: "ERD + API", desc: "Skema database & kontrak endpoint." },
-  { key: "phased_master", label: "Phases & Master Prompt", desc: "Fase pembangunan + master prompt + standards + rules." },
+  { key: "architecture", label: "Arsitektur", desc: "Struktur folder & pilihan teknologi." },
+  { key: "erd", label: "ERD", desc: "Skema data dalam bahasa sederhana." },
+  { key: "phased_master", label: "Web — Phases & Master Prompt", desc: "Fase pembangunan web + master prompt." },
+  { key: "phased_master_mobile", label: "Mobile — Phases & Master Prompt", desc: "Fase pembangunan mobile + master prompt." },
 ];
+
+export function getStages(target: Target): { key: StageKey; label: string; desc: string }[] {
+  if (target === 'both') return ALL_STAGES;
+  return ALL_STAGES.filter(s => s.key !== 'phased_master_mobile');
+}
+
+export const STAGES = ALL_STAGES;
 
 export type Project = {
   id: string;
@@ -18,7 +26,7 @@ export type Project = {
   target: Target;
   updatedAt: string;
   versions: number;
-  progress: number; // 0..100
+  progress: number;
   tags: string[];
 };
 
@@ -35,6 +43,7 @@ export type Template = {
   target: Target;
   description: string;
   icon: string;
+  seed?: Record<string, string>;
 };
 
 export const templates: Template[] = [
@@ -52,7 +61,6 @@ export const users = [
   { id: "u3", name: "Citra Dewi", email: "citra@example.com", role: "member", joined: "18 Jul 2026" },
 ];
 
-// Contoh ERD untuk React Flow preview
 export const sampleErd = {
   nodes: [
     { id: "users", label: "users", fields: ["id", "name", "email", "role"] },

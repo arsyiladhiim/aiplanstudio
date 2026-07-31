@@ -41,3 +41,49 @@ export function sseCookieHeaders(request: Request): Record<string, string> {
   if (cookie) headers['Cookie'] = cookie;
   return headers;
 }
+
+/** Build a Response from the upstream Laravel fetch, forwarding Set-Cookie headers */
+export async function fwdResponse(res: Response, contentType?: string): Promise<Response> {
+  const data = res.status === 204 ? null : await res.text();
+  const ct = contentType ?? res.headers.get('content-type') ?? 'application/json';
+  const headers: [string, string][] = [['Content-Type', ct], ...setCookieHeaders(res)];
+  return new Response(data, { status: res.status, headers });
+}
+
+/** Safe variant: catches fetch/network errors and returns 500 JSON instead of crashing */
+export async function safeFwdResponse(promise: Promise<Response>, contentType?: string): Promise<Response> {
+  try {
+    const res = await promise;
+    return await fwdResponse(res, contentType);
+  } catch {
+    return new Response(JSON.stringify({ message: 'Internal Server Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+}
+
+/** Forward a request with cookie + Set-Cookie propagation and sanitized errors */
+export async function safeFwd(request: Request, url: string, init: RequestInit): Promise<Response> {
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch {
+    return new Response(
+      JSON.stringify({ message: 'Layanan tidak tersedia. Silakan coba lagi.' }),
+      { status: 502, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+  const data = res.status === 204 ? null : await res.text();
+  const headers: [string, string][] = [
+    ['Content-Type', res.headers.get('content-type') ?? 'application/json'],
+    ...setCookieHeaders(res),
+  ];
+  return new Response(data, { status: res.status, headers });
+}
+
+/** Build a binary Response (blob) from the upstream Laravel fetch, forwarding Set-Cookie headers */
+export async function fwdBlobResponse(res: Response): Promise<Response> {
+  const blob = await res.blob();
+  const headers: [string, string][] = [['Content-Type', res.headers.get('content-type') ?? 'application/octet-stream'], ...setCookieHeaders(res)];
+  const disposition = res.headers.get('content-disposition');
+  if (disposition) headers.push(['Content-Disposition', disposition]);
+  return new Response(blob, { status: res.status, headers });
+}

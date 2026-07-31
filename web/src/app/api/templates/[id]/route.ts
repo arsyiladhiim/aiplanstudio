@@ -1,9 +1,8 @@
-import { LARAVEL_URL, fwd } from '@/lib/bff';
+import { LARAVEL_URL, fwd, safeFwdResponse } from '@/lib/bff';
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const res = await fetch(`${LARAVEL_URL}/api/templates/${id}`, fwd('DELETE', request));
-  return new Response(null, { status: res.status });
+  return await safeFwdResponse(fetch(`${LARAVEL_URL}/api/templates/${id}`, fwd('DELETE', request)));
 }
 
 export const dynamic = 'force-dynamic';

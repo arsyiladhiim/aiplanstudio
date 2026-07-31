@@ -69,22 +69,23 @@ class VersionTest extends TestCase
     {
         $version = Version::factory()->create([
             'project_id' => $this->project->id,
+            'phases' => [['key' => 'setup', 'title' => 'Setup', 'tasks' => [], 'prompt' => '']],
         ]);
 
         $response = $this->actingAs($this->user, 'sanctum')
-            ->patchJson("/api/versions/{$version->id}/phases/analisa", [
+            ->patchJson("/api/versions/{$version->id}/phases/setup", [
                 'done' => true,
             ]);
 
         $response->assertStatus(200)
             ->assertJson([
-                'phase_key' => 'analisa',
+                'phase_key' => 'setup',
                 'done' => true,
             ]);
 
         $this->assertDatabaseHas('phase_progress', [
             'version_id' => $version->id,
-            'phase_key' => 'analisa',
+            'phase_key' => 'setup',
             'done' => true,
         ]);
     }
@@ -107,15 +108,16 @@ class VersionTest extends TestCase
     {
         $version = Version::factory()->create([
             'project_id' => $this->project->id,
+            'phases' => [['key' => 'setup', 'title' => 'Setup', 'tasks' => [], 'prompt' => '']],
         ]);
 
         // Set done
         $this->actingAs($this->user, 'sanctum')
-            ->patchJson("/api/versions/{$version->id}/phases/analisa", ['done' => true]);
+            ->patchJson("/api/versions/{$version->id}/phases/setup", ['done' => true]);
 
         // Toggle back to undone
         $response = $this->actingAs($this->user, 'sanctum')
-            ->patchJson("/api/versions/{$version->id}/phases/analisa", ['done' => false]);
+            ->patchJson("/api/versions/{$version->id}/phases/setup", ['done' => false]);
 
         $response->assertStatus(200)
             ->assertJson(['done' => false]);

@@ -25,9 +25,20 @@ class AuthController extends Controller
             ...$data,
             'password' => Hash::make($data['password']),
             'role' => $isFirst ? 'admin' : 'member',
+            'status' => $isFirst ? 'active' : 'pending',
         ]);
 
         event(new Registered($user));
+
+        // Non-first users wait for admin approval before they can log in.
+        if (! $isFirst) {
+            return response()->json([
+                'user' => $user->only(['id', 'name', 'email', 'role', 'status']),
+                'pending' => true,
+                'message' => 'Akun berhasil dibuat dan menunggu persetujuan admin.',
+            ], 201);
+        }
+
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
 
@@ -40,6 +51,13 @@ class AuthController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
+
+        $user = User::where('email', $data['email'])->first();
+        if ($user && ! $user->isActive()) {
+            throw ValidationException::withMessages([
+                'email' => ['Kredensial tidak cocok.'],
+            ]);
+        }
 
         if (! Auth::guard('web')->attempt($data, $request->boolean('remember'))) {
             throw ValidationException::withMessages([

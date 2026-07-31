@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AiProvider;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -11,6 +12,7 @@ class SettingsTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $member;
 
     protected function setUp(): void
@@ -42,7 +44,7 @@ class SettingsTest extends TestCase
 
     public function test_admin_can_update_provider_settings(): void
     {
-        $provider = \App\Models\AiProvider::create([
+        $provider = AiProvider::create([
             'name' => 'Test',
             'base_url' => 'https://api.openai.com/v1',
             'api_key' => 'sk-old-key',
@@ -62,7 +64,7 @@ class SettingsTest extends TestCase
 
     public function test_member_cannot_update_provider_settings(): void
     {
-        $provider = \App\Models\AiProvider::create([
+        $provider = AiProvider::create([
             'name' => 'Test',
             'base_url' => 'https://api.openai.com/v1',
             'api_key' => 'sk-old-key',
@@ -89,7 +91,7 @@ class SettingsTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                '*' => ['id', 'name', 'email', 'role']
+                '*' => ['id', 'name', 'email', 'role', 'status'],
             ]);
     }
 
@@ -99,6 +101,88 @@ class SettingsTest extends TestCase
             ->getJson('/api/settings/users');
 
         $response->assertStatus(403);
+    }
+
+    public function test_admin_can_approve_pending_user(): void
+    {
+        $user = User::factory()->create(['status' => 'pending']);
+
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->patchJson("/api/settings/users/{$user->id}", [
+                'status' => 'active',
+            ]);
+
+        $response->assertStatus(200);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_admin_can_reject_pending_user(): void
+    {
+        $user = User::factory()->create(['status' => 'pending']);
+
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->patchJson("/api/settings/users/{$user->id}", [
+                'status' => 'pending',
+            ]);
+
+        $response->assertStatus(200);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_admin_cannot_set_invalid_status(): void
+    {
+        $user = User::factory()->create(['status' => 'active']);
+
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->patchJson("/api/settings/users/{$user->id}", [
+                'status' => 'banned',
+            ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_admin_cannot_demote_last_admin(): void
+    {
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->patchJson("/api/settings/users/{$this->admin->id}", [
+                'role' => 'member',
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseHas('users', ['id' => $this->admin->id, 'role' => 'admin']);
+    }
+
+    public function test_admin_cannot_deactivate_last_admin(): void
+    {
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->patchJson("/api/settings/users/{$this->admin->id}", [
+                'status' => 'pending',
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseHas('users', ['id' => $this->admin->id, 'status' => 'active']);
+    }
+
+    public function test_admin_can_demote_admin_when_another_active_admin_exists(): void
+    {
+        $secondAdmin = User::factory()->create(['role' => 'admin']);
+        $target = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->patchJson("/api/settings/users/{$target->id}", [
+                'role' => 'member',
+            ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('users', ['id' => $target->id, 'role' => 'member']);
     }
 
     public function test_admin_can_update_user_role(): void
@@ -165,7 +249,7 @@ class SettingsTest extends TestCase
 
     public function test_admin_can_delete_provider(): void
     {
-        $provider = \App\Models\AiProvider::create([
+        $provider = AiProvider::create([
             'name' => 'To Delete',
             'base_url' => 'https://api.example.com',
             'api_key' => 'sk-del',
@@ -182,7 +266,7 @@ class SettingsTest extends TestCase
 
     public function test_member_cannot_delete_provider(): void
     {
-        $provider = \App\Models\AiProvider::create([
+        $provider = AiProvider::create([
             'name' => 'To Delete',
             'base_url' => 'https://api.example.com',
             'api_key' => 'sk-del',

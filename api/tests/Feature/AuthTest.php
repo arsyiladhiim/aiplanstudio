@@ -25,7 +25,69 @@ class AuthTest extends TestCase
         $this->assertDatabaseHas('users', [
             'email' => 'test@example.com',
             'role' => 'admin', // First user is admin
+            'status' => 'active',
         ]);
+    }
+
+    public function test_second_user_register_is_pending_and_not_logged_in(): void
+    {
+        User::factory()->create(['role' => 'admin', 'status' => 'active']);
+
+        $response = $this->postJson('/api/register', [
+            'name' => 'Second User',
+            'email' => 'second@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJson([
+                'pending' => true,
+                'user' => ['role' => 'member', 'status' => 'pending'],
+            ]);
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'second@example.com',
+            'role' => 'member',
+            'status' => 'pending',
+        ]);
+
+        $this->assertGuest('web');
+    }
+
+    public function test_pending_user_cannot_login(): void
+    {
+        User::factory()->create([
+            'email' => 'pending@example.com',
+            'password' => bcrypt('password123'),
+            'status' => 'pending',
+        ]);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'pending@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['email']);
+        $this->assertSame('Kredensial tidak cocok.', $response->json('errors.email.0'));
+    }
+
+    public function test_approved_user_can_login(): void
+    {
+        User::factory()->create([
+            'email' => 'approved@example.com',
+            'password' => bcrypt('password123'),
+            'status' => 'active',
+        ]);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'approved@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure(['user' => ['id', 'name', 'email', 'role']]);
     }
 
     public function test_user_can_login(): void

@@ -10,7 +10,7 @@ Tabel dipisah ke 3 schema berdasarkan domain:
 | Schema | Isi |
 |--------|-----|
 | `aiplanstudio_master` | Master data — `users`, `password_reset_tokens`, `personal_access_tokens`, `templates`, `migrations` |
-| `aiplanstudio_project` | Data project — `projects`, `versions`, `phase_progress` |
+| `aiplanstudio_project` | Data project — `projects`, `versions`, `phase_progress`, `activities` |
 | `aiplanstudio_settings` | Settings & sistem — `ai_providers`, `sessions`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs` |
 
 Konfigurasi `search_path` di `config/database.php`:
@@ -22,6 +22,7 @@ Semua model dapat mengakses tabel tanpa prefix schema karena PostgreSQL mencari 
 ## Diagram Relasi (ringkas)
 ```
 users ──1:N── projects ──1:N── versions ──1:N── phase_progress
+projects ──1:N── activities
 ai_providers (singleton, global)
 templates (standalone)
 sessions, personal_access_tokens (Sanctum)
@@ -72,6 +73,7 @@ sessions, personal_access_tokens (Sanctum)
 | idea | text | ide awal |
 | target | enum `web`\|`mobile`\|`both` | default `'web'`; menentukan output target-aware |
 | stack | string nullable | preferensi stack (opsional) |
+| is_favorite | boolean default false | ditandai sebagai favorit |
 | timestamps | | |
 
 ### versions (snapshot 1 run pipeline)
@@ -102,6 +104,34 @@ Unik: (`project_id`, `version_no`).
 | timestamps | | |
 | **UNIQUE** | (version_id, phase_key) | mencegah duplikasi |
 
+### activities (Activity Log)
+| Kolom | Tipe | Catatan |
+|-------|------|---------|
+| id | bigint PK | |
+| project_id | bigint FK → projects | |
+| user_id | bigint FK → users nullable | pelaku (null untuk system) |
+| type | string | kategorisasi: `created_version`, `deleted_version`, dll |
+| description | text | narasi aktivitas |
+| metadata | jsonb nullable | data tambahan polymorphic |
+| timestamps | | |
+
+### versions — kolom tambahan (migrasi lanjutan)
+| Kolom | Tipe | Catatan |
+|-------|------|---------|
+| answers | jsonb nullable | jawaban pertanyaan klarifikasi (migration 2026_07_31_120000) |
+| standards | jsonb nullable | standar/target quality (migration 2026_07_27_130000) |
+| agents | jsonb nullable | daftar agen AI (migration 2026_07_27_130000) |
+| mobile_analysis | text nullable | artifact mobile (migration 2026_07_31_130000) |
+| mobile_prd | text nullable | |
+| mobile_architecture | text nullable | |
+| mobile_phases | jsonb nullable | |
+| mobile_master_prompt | text nullable | |
+
+### phase_progress — kolom tambahan
+| Kolom | Tipe | Catatan |
+|-------|------|---------|
+| output | text nullable | output yang dihasilkan (migration 2026_07_27_120001) |
+
 ### Bawaan Framework & Sanctum
 - `sessions` — penyimpanan session (SESSION_DRIVER=database)
 - `personal_access_tokens` — Sanctum tokens
@@ -113,7 +143,8 @@ Unik: (`project_id`, `version_no`).
 - Hapus Project → cascade Versions → cascade phase_progress.
 - `api_key` **tidak pernah** dikembalikan mentah lewat API (mask, mis. `sk-...abcd`).
 - Semua query Project/Version **wajib** difilter `user_id` pemilik (kecuali admin bila diputuskan). Lihat [11-development-rules](11-development-rules.md).
-- `api_contract` belum diisi oleh pipeline — lihat [16-audit-fix-plan](16-audit-fix-plan.md#rp).
+- `api_contract` diekstrak dari response ERD oleh pipeline.
+- Aktivitas otomatis tercatat via `Project::logActivity()` di controller.
 
 ## Seeder Awal
 - 1 user admin default (kredensial ditaruh di `.env`, jangan hardcode di repo).

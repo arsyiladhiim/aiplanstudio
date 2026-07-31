@@ -34,9 +34,9 @@ class AiClient
                     [['role' => 'user', 'content' => 'Hi.']], 5
                 ));
             if ($res->successful()) return ['ok' => true, 'message' => 'Koneksi berhasil.'];
-            return ['ok' => false, 'message' => $res->json('error.message') ?? "HTTP {$res->status()}"];
+            return ['ok' => false, 'message' => 'Provider mengembalikan error. Periksa konfigurasi.'];
         } catch (\Throwable $e) {
-            return ['ok' => false, 'message' => $e->getMessage()];
+            return ['ok' => false, 'message' => 'Gagal terhubung ke provider.'];
         }
     }
 
@@ -63,9 +63,9 @@ class AiClient
                 $content = $this->provider->parseResponseContent($body) ?? '(empty response)';
                 return ['ok' => true, 'message' => 'Prompt berhasil.', 'response' => $content];
             }
-            return ['ok' => false, 'message' => $res->json('error.message') ?? "HTTP {$res->status()}", 'response' => null];
+            return ['ok' => false, 'message' => 'Provider mengembalikan error. Periksa konfigurasi.', 'response' => null];
         } catch (\Throwable $e) {
-            return ['ok' => false, 'message' => $e->getMessage(), 'response' => null];
+            return ['ok' => false, 'message' => 'Gagal terhubung ke provider.', 'response' => null];
         }
     }
 
@@ -94,19 +94,33 @@ class AiClient
         if ($host === null || $host === '') {
             return 'URL tidak valid.';
         }
-        $ip = gethostbyname($host);
-        if ($ip === $host) {
-            $ip = $host;
-        }
-        $isInternal = filter_var($ip, FILTER_VALIDATE_IP) && (
-            filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
-        );
-        if ($isInternal) {
-            $allowedInternalHosts = ['api', 'web', 'db', 'redis', 'nginx', 'localhost', '127.0.0.1'];
-            if (in_array(strtolower($host), $allowedInternalHosts, true)) {
+        // Check if host is already a literal IP (including IPv6)
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            $ips = [$host];
+        } else {
+            // Resolve both IPv4 and IPv6 addresses
+            $records = dns_get_record($host, DNS_A | DNS_AAAA);
+            $ips = [];
+            foreach ($records as $rec) {
+                if (isset($rec['ip'])) $ips[] = $rec['ip'];
+                if (isset($rec['ipv6'])) $ips[] = $rec['ipv6'];
+            }
+            if (empty($ips)) {
+                // Fallback: treat unresolvable host as potentially valid (not internal)
                 return null;
             }
-            return 'URL mengarah ke jaringan internal. Hanya domain eksternal yang diizinkan.';
+        }
+        $allowedInternalHosts = ['api', 'web', 'db', 'redis', 'nginx', 'localhost', '127.0.0.1'];
+        if (in_array(strtolower($host), $allowedInternalHosts, true)) {
+            return null;
+        }
+        foreach ($ips as $ip) {
+            $isInternal = filter_var($ip, FILTER_VALIDATE_IP) && (
+                filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false
+            );
+            if ($isInternal) {
+                return 'URL mengarah ke jaringan internal. Hanya domain eksternal yang diizinkan.';
+            }
         }
         return null;
     }
@@ -125,7 +139,7 @@ class AiClient
             ->post($this->provider->chatEndpoint(), $this->provider->chatBody($messages, 8192, true));
 
         if (!$res->successful()) {
-            throw new \RuntimeException("AI Provider error: " . ($res->json('error.message') ?? "HTTP {$res->status()}"));
+            throw new \RuntimeException("AI Provider mengembalikan error (HTTP {$res->status()}). Periksa konfigurasi.");
         }
 
         $buffer = '';
@@ -173,7 +187,7 @@ class AiClient
             ->post($this->provider->chatEndpoint(), $this->provider->chatBody($messages, 4096, false));
 
         if (!$res->successful()) {
-            throw new \RuntimeException("AI Provider error: " . ($res->json('error.message') ?? "HTTP {$res->status()}"));
+            throw new \RuntimeException("Provider mengembalikan error (HTTP {$res->status()}). Periksa konfigurasi.");
         }
 
         $body = $res->json();

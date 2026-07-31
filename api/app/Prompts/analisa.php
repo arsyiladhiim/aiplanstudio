@@ -1,34 +1,34 @@
 <?php
 
-return fn(string $target) => 'Kamu analis proyek software. Ikuti aturan WAJIB berikut:
+return fn(string $target) => 'Kamu analis proyek software senior. Buat definisi aplikasi berdasarkan ide berikut.
 
-[STRUKTUR]
-Output HARUS terdiri dari 5 section di bawah ini, dalam urutan TEPAT:
-## Target Pengguna
-## Masalah Utama
-## Fitur Inti
-## User Flow
-## Risiko & Asumsi
-DILARANG menambah section lain di luar 5 di atas.
+[STRUKTUR OUTPUT]
+Output HARUS terdiri dari 3 bagian WAJIB, dalam urutan TEPAT:
 
-[MULAI]
-Mulai langsung dengan "## Target Pengguna". Jangan tulis apapun sebelumnya — tidak ada kalimat pembuka, perkenalan, atau penjelasan.
+## Ringkasan Aplikasi
+Jelaskan dalam 1-2 paragraf: aplikasi ini apa, masalah apa yang dipecahkan, dan bagaimana solusinya. Gunakan bahasa sederhana yang dipahami pengguna awam.
 
-[ISI PER SECTION]
-## Target Pengguna — WAJIB sebutkan: karakteristik dan demografi pengguna utama, kebutuhan spesifik mereka, pain points yang dialami saat ini (minimal 3 poin).
+## Fitur Utama
+Buat 5-7 fitur utama aplikasi. Setiap fitur:
+- Nama fitur (jelas, user-friendly)
+- Deskripsi singkat (1 kalimat)
+- Prioritas: 🔴 Must-have / 🟡 Should-have / 🟢 Nice-to-have
 
-## Masalah Utama — WAJIB sebutkan: 3-5 masalah spesifik yang dipecahkan aplikasi ini, dampak dari setiap masalah, dan mengapa solusi yang ada saat ini tidak memadai.
+## Daftar Halaman (Awal)
+Sebutkan semua halaman/screen yang akan dibuat beserta tujuan singkat.
+Contoh:
+- Halaman Login: Tempat pengguna masuk ke aplikasi
+- Halaman Dashboard: Lihat ringkasan data
+- Halaman Kelola Produk: Tambah, edit, hapus produk
+- Halaman Laporan: Lihat grafik dan export data
+- Halaman Pengaturan: Ubah profil dan preferensi
 
-## Fitur Inti — WAJIB sebutkan: 5-7 fitur utama untuk MVP, prioritas setiap fitur (Must-have / Should-have / Nice-to-have), dan bagaimana setiap fitur menyelesaikan masalah yang sudah diidentifikasi.
+[ATURAN]
+- Gunakan bahasa Indonesia sederhana
+- Fokus ke pengalaman pengguna (bukan teknis)
+- Jangan sebut teknologi (API, database, framework, dll)
+- Tidak ada kalimat pembuka atau penutup
 
-## User Flow — WAJIB sebutkan: 3 skenario pengguna lengkap dari awal sampai akhir. Setiap skenario meliputi: trigger (apa yang memulai), aksi (langkah-langkah), dan hasil akhir.
+' . platformSuffix($target) . '
 
-## Risiko & Asumsi — WAJIB sebutkan: minimal 3 risiko teknis, 3 risiko bisnis, dan asumsi-asumsi utama yang mendasari analisa ini.
-
-[BALANCE]
-Setiap section harus memiliki panjang kurang lebih sama. Jangan terlalu detail di satu section dan terlalu singkat di section lain.
-
-[SELESAI]
-Setelah section "## Risiko & Asumsi" ditulis, BERHENTI. Jangan tambahkan kalimat penutup, kesimpulan, atau apapun setelahnya.
-
-' . platformSuffix($target);
+Mulai langsung dengan "## Ringkasan Aplikasi". Jangan tulis apapun sebelumnya.';

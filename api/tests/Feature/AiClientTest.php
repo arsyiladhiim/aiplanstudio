@@ -38,7 +38,7 @@ class AiClientTest extends TestCase
 
     public function test_is_configured_returns_false_when_api_key_empty(): void
     {
-        AiProvider::truncate();
+        AiProvider::query()->delete();
         AiProvider::create([
             'base_url' => 'https://api.openai.com/v1',
             'api_key' => '',
@@ -50,14 +50,14 @@ class AiClientTest extends TestCase
 
     public function test_is_configured_returns_false_when_no_provider(): void
     {
-        AiProvider::truncate();
+        AiProvider::query()->delete();
         $client = new AiClient();
         $this->assertFalse($client->isConfigured());
     }
 
     public function test_test_connection_returns_fail_when_not_configured(): void
     {
-        AiProvider::truncate();
+        AiProvider::query()->delete();
         AiProvider::create([
             'base_url' => 'https://api.openai.com/v1',
             'api_key' => '',
@@ -71,7 +71,7 @@ class AiClientTest extends TestCase
 
     public function test_stream_throws_when_not_configured(): void
     {
-        AiProvider::truncate();
+        AiProvider::query()->delete();
         AiProvider::create([
             'base_url' => 'https://api.openai.com/v1',
             'api_key' => '',
@@ -125,7 +125,7 @@ class AiClientTest extends TestCase
 
         $client = new AiClient();
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Bad request');
+        $this->expectExceptionMessage('mengembalikan error');
 
         $client->stream([['role' => 'user', 'content' => 'Hi']], fn($t) => null);
     }

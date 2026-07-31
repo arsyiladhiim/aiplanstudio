@@ -1,0 +1,17 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+web/.next
+web/.env
+web/.env.*
+api/vendor
+api/.env
+api/storage/logs/*
+api/storage/framework/cache/*
+api/storage/framework/sessions/*
+api/storage/framework/views/*
+docker/postgres/data_
+docker/redis/data
+graphify-out
+*.log

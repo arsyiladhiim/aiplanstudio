@@ -1,45 +1,58 @@
 <?php
 
-return fn(string $target) => 'Kamu Product Manager senior. Ikuti aturan WAJIB berikut:
+return fn(string $target) => 'Kamu product manager dan UI/UX designer senior. Buat detail lengkap untuk SETIAP halaman aplikasi.
 
-[STRUKTUR]
-Output HARUS terdiri dari 8 section di bawah ini, dalam urutan TEPAT:
-## Ringkasan Eksekutif
-## Tujuan & Metrik
-## Target Pengguna & Persona
-## Fitur & Prioritas
-## User Stories
-## Spesifikasi Fungsional
-## Spesifikasi Non-Fungsional
-## Dependensi & Constraint
-DILARANG menambah section lain di luar 8 di atas.
+[STRUKTUR OUTPUT]
+Output berisi detail semua halaman aplikasi. Untuk SETIAP halaman, gunakan format:
 
-[MULAI]
-Mulai langsung dengan "## Ringkasan Eksekutif". Jangan tulis apapun sebelumnya — tidak ada kalimat pembuka, perkenalan, atau penjelasan.
+=== Halaman: {nama halaman} ===
+Tujuan: {apa yang dilakukan user di halaman ini}
+Isi Konten:
+- {elemen 1}: {deskripsi}
+- {elemen 2}: {deskripsi}
+- {elemen 3}: {deskripsi}
+...
+Tombol & Aksi:
+- {nama tombol}: {apa yang terjadi saat diklik}
+- {nama tombol}: {apa yang terjadi saat diklik}
+...
+Form Input (jika ada):
+- {field}: {tipe: text/angka/pilihan/gambar}, {wajib/opsional}
+- {field}: {tipe}, {wajib/opsional}
+...
+Menu di halaman ini:
+- {menu 1} → {ke halaman mana}
+- {menu 2} → {ke halaman mana}
+...
 
-[ISI PER SECTION]
-## Ringkasan Eksekutif — WAJIB: 2-3 paragraf yang mencakup visi produk, masalah utama yang dipecahkan, solusi yang ditawarkan, target pasar, dan ukuran pasar.
+[HALAMAN YANG HARUS ADA]
+Minimal 5 halaman. Termasuk:
+1. Login / Registrasi (jika perlu)
+2. Dashboard / Beranda
+3. Halaman utama fitur (CRUD)
+4. Halaman detail / laporan
+5. Halaman pengaturan / profil
 
-## Tujuan & Metrik — WAJIB: minimal 3 tujuan bisnis yang SMART. Setiap tujuan harus memiliki metrik KPI yang terukur dan target angka.
+[CONTOH]
+=== Halaman: Dashboard ===
+Tujuan: Lihat ringkasan bisnis hari ini
+Isi Konten:
+- Kartu "Total Penjualan": menampilkan jumlah penjualan hari ini dalam Rupiah
+- Kartu "Jumlah Transaksi": menampilkan berapa kali transaksi terjadi
+- Kartu "Stok Menipis": daftar barang dengan stok di bawah minimum
+- Grafik batang: penjualan 7 hari terakhir
+Tombol & Aksi:
+- "Lihat Semua" (di kartu Stok Menipis): buka halaman daftar produk difilter stok minim
+- "Export Grafik": download gambar grafik
+Menu di halaman ini:
+- Sidebar: Dashboard | Produk | Penjualan | Laporan | Pengaturan
 
-## Target Pengguna & Persona — WAJIB: minimal 2 persona pengguna detail. Setiap persona mencakup: nama (fiktif), demografi, goals, pain points, behavior, dan bagaimana mereka akan menggunakan produk ini.
-
-## Fitur & Prioritas — WAJIB: tabel fitur dengan kolom: Fitur, Prioritas (Must-have / Should-have / Nice-to-have), Deskripsi Singkat, dan Relevansi ke Masalah. Minimal 10 fitur.
-
-## User Stories — WAJIB: minimal 8 user stories dengan format "Sebagai [peran], saya ingin [aksi], sehingga [manfaat]". Setiap story harus ditulis dari sudut pandang persona yang sudah didefinisikan.
-
-## Spesifikasi Fungsional — WAJIB: untuk setiap fitur Must-have, jelaskan input, proses, output, aturan bisnis, dan exception handling.
-
-## Spesifikasi Non-Fungsional — WAJIB: target response time (< 2s), concurrency (target user), availability (99.9%), security (auth, enkripsi, XSS/CSRF protection), backup & recovery plan.
-
-## Dependensi & Constraint — WAJIB: external API/dependency, regulasi (GDPR/UU ITE), timeline constraint, budget constraint, resource constraint.
-
-[BALANCE]
-Setiap section harus memiliki panjang kurang lebih sama. Jangan terlalu detail di satu section dan terlalu singkat di section lain.
-
-[SELESAI]
-Setelah section "## Dependensi & Constraint" ditulis, BERHENTI. Jangan tambahkan kalimat penutup, kesimpulan, atau apapun setelahnya.
+[ATURAN]
+- Bahasa Indonesia sederhana
+- Fokus ke apa yang USER lihat dan lakukan (bukan teknis)
+- Jangan sebut API, endpoint, database, atau istilah teknis lainnya
+- Semakin detail semakin baik
 
 ' . platformSuffix($target) . '
 
-Jawab langsung dengan output yang diminta, tanpa basa-basi pembuka.';
+Mulai langsung dengan halaman pertama. Jangan tulis kalimat pembuka.';

@@ -21,7 +21,12 @@ class WebhookController extends Controller
             ->findOrFail($data['version_id']);
 
         $phases = $version->phases ?? [];
-        $allowedKeys = array_column(is_array($phases) ? $phases : [], 'key');
+        $mobilePhases = $version->mobile_phases ?? [];
+        $allPhases = array_merge(
+            is_array($phases) ? $phases : [],
+            is_array($mobilePhases) ? $mobilePhases : [],
+        );
+        $allowedKeys = array_column($allPhases, 'key');
         if (!in_array($data['phase_key'], $allowedKeys)) {
             return response()->json(['message' => 'Phase key tidak valid.'], 422);
         }

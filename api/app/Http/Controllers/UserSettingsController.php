@@ -11,7 +11,7 @@ class UserSettingsController extends Controller
 {
     public function index(): JsonResponse
     {
-        return response()->json(User::latest()->get(['id', 'name', 'email', 'role', 'created_at']));
+        return response()->json(User::latest()->get(['id', 'name', 'email', 'role', 'status', 'created_at']));
     }
 
     public function store(Request $request): JsonResponse
@@ -26,6 +26,7 @@ class UserSettingsController extends Controller
         $user = User::create([
             ...$data,
             'password' => Hash::make($data['password']),
+            'status' => 'active',
         ]);
 
         return response()->json($user, 201);
@@ -38,7 +39,17 @@ class UserSettingsController extends Controller
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'role' => ['sometimes', 'in:admin,member'],
+            'status' => ['sometimes', 'in:active,pending'],
         ]);
+
+        // Prevent system lockout: the last active admin cannot be demoted or deactivated.
+        $removesAdmin = ($data['role'] ?? null) === 'member' || ($data['status'] ?? null) === 'pending';
+        if ($removesAdmin && $user->isAdmin() && $user->status === 'active') {
+            $activeAdmins = User::query()->where('role', 'admin')->where('status', 'active')->count();
+            if ($activeAdmins <= 1) {
+                return response()->json(['message' => 'Tidak bisa menonaktifkan admin terakhir.'], 422);
+            }
+        }
 
         $user->update($data);
 

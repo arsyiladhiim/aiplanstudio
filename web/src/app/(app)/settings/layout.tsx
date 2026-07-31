@@ -2,9 +2,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PageHeader } from "@/components/common";
-import { Cpu, Users } from "lucide-react";
+import { Cpu, Users, User } from "lucide-react";
 
 const tabs = [
+  { href: "/settings/profile", label: "Profile", icon: User },
   { href: "/settings/provider", label: "AI Provider", icon: Cpu },
   { href: "/settings/users", label: "User Management", icon: Users },
 ];

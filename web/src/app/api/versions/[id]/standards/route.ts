@@ -1,4 +1,4 @@
-import { LARAVEL_URL, cookieHeaders } from '@/lib/bff';
+import { LARAVEL_URL, cookieHeaders, fwdBlobResponse } from '@/lib/bff';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -6,14 +6,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     headers: cookieHeaders(request),
   });
 
-  const blob = await laravelRes.blob();
-  return new Response(blob, {
-    status: laravelRes.status,
-    headers: {
-      'Content-Type': 'text/markdown; charset=utf-8',
-      'Content-Disposition': laravelRes.headers.get('content-disposition') ?? 'attachment; filename="STANDARDS.md"',
-    },
-  });
+  return await fwdBlobResponse(laravelRes);
 }
 
 export const dynamic = 'force-dynamic';

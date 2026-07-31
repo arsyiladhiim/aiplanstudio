@@ -1,19 +1,39 @@
 import { LARAVEL_URL, sseCookieHeaders } from '@/lib/bff';
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const laravelUrl = `${LARAVEL_URL}/api/generate/stream${url.search}`;
+export async function POST(request: Request) {
+  let body: { version?: string; stage?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(
+      `event: fail\ndata: ${JSON.stringify({ message: 'Invalid JSON' })}\n\n`,
+      { status: 200, headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-store, must-revalidate' } }
+    );
+  }
 
-  console.log('[BFF SSE] Request:', url.search, '→', laravelUrl);
+  const params = new URLSearchParams();
+  if (body.version) params.set('version', body.version);
+  if (body.stage) params.set('stage', body.stage);
+  const qs = params.toString();
+  const laravelUrl = `${LARAVEL_URL}/api/generate/stream${qs ? '?' + qs : ''}`;
+
+  console.log('[BFF SSE] POST →', laravelUrl);
 
   const headers: Record<string, string> = sseCookieHeaders(request);
 
   let laravelRes: Response;
+  const upstreamController = new AbortController();
+  const upstreamTimer = setTimeout(() => upstreamController.abort(), 30_000);
   try {
-    laravelRes = await fetch(laravelUrl, { headers, cache: 'no-store' });
+    laravelRes = await fetch(laravelUrl, { method: 'POST', headers, cache: 'no-store', signal: upstreamController.signal });
+    clearTimeout(upstreamTimer);
     console.log('[BFF SSE] Laravel status:', laravelRes.status);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Gagal terhubung ke server';
+    clearTimeout(upstreamTimer);
+    const msg =
+      err instanceof Error && err.name === 'AbortError'
+        ? 'Backend lambat merespon.'
+        : 'Gagal terhubung ke server';
     console.error('[BFF SSE] Fetch error:', msg);
     return new Response(
       `event: fail\ndata: ${JSON.stringify({ message: msg })}\n\n`,
@@ -29,10 +49,9 @@ export async function GET(request: Request) {
   }
 
   if (!laravelRes.ok) {
-    const body = await laravelRes.text();
-    console.error('[BFF SSE] Laravel error:', laravelRes.status, body);
+    console.error('[BFF SSE] Laravel error:', laravelRes.status);
     return new Response(
-      `event: fail\ndata: ${JSON.stringify({ message: body || 'Stream failed', status: laravelRes.status })}\n\n`,
+      `event: fail\ndata: ${JSON.stringify({ message: 'Stream gagal.', status: laravelRes.status })}\n\n`,
       {
         status: 200,
         headers: {
@@ -94,3 +113,6 @@ export async function GET(request: Request) {
     },
   });
 }
+
+/** Keep GET handler for backward compat */
+export const GET = POST;

@@ -149,7 +149,7 @@ class ModelTest extends TestCase
     {
         $status = Version::defaultStageStatus();
 
-        $expected = ['analisa', 'prd', 'architecture', 'erd', 'phases', 'master'];
+        $expected = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'phased_master', 'phased_master_mobile'];
         foreach ($expected as $stage) {
             $this->assertArrayHasKey($stage, $status);
             $this->assertSame('pending', $status[$stage]);

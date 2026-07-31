@@ -8,10 +8,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-#[Fillable(['title', 'idea', 'target', 'stack'])]
+#[Fillable(['title', 'idea', 'target', 'stack', 'is_favorite'])]
 class Project extends Model
 {
     use HasFactory;
+
+    protected function casts(): array
+    {
+        return ['is_favorite' => 'boolean'];
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -40,5 +46,21 @@ class Project extends Model
     public function nextVersionNo(): int
     {
         return ($this->versions()->max('version_no') ?? 0) + 1;
+    }
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(Activity::class)->latest();
+    }
+
+    public function logActivity(string $action, string $description, ?int $versionId = null, ?array $metadata = null): Activity
+    {
+        return $this->activities()->create([
+            'user_id' => auth()->id(),
+            'version_id' => $versionId,
+            'action' => $action,
+            'description' => $description,
+            'metadata' => $metadata,
+        ]);
     }
 }

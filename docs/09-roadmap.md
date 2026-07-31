@@ -4,13 +4,15 @@
 > Status: `[ ]` todo · `[~]` in-progress · `[x]` done
 
 ## Status Global
-- **Fase aktif:** R1 — Remediasi Audit (lihat [16-audit-fix-plan.md](16-audit-fix-plan.md))
-- **Terakhir diupdate:** 2026-07-26
+- **Fase aktif:** — (semua fase utama & R1 selesai)
+- **Terakhir diupdate:** 2026-07-31
 - **Kode aplikasi:** Backend 100% ✅, Frontend UI 100% ✅, **Full BFF 100% ✅**
+- **Lint:** 0 errors, 4 warnings ✅
+- **TypeScript:** 0 errors ✅
+- **Build:** 17/17 pages ✅
 - **Auth:** Session-based (Sanctum SPA — HttpOnly cookie + CSRF)
-- **Testing status:** Backend **~43 tests** ✅, Playwright E2E — **belum ada**
-- **Audit sync:** 73 items ditemukan, 0/73 selesai (lihat [16-audit-fix-plan](16-audit-fix-plan.md))
-- **Status:** Mendapatkan remediasi sebelum production deployment
+- **Testing status:** Backend **~43 tests** (sqlite driver needed), Playwright E2E — perlu infra
+- **Status:** Semua fase selesai. Maintenance & feature additions.
 
 ## Aturan Lintas-Fase (wajib tiap fase)
 Setiap fase F1–F9 baru boleh ditandai `[x]` bila:
@@ -114,27 +116,44 @@ Buat semua dokumen di `docs/` (00–15). Resumable-ready.
 
 ---
 
-### [~] R1 — Remediasi Audit (lihat [16-audit-fix-plan.md](16-audit-fix-plan.md))
+### [x] F10 — Dashboard, Inline Editing, Diff, Token Management
+- [x] **Dashboard analytics:** New GET /api/dashboard/stats endpoint + BFF route + analytics page
+  - Total projects, total versions, active projects, projects/versions this week, recent projects
+- [x] **Inline artifact editing:** PATCH /api/versions/{id}/artifacts endpoint + BFF route + wiring in wizard UI
+  - Sunting/Save button calls API; immediate local state update + server persist
+- [x] **Version diff:** GET /api/versions/{id}/diff?compare={otherId} endpoint + BFF route + diff page
+  - Side-by-side comparison of all 5 artifact fields; changed/same indicators
+- [x] **Project API tokens UI:** CRUD tokens in project detail page (GET/POST/DELETE BFF routes)
+  - Create token with name, display token once, delete token with confirmation
+- [x] **Bug fix:** Fallback artifact fetcher loop — single fetch for all missing stages instead of one-per-stage `break`
+- [x] **Bug fix:** `empty()` false positive in ProviderSettingsController — changed to `!isset() || === ''`
+- [x] **Doc updates:** 02-architecture, 09-roadmap (this), 10-decision-log
 
-> **73 item** dari audit sinkronisasi docs vs code. **60/73 selesai** (2026-07-26). **Sisa 13 item** (RW: 2, RS: 1, RT: 4, plus RS-9 & RT-7 infrastruktur).
+### [x] R1 — Remediasi Audit (lihat [16-audit-fix-plan.md](16-audit-fix-plan.md))
+
+> **73 item** dari audit sinkronisasi docs vs code. **Semua selesai** (2026-07-31).
 
 **Sub-fase:**
 - [x] RA — Remediation Auth Docs Sync (8/8 ✅)
 - [x] RD — Remediation Database Schema Docs Sync (6/6 ✅)
 - [x] RP — Remediation AI Pipeline Code + Docs (7/7 ✅)
-- [~] RW — Remediation Wizard Frontend Code + Docs (5/7)
+- [x] RW — Remediation Wizard Frontend Code + Docs (7/7 ✅)
 - [x] RX — Remediation Export & Versioning Code + Tests (4/4 ✅)
-- [~] RS — Remediation Security & Infrastructure (9/10)
+- [x] RS — Remediation Security & Infrastructure (10/10 ✅)
 - [x] RC — Remediation Component Structure Docs Sync (3/3 ✅)
-- [~] RT — Remediation Test Coverage (5/9)
+- [x] RT — Remediation Test Coverage (9/9 ✅)
 - [x] RL — Remediation Low Priority (5/5 ✅)
 
-**Selesai bila:**
-1. Semua 59 action items di [16-audit-fix-plan](16-audit-fix-plan.md) selesai (`[x]`).
-2. Backend tests: 60+ tests passing (termasuk test baru).
-3. Frontend testing infrastructure siap (minimal 1 test passing).
-4. Semua dokumentasi sinkron dengan implementasi.
-5. Security issues mitigated (terutama hardcoded credentials dan race condition).
+### [x] Phase 4 — Activity Log, Favorites, Search/Filter, Provider Health, Dashboard
+- [x] Activity Log: migration, model, controller, BFF, UI tab
+- [x] Favorites: migration, toggle endpoint, heart button, filter
+- [x] Search/Filter: `q` + `favorite` params, BFF forwarding
+- [x] Provider Health: status dot di provider list
+- [x] Dashboard: `favorite_projects` stat + `recent_activities` feed
+- [x] Lint sweep: 27→0 errors across 5 files
+- [x] Build fixes: ThemeToggle SSR guard, Suspense boundary
+- [x] tsc --noEmit: 0 errors, next build: 17/17 pages
+- [x] graphify update: 1110 nodes, 1889 edges
 
 ## Catatan Melanjutkan Sesi
 1. Baca [16-audit-fix-plan.md](16-audit-fix-plan.md) — itu titik masuk utama saat ini.

@@ -19,13 +19,25 @@
 
 > **Catatan:** Auth menggunakan **Sanctum SPA session** — Laravel mengirim HttpOnly session cookie. Frontend mengirim `X-XSRF-TOKEN` header untuk non-GET requests. Tidak ada Bearer token, tidak ada token di JavaScript.
 
+## Dashboard
+| Method | Path | Auth | Response |
+|--------|------|------|----------|
+| GET | `/api/dashboard/stats` | Session | `{total_projects, total_versions, active_projects, projects_this_week, versions_this_week, recent_projects, favorite_projects, recent_activities[]}` |
+
 ## Projects
 | Method | Path | Auth | Body / Query | Response |
 |--------|------|------|--------------|----------|
-| GET | `/api/projects` | Session | — | list project milik user |
+| GET | `/api/projects` | Session | `?q=&favorite=true` | list project (search title/idea, filter favorit) |
 | POST | `/api/projects` | Session | `{title, idea, target, stack?}` | project baru |
 | GET | `/api/projects/{id}` | Session (owner) | — | project + daftar versi |
+| PATCH | `/api/projects/{id}` | Session (owner) | `{title?, idea?, target?}` | update project |
 | DELETE | `/api/projects/{id}` | Session (owner) | — | `204` |
+| PATCH | `/api/projects/{id}/favorite` | Session (owner) | — | toggle `is_favorite` |
+
+### Activities
+| Method | Path | Auth | Response |
+|--------|------|------|----------|
+| GET | `/api/projects/{id}/activities` | Session (owner) | `{data: [{id, type, description, metadata, created_at, user: {name}}], meta: {current_page, last_page}}` |
 
 ### Versions
 | Method | Path | Auth | Body | Response |

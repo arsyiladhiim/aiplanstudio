@@ -30,7 +30,7 @@ class ProviderSettingsController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
-            'base_url' => ['required', 'url'],
+            'base_url' => ['required', 'url', 'regex:/^https:\/\//i'],
             'api_key' => ['required', 'string'],
             'model' => ['required', 'string', 'max:100'],
             'provider_type' => ['required', 'in:openai,anthropic,custom'],
@@ -51,7 +51,7 @@ class ProviderSettingsController extends Controller
             'provider_type' => ['sometimes', 'in:openai,anthropic,custom'],
         ]);
 
-        if (empty($data['api_key'])) unset($data['api_key']);
+        if (!isset($data['api_key']) || $data['api_key'] === '') unset($data['api_key']);
         $provider->update($data);
 
         return response()->json(['message' => 'Provider diperbarui.', 'api_key_masked' => $provider->maskedKey()]);

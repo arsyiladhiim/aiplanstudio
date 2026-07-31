@@ -1,12 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Moon, Sun } from "lucide-react";
 
 export function ThemeToggle({ className = "" }: { className?: string }) {
-  const [light, setLight] = useState(false);
-  useEffect(() => {
-    setLight(document.documentElement.getAttribute("data-theme") === "light");
-  }, []);
+  const [light, setLight] = useState(() => typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "light");
   function toggle() {
     const next = !light;
     setLight(next);
