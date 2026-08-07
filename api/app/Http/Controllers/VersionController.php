@@ -23,6 +23,7 @@ class VersionController extends Controller
         $version = DB::transaction(function () use ($project) {
             $locked = Project::where('id', $project->id)->lockForUpdate()->firstOrFail();
             $next = ($locked->versions()->max('version_no') ?? 0) + 1;
+
             return $locked->versions()->create([
                 'version_no' => $next,
                 'stage_status' => Version::defaultStageStatus(),
@@ -36,7 +37,7 @@ class VersionController extends Controller
 
     public function show(Request $request, int $id): JsonResponse
     {
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with(['phaseProgress', 'project'])
             ->findOrFail($id);
 
@@ -45,7 +46,7 @@ class VersionController extends Controller
 
     public function togglePhase(Request $request, int $id, string $phaseKey): JsonResponse
     {
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->findOrFail($id);
 
         $phases = $version->phases ?? [];
@@ -55,7 +56,7 @@ class VersionController extends Controller
             is_array($mobilePhases) ? $mobilePhases : [],
         );
         $allowedKeys = array_column($allPhases, 'key');
-        if (!in_array($phaseKey, $allowedKeys)) {
+        if (! in_array($phaseKey, $allowedKeys)) {
             return response()->json(['message' => 'Phase key tidak valid.'], 422);
         }
 
@@ -73,7 +74,7 @@ class VersionController extends Controller
     {
         $request->validate(['format' => ['sometimes', 'string', 'in:md,zip']]);
 
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with('project')
             ->findOrFail($id);
 
@@ -93,11 +94,17 @@ class VersionController extends Controller
 
         if ($format === 'zip') {
             return new StreamedResponse(function () use ($version, $projectTitle, $v) {
-                $zip = new ZipArchive();
-                $tmpPath = tempnam(sys_get_temp_dir(), 'export') . '.zip';
+                $zip = new ZipArchive;
+                $tmpPath = tempnam(sys_get_temp_dir(), 'export').'.zip';
                 $zip->open($tmpPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
                 $zip->addFromString("{$projectTitle}-v{$v}.md", $this->buildMarkdown($version));
                 $zip->addFromString('erd.json', json_encode($version->erd ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+                if ($version->mobile_standards) {
+                    $zip->addFromString('mobile-standards.md', $version->mobile_standards);
+                }
+                if ($version->mobile_agents) {
+                    $zip->addFromString('mobile-agents.md', $version->mobile_agents);
+                }
                 $zip->close();
 
                 readfile($tmpPath);
@@ -116,34 +123,34 @@ class VersionController extends Controller
         $lines = [
             "# {$v->project->title}",
             "Versi: v{$v->version_no}",
-            "",
-            "## Pertanyaan Klarifikasi",
+            '',
+            '## Pertanyaan Klarifikasi',
             $v->pertanyaan ?? '_Belum ada_',
-            "",
+            '',
         ];
 
         if ($v->answers) {
-            $lines[] = "### Jawaban";
+            $lines[] = '### Jawaban';
             foreach ($v->answers as $q => $a) {
                 $lines[] = "- **{$q}:** {$a}";
             }
-            $lines[] = "";
+            $lines[] = '';
         }
 
         $lines = array_merge($lines, [
-            "## Analisa",
+            '## Analisa',
             $v->analysis ?? '_Belum ada_',
-            "",
-            "## PRD",
+            '',
+            '## PRD',
             $v->prd ?? '_Belum ada_',
-            "",
-            "## Arsitektur & Stack",
+            '',
+            '## Arsitektur & Stack',
             $v->architecture ?? '_Belum ada_',
-            "",
-            "## ERD",
-            $v->erd ? '```json' . PHP_EOL . json_encode($v->erd, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL . '```' : '_Belum ada_',
-            "",
-            "## Phase Breakdown",
+            '',
+            '## ERD',
+            $v->erd ? '```json'.PHP_EOL.json_encode($v->erd, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL.'```' : '_Belum ada_',
+            '',
+            '## Phase Breakdown',
         ]);
 
         foreach (($v->phases ?? []) as $ph) {
@@ -152,21 +159,27 @@ class VersionController extends Controller
             $lines[] = '';
         }
 
-        $lines[] = "## Master Prompt";
+        $lines[] = '## Master Prompt';
         $lines[] = $v->master_prompt ?? '_Belum ada_';
 
         if ($v->mobile_phases || $v->mobile_master_prompt) {
-            $lines[] = "";
-            $lines[] = "## Mobile (Flutter)";
-            $lines[] = "";
-            $lines[] = "### Mobile Phase Breakdown";
+            $lines[] = '';
+            $lines[] = '## Mobile (Flutter)';
+            $lines[] = '';
+            $lines[] = '### Mobile Phase Breakdown';
             foreach (($v->mobile_phases ?? []) as $ph) {
                 $lines[] = "#### {$ph['title']}";
                 $lines[] = $ph['prompt'] ?? '';
                 $lines[] = '';
             }
-            $lines[] = "## Mobile Master Prompt";
+            $lines[] = '## Mobile Master Prompt';
             $lines[] = $v->mobile_master_prompt ?? '_Belum ada_';
+            $lines[] = '';
+            $lines[] = '## Mobile Standards';
+            $lines[] = $v->mobile_standards ?? '_Belum ada_';
+            $lines[] = '';
+            $lines[] = '## Mobile Agents';
+            $lines[] = $v->mobile_agents ?? '_Belum ada_';
         }
 
         return implode(PHP_EOL, $lines);
@@ -179,7 +192,7 @@ class VersionController extends Controller
             'content' => ['required', 'string'],
         ]);
 
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->findOrFail($id);
 
         $colMap = [
@@ -197,7 +210,9 @@ class VersionController extends Controller
 
         if ($data['stage'] === 'erd') {
             $decoded = json_decode($value, true);
-            if ($decoded !== null) $value = $decoded;
+            if ($decoded !== null) {
+                $value = $decoded;
+            }
         }
 
         $version->update([$col => $value]);
@@ -207,20 +222,20 @@ class VersionController extends Controller
 
     public function diff(Request $request, int $id): JsonResponse
     {
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with('project')
             ->findOrFail($id);
 
         $otherId = $request->query('compare');
-        if (!$otherId) {
+        if (! $otherId) {
             return response()->json(['message' => 'Parameter compare required.'], 422);
         }
 
-        $other = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $other = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with('project')
             ->findOrFail((int) $otherId);
 
-        $fields = ['pertanyaan', 'analysis', 'prd', 'architecture', 'erd', 'master_prompt', 'mobile_master_prompt'];
+        $fields = ['pertanyaan', 'analysis', 'prd', 'architecture', 'erd', 'master_prompt', 'mobile_master_prompt', 'mobile_phases', 'mobile_standards', 'mobile_agents'];
         $labels = [
             'pertanyaan' => 'Pertanyaan',
             'analysis' => 'Analisa',
@@ -229,6 +244,9 @@ class VersionController extends Controller
             'erd' => 'ERD',
             'master_prompt' => 'Master Prompt',
             'mobile_master_prompt' => 'Mobile Master Prompt',
+            'mobile_phases' => 'Mobile Phase Breakdown',
+            'mobile_standards' => 'Mobile Standards',
+            'mobile_agents' => 'Mobile Agents',
         ];
 
         $diffs = [];
@@ -253,7 +271,7 @@ class VersionController extends Controller
 
     public function downloadStandards(Request $request, int $id): Response
     {
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with('project')
             ->findOrFail($id);
 
@@ -268,7 +286,7 @@ class VersionController extends Controller
 
     public function downloadAgents(Request $request, int $id): Response
     {
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with('project')
             ->findOrFail($id);
 
@@ -288,7 +306,7 @@ class VersionController extends Controller
             'answers.*' => ['required', 'string'],
         ]);
 
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->findOrFail($id);
 
         $version->update(['answers' => $data['answers']]);
@@ -298,7 +316,7 @@ class VersionController extends Controller
 
     public function downloadMobileStandards(Request $request, int $id): Response
     {
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with('project')
             ->findOrFail($id);
 
@@ -313,7 +331,7 @@ class VersionController extends Controller
 
     public function downloadMobileAgents(Request $request, int $id): Response
     {
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with('project')
             ->findOrFail($id);
 
@@ -328,7 +346,7 @@ class VersionController extends Controller
 
     public function destroy(Request $request, int $id): JsonResponse
     {
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with('project')
             ->findOrFail($id);
 
@@ -355,11 +373,11 @@ class VersionController extends Controller
     public function regenerateMobileStandards(Request $request, AiClient $client, int $id): JsonResponse
     {
         try {
-            $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+            $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
                 ->with('project')
                 ->findOrFail($id);
 
-            if (!$client->isConfigured()) {
+            if (! $client->isConfigured()) {
                 return response()->json(['ok' => false, 'message' => 'AI Provider belum dikonfigurasi.'], 400);
             }
 
@@ -368,17 +386,19 @@ class VersionController extends Controller
 
             $ctx = "### Ide Aplikasi\n{$idea}\n\n### Target Platform\n{$target}";
             $ctx .= "\n\n### Tech Stack\nFlutter + Dart + Riverpod + GoRouter + Material Design 3 + drift/sqflite";
-            $ctx .= "\n\n### Arsitektur\n" . ($version->architecture ?? 'Belum ada data arsitektur.');
-            $ctx .= "\n\n### ERD\n" . json_encode($version->erd ?? new \stdClass(), JSON_PRETTY_PRINT);
+            $ctx .= "\n\n### Arsitektur\n".($version->architecture ?? 'Belum ada data arsitektur.');
+            $ctx .= "\n\n### ERD\n".json_encode($version->erd ?? new \stdClass, JSON_PRETTY_PRINT);
 
-            $promptsDir = __DIR__ . '/../../Prompts';
-            $helpersFile = $promptsDir . '/helpers.php';
-            if (file_exists($helpersFile)) require_once $helpersFile;
+            $promptsDir = __DIR__.'/../../Prompts';
+            $helpersFile = $promptsDir.'/helpers.php';
+            if (file_exists($helpersFile)) {
+                require_once $helpersFile;
+            }
 
-            $standardsPromptFile = $promptsDir . '/standards.php';
-            $agentsPromptFile = $promptsDir . '/agents.php';
+            $standardsPromptFile = $promptsDir.'/standards.php';
+            $agentsPromptFile = $promptsDir.'/agents.php';
 
-            if (!file_exists($standardsPromptFile) || !file_exists($agentsPromptFile)) {
+            if (! file_exists($standardsPromptFile) || ! file_exists($agentsPromptFile)) {
                 return response()->json(['ok' => false, 'message' => 'Prompt files not found.'], 500);
             }
 
@@ -399,11 +419,12 @@ class VersionController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'standards' => !empty($standards),
-                'agents' => !empty($agents),
+                'standards' => ! empty($standards),
+                'agents' => ! empty($agents),
             ]);
         } catch (\Throwable $e) {
-            Log::error("[regenerateMobileStandards] Error: " . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            Log::error('[regenerateMobileStandards] Error: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Gagal meregenerasi standar mobile. Coba lagi nanti.',
@@ -414,11 +435,11 @@ class VersionController extends Controller
     public function regenerateStandards(Request $request, AiClient $client, int $id): JsonResponse
     {
         try {
-            $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+            $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
                 ->with('project')
                 ->findOrFail($id);
 
-            if (!$client->isConfigured()) {
+            if (! $client->isConfigured()) {
                 return response()->json(['ok' => false, 'message' => 'AI Provider belum dikonfigurasi.'], 400);
             }
 
@@ -427,18 +448,22 @@ class VersionController extends Controller
             $stack = $version->project->stack ?? '';
 
             $ctx = "### Ide Aplikasi\n{$idea}\n\n### Target Platform\n{$target}";
-            if ($stack) $ctx .= "\n\n### Tech Stack Pilihan\n{$stack}";
-            $ctx .= "\n\n### Arsitektur\n" . ($version->architecture ?? 'Belum ada data arsitektur.');
-            $ctx .= "\n\n### ERD\n" . json_encode($version->erd ?? new \stdClass(), JSON_PRETTY_PRINT);
+            if ($stack) {
+                $ctx .= "\n\n### Tech Stack Pilihan\n{$stack}";
+            }
+            $ctx .= "\n\n### Arsitektur\n".($version->architecture ?? 'Belum ada data arsitektur.');
+            $ctx .= "\n\n### ERD\n".json_encode($version->erd ?? new \stdClass, JSON_PRETTY_PRINT);
 
-            $promptsDir = __DIR__ . '/../../Prompts';
-            $helpersFile = $promptsDir . '/helpers.php';
-            if (file_exists($helpersFile)) require_once $helpersFile;
+            $promptsDir = __DIR__.'/../../Prompts';
+            $helpersFile = $promptsDir.'/helpers.php';
+            if (file_exists($helpersFile)) {
+                require_once $helpersFile;
+            }
 
-            $standardsPromptFile = $promptsDir . '/standards.php';
-            $agentsPromptFile = $promptsDir . '/agents.php';
+            $standardsPromptFile = $promptsDir.'/standards.php';
+            $agentsPromptFile = $promptsDir.'/agents.php';
 
-            if (!file_exists($standardsPromptFile) || !file_exists($agentsPromptFile)) {
+            if (! file_exists($standardsPromptFile) || ! file_exists($agentsPromptFile)) {
                 return response()->json(['ok' => false, 'message' => 'Prompt files not found.'], 500);
             }
 
@@ -459,11 +484,12 @@ class VersionController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'standards' => !empty($standards),
-                'agents' => !empty($agents),
+                'standards' => ! empty($standards),
+                'agents' => ! empty($agents),
             ]);
         } catch (\Throwable $e) {
-            Log::error("[regenerateStandards] Error: " . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            Log::error('[regenerateStandards] Error: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Gagal meregenerasi standar. Coba lagi nanti.',

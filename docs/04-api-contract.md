@@ -69,9 +69,9 @@
 | DELETE | `/api/versions/{id}` | Session (owner) | — | `204` (tidak bisa hapus versi terakhir) |
 | PATCH | `/api/versions/{id}/artifacts` | Session (owner) | `{stage, content}` | inline edit artifact |
 | PATCH | `/api/versions/{id}/answers` | Session (owner) | `{answers: {key:value}}` | update jawaban pertanyaan |
-| GET | `/api/versions/{id}/diff` | Session (owner) | `?compare={otherId}` | structured diff semua artifact fields |
+| GET | `/api/versions/{id}/diff` | Session (owner) | `?compare={otherId}` | structured diff semua artifact fields (incl. mobile: phases, standards, agents) |
 | PATCH | `/api/versions/{id}/phases/{phaseKey}` | Session (owner) | `{done:bool}` | toggle phase progress checklist |
-| GET | `/api/versions/{id}/export` | Session (owner) | `?format=md\|zip` | file unduhan |
+| GET | `/api/versions/{id}/export` | Session (owner) | `?format=md\|zip` | file unduhan — include mobile artifacts (phases, master prompt, standards, agents) jika ada; zip juga sertakan `erd.json` |
 
 ### Standards & Agents Download
 | Method | Path | Auth | Response |

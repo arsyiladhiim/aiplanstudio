@@ -3,7 +3,21 @@
 > **Catat setiap proses development di sini** (aturan wajib [11-development-rules](11-development-rules.md)). Entri terbaru di atas.
 > Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
 
-### 2026-08-06 · P4 — E2E Test Suite + Fix Sesi 401 + Fix DB Test Env
+### 2026-08-06 · P6 + P11 — Export & Diff Mobile Artifacts
+- Dikerjakan: Lengkapi export (.md/.zip) dan diff agar include mobile artifacts; commit cleanup tree P1-P5+P4 (3 commit di devel).
+- **Commit:** `e5f37bb` (backend fixes), `bb3d146` (P4 e2e suite), `25f6bf2` (docs sync).
+- **P6 — Export Mobile Artifacts** (`api/app/Http/Controllers/VersionController.php`):
+  - `buildMarkdown()` → tambah `## Mobile Standards` & `## Mobile Agents` setelah `## Mobile Master Prompt` (fallback `_Belum ada_`).
+  - Zip export → tambah `mobile-standards.md` & `mobile-agents.md` jika field terisi (di samping `erd.json`).
+  - Tests: `test_export_markdown_format` diperluas (assert section mobile di body); baru `test_export_zip_format_includes_mobile_files`.
+- **P11 — Diff Mobile Artifacts** (`VersionController::diff()`):
+  - `fields`/`labels` → tambah `mobile_phases` (JSON array), `mobile_standards`, `mobile_agents` (kini 10 field).
+  - Test baru `test_diff_includes_mobile_artifacts` (verifikasi field mobile muncul + flag `changed` benar).
+- **Kendala:** dua version dengan `(project_id, version_no)` sama kena unique constraint → test diff bikin versi ke-2 via endpoint (auto-increment). Zip `StreamedResponse` tidak punya body di `getContent()` → pakai `TestResponse::streamedContent()`.
+- **Hasil test:** Backend `php artisan test` → **128 passed (430 assertions)**. E2E → **10 passed** (regresi). `npm run lint` & `tsc --noEmit` bersih. `pint` applied ke 2 file yang disentuh.
+- **Docs:** 17-next-progress (P6/P11 `[x]`), 04-api-contract (note mobile di diff/export), 15-dev-log.
+- **Status:** [x] P6 & P11 selesai.
+
 - Dikerjakan: Bangun E2E suite (3 specs/10 test hijau), temukan & perbaiki 2 bug serius di luar scope E2E.
 - **E2E suite:** `web/e2e/auth.spec.ts` (login/logout), `wizard.spec.ts` (submit real AI pipeline), `projects.spec.ts` (CRUD) + `helpers.ts` (`ensureAuthed`, `consoleErrorCollector`) + `global-setup.ts` (API login sekali, simpan state). Config terpisah `web/playwright.e2e.config.ts` (baseURL `E2E_BASE_URL`, 2 retries, artifact retain-on-failure).
 - **Jalankan via Docker** (browser host gagal missing libs):

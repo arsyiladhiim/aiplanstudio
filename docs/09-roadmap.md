@@ -11,7 +11,7 @@
 - **Build:** 17/17 pages ✅
 - **Auth:** Session-based (Sanctum SPA — HttpOnly cookie + CSRF) + User approval flow
 - **Pipeline:** 7 stages (pertanyaan→analisa→prd→architecture→erd→phased_master→phased_master_mobile)
-- **Testing:** Backend PHPUnit 126 pass ✅, Playwright E2E 10 test hijau ✅ (3 specs: auth, wizard, projects)
+- **Testing:** Backend PHPUnit 128 pass ✅, Playwright E2E 10 test hijau ✅ (3 specs: auth, wizard, projects)
 - **Status:** Semua fase utama selesai. Maintenance & next-progress (lihat [17-next-progress.md](17-next-progress.md))
 
 ## Aturan Lintas-Fase (wajib tiap fase)

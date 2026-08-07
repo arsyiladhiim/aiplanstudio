@@ -21,7 +21,7 @@ docker compose exec api php artisan test --filter=VersionTest
 |------|------|--------|
 | `tests/Feature/AuthTest.php` | register, login, logout, user, RBAC, IDOR | ✅ |
 | `tests/Feature/ProjectTest.php` | CRUD, favorites, search, user scoping | ✅ |
-| `tests/Feature/VersionTest.php` | store, show, togglePhase, export, diff | ✅ |
+| `tests/Feature/VersionTest.php` | store, show, togglePhase, export (md/zip + mobile files), diff (incl. mobile artifacts) | ✅ |
 | `tests/Feature/GenerateStreamTest.php` | validation, SSE format | ✅ |
 | `tests/Feature/SettingsTest.php` | provider CRUD, user CRUD, RBAC | ✅ |
 | `tests/Feature/TemplateTest.php` | index, store, destroy | ✅ |
@@ -32,7 +32,7 @@ docker compose exec api php artisan test --filter=VersionTest
 | `tests/Feature/PasswordResetTest.php` | forgot/reset password | ✅ |
 | `tests/Unit/ModelTest.php` | isAdmin, isActive, isPending, maskedKey, nextVersionNo | ✅ |
 
-Total: **~126 test functions** (grep count).
+Total: **128 test functions** (terakhir diverifikasi 2026-08-06, 430 assertions).
 
 ## Cakupan per Feature
 

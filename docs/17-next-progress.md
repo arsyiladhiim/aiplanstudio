@@ -5,7 +5,7 @@
 
 ## Status Saat Ini
 
-Semua fase utama (F0–F10, R1, P1–P5) **selesai**.
+Semua fase utama (F0–F10, R1, P1–P6, P11) **selesai**.
 **Tidak ada fase aktif.** Item di bawah ini adalah next steps terprioritas.
 
 **Yang sudah selesai:**
@@ -104,11 +104,12 @@ Semua 6 stage (target web) berjalan end-to-end dan artifact persisted:
 
 **Effort:** Medium (2-3 jam)
 
-### [P6] Export Mobile Artifacts
+### [x] [P6] Export Mobile Artifacts ✅
 
-**Problem:** `VersionController::export()` untuk format .md/.zip belum include mobile artifact (mobile_phases, mobile_master_prompt, mobile_standards, mobile_agents).
-
-**Definition of Done:** Export .md/.zip include mobile artifacts jika project target=both.
+**Resolution:** Export .md & .zip kini include semua mobile artifacts.
+- `buildMarkdown()` → tambah section `## Mobile Standards` & `## Mobile Agents` setelah `## Mobile Master Prompt` (fallback `_Belum ada_`).
+- Zip export → tambah `mobile-standards.md` & `mobile-agents.md` jika field terisi (selain `erd.json`).
+- Tests: `test_export_markdown_format` diperluas (assert mobile sections), baru `test_export_zip_format_includes_mobile_files` (buka zip, verifikasi isi file).
 
 **Effort:** Medium (1-2 jam)
 
@@ -152,11 +153,11 @@ Semua 6 stage (target web) berjalan end-to-end dan artifact persisted:
 
 **Effort:** Medium (2 jam)
 
-### [P11] Version Diff — Mobile Artifacts
+### [x] [P11] Version Diff — Mobile Artifacts ✅
 
-**Problem:** `diff()` endpoint compare 6 artifact fields tapi tidak include mobile artifacts.
-
-**Definition of Done:** Diff include mobile_master_prompt, mobile_phases.
+**Resolution:** `diff()` kini compare 10 field (termasuk semua mobile artifacts).
+- `fields`/`labels` di `VersionController::diff()` → tambah `mobile_phases` (JSON), `mobile_standards`, `mobile_agents`.
+- Tests: baru `test_diff_includes_mobile_artifacts` (2 versi → assert field mobile ada + flag `changed` benar).
 
 **Effort:** Low (1 jam)
 
