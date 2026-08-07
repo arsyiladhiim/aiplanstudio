@@ -3,7 +3,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  allowedDevOrigins: ["aiplan.arsyiladm.site"],
+  allowedDevOrigins: ["aiplan.arsyiladm.site", "aiplanstudio.arsyiladm.my.id"],
   env: {
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN || "",
   },
