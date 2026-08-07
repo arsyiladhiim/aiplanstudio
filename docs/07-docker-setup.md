@@ -16,7 +16,7 @@ aiplanstudio/
     redis/data/               # bind mount data Redis
   api/                        # Laravel
     Dockerfile                # php:8.3-fpm-alpine, CMD php-fpm -F (RS-9 ✅)
-    .env.production.example   # template env produksi (termasuk SMTP)
+    .env.example              # template env (dokumentasi; salin jadi .env untuk dev/produksi)
   web/                        # Next.js (BFF)
     Dockerfile                # 3-stage build → standalone output
   docs/                       # dokumentasi ini
@@ -103,7 +103,7 @@ volumes: { glitchtip-uploads: }
 
 ## Env
 - **`api/.env`** (Laravel, dibaca langsung oleh `api-fpm` — **tanpa** `env_file`, agar PHPUnit bisa meng-override `DB_*` untuk test DB): `APP_KEY` (wajib `php artisan key:generate`), `DB_HOST=db`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST=redis`, `REDIS_PASSWORD`, `SESSION_DRIVER=database`, `SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`, `APP_URL`, `FRONTEND_URL`, blok `MAIL_*`.
-- **`api/.env.production.example`**: template produksi lengkap — `APP_ENV=production`, `APP_URL`/`FRONTEND_URL` https publik, `SANCTUM_STATEFUL_DOMAINS` + `SESSION_DOMAIN` domain produksi, `SESSION_SECURE_COOKIE=true`, `SESSION_HTTP_ONLY=true`, `GOOGLE_REDIRECT_URI`, SMTP (`MAIL_MAILER=smtp`, `MAIL_HOST/PORT/USERNAME/PASSWORD/ENCRYPTION/FROM`), `LOG_LEVEL=error`.
+- **`api/.env.example`**: template env (dokumentasi) — salin jadi `.env`, lalu isi. Catatan produksi: `APP_ENV=production`, `APP_URL`/`FRONTEND_URL` https publik, `SANCTUM_STATEFUL_DOMAINS` + `SESSION_DOMAIN` domain produksi, `SESSION_SECURE_COOKIE=true`, `SESSION_HTTP_ONLY=true`, `GOOGLE_REDIRECT_URI`, SMTP (`MAIL_MAILER=smtp`, `MAIL_HOST/PORT/USERNAME/PASSWORD/ENCRYPTION/FROM`).
 - **`web/.env`** (Next.js): `LARAVEL_URL=http://api:8000` di Docker; `http://localhost:8000` saat dev tanpa Docker.
 - **`.env` root compose**: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`.
 

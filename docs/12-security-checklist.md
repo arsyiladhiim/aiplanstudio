@@ -19,7 +19,7 @@
 - [x] CSRF aktif: `XSRF-TOKEN` cookie (readable JS) → `X-XSRF-TOKEN` header untuk non-GET.
 - [x] Password hash **bcrypt** (bawaan Laravel); tak pernah simpan plaintext.
 - [x] Logout **invalidate session** — session cookie tidak bisa dipakai lagi.
-- [x] (R1) `SESSION_SECURE_COOKIE=true` di `.env.example` untuk production — dicontohkan di `api/.env.production.example` + catatan production (RS-4 ✅).
+- [x] (R1) `SESSION_SECURE_COOKIE=true` di `.env.example` untuk production — dicontohkan di template `.env.example` + catatan production (RS-4 ✅).
 
 ## C. Otorisasi (RBAC & kepemilikan)
 - [x] Endpoint admin dijaga middleware `role.admin` (uji member → 403).

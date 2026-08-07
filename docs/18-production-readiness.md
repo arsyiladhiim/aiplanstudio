@@ -220,7 +220,7 @@ Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dok
 ### E2. Dependency & Keamanan
 - [ ] `composer audit --no-dev` → 0 kritikal
 - [ ] `npm audit` → 0 vuln
-- [ ] `.env` tidak ter-commit; hanya `.env.example`/`.env.production.example`
+- [ ] `.env` tidak ter-commit; hanya `.env.example` (dokumentasi template)
 
 ### E3. Database
 - [ ] Public schema hasil dibuat ulang; semua tabel only di `aiplanstudio_*`
