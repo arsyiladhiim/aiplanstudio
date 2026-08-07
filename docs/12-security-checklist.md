@@ -51,7 +51,7 @@
 - [x] Session cookie HttpOnly + SameSite=Lax.
 
 ## G. Dependency & Build
-- [ ] `composer audit` / `npm audit` bersih dari kerentanan kritikal.
+- [x] `composer audit` / `npm audit` bersih dari kerentanan kritikal.
 - [x] Tak ada dependency tak terpakai (VerifyServiceToken, SERVICE_TOKEN dihapus).
 - [x] `.dockerignore`/`.gitignore` mengecualikan `node_modules`, `vendor`, `.env`, volume.
 
@@ -67,7 +67,7 @@
 - [x] `GLITCHTIP_SECRET_KEY` di root `.env` (tidak di-commit).
 - [x] DSN backend (Laravel) via env `SENTRY_LARAVEL_DSN` — internal Docker DNS `glitchtip:8000`.
 - [x] DSN frontend server-side (Next.js SSR) via env `SENTRY_DSN` — internal Docker DNS.
-- [x] DSN browser-side (`NEXT_PUBLIC_SENTRY_DSN`) kosong untuk dev — no nginx route to GlitchTip yet (add `/glitchtip` nginx location saat perlu client-side capture).
+- [x] DSN browser-side (`NEXT_PUBLIC_SENTRY_DSN`) di-set → route nginx `/glitchtip` sudah ada (P14).
 - [x] SDK no-op bila DSN kosong (`enabled: false`) — dev tanpa GlitchTip tetap aman.
 - [x] Tidak ada API key/info sensitif bocor ke GlitchTip (sanitize default Sentry SDK).
 

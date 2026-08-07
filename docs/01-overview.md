@@ -30,7 +30,7 @@ Dari satu ide, app menghasilkan artefak berikut (target-aware — menyesuaikan W
 ## Scope MVP
 - Auth multi-user (admin/member), User Management.
 - AI Provider global (OpenAI-compatible) yang diatur admin.
-- Wizard "Buat Plan" 6 tahap.
+- Wizard "Buat Plan" 7 tahap.
 - Projects: arsip + versioning (v1, v2, …) + timestamp + progress checklist + export (.md/.zip).
 - Templates: menu ada, seed preset minimal.
 - Landing page.

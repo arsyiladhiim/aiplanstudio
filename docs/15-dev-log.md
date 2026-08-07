@@ -3,6 +3,11 @@
 > **Catat setiap proses development di sini** (aturan wajib [11-development-rules](11-development-rules.md)). Entri terbaru di atas.
  > Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
 
+### 2026-08-07 · Production Readiness + Public Schema Drop + Cloudflare Net + Docs 18
+- Dikerjakan: (1) Hapus `public` schema dari `config/database.php` search_path & DB (`DROP SCHEMA IF EXISTS public CASCADE`). DB `aiplanstudio` kini murni 3 schema (`aiplanstudio_master`, `aiplanstudio_project`, `aiplanstudio_settings`). (2) Hapus `migrate` service dari `docker-compose.yml` (data host persistent di `./docker/postgres/data_`). (3) Connect `nginx` ke `cloudflare_tunnel_default` network (external: true). (4) Buat `docs/18-production-readiness.md` — inventori 19 halaman, 5 menu, alur lengkap, validasi vs tujuan awal, dan checklist AI Agent. (5) Bersihkan GlitchTip test issues. (6) Sync `docs/01` (6→7 tahap), `docs/09` (status P13-P14), `docs/12` (security audit).
+- Perintah/hasil: `DROP SCHEMA public CASCADE` → OK. `docker compose up -d --remove-orphans` → container `migrate` removed, nginx join cloudflare network. `php artisan test` → 131 passed. GlitchTip issues → 0 (cleaned).
+- Status: [x] Production Readiness Selesai.
+
 ### 2026-08-07 · P13 — Dependency Security Audit Fix
 - Dikerjakan: Update backend + frontend dependencies untuk fix known vulnerabilities.
 - **Backend:** `composer update guzzlehttp/guzzle league/commonmark laravel/framework` via docker run. guzzle 7.15.3, commonmark 2.9.0, framework 13.24.0. `composer audit --no-dev` → 0 vulnerabilities. `php artisan test` → 131 passed.

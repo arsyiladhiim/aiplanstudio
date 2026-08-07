@@ -11,7 +11,7 @@ services:
         condition: service_started
       api:
         condition: service_healthy
-    networks: [aiplanstudio]
+    networks: [aiplanstudio, cloudflare_tunnel_default]
     mem_limit: 128m
     restart: unless-stopped
 
@@ -67,30 +67,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     networks: [aiplanstudio]
     working_dir: /app
     volumes:
       - ./api:/app
     mem_limit: 256m
     restart: unless-stopped
-
-  # One-shot: jalankan migrasi sebelum api-fpm mulai
-  migrate:
-    build:
-      context: .
-      dockerfile: api/Dockerfile
-    image: aiplanstudio-api
-    depends_on:
-      db:
-        condition: service_healthy
-    networks: [aiplanstudio]
-    working_dir: /app
-    volumes:
-      - ./api:/app
-    command: ["php", "artisan", "migrate", "--force", "--no-interaction"]
-    restart: "no"
 
   db:
     image: postgres:16-alpine
@@ -145,3 +127,5 @@ services:
 networks:
   aiplanstudio:
     driver: bridge
+  cloudflare_tunnel_default:
+    external: true
