@@ -2,14 +2,11 @@
 
 use App\Http\Middleware\AuthenticateProjectToken;
 use App\Http\Middleware\EnsureUserIsAdmin;
-use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
-use Illuminate\Cookie\Middleware\EncryptCookies;
+use App\Http\Middleware\StartSessionIfStateless;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use Illuminate\Session\Middleware\StartSession;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -25,10 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth.project-token' => AuthenticateProjectToken::class,
         ]);
         $middleware->api(prepend: [
-            EncryptCookies::class,
-            AddQueuedCookiesToResponse::class,
-            StartSession::class,
-            ShareErrorsFromSession::class,
+            StartSessionIfStateless::class,
             EnsureFrontendRequestsAreStateful::class,
         ]);
         $middleware->trustProxies(

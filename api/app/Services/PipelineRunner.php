@@ -211,6 +211,7 @@ class PipelineRunner
     private function saveArtifact(string $key, string $content): void
     {
         $map = [
+            'pertanyaan' => 'pertanyaan',
             'analisa' => 'analysis',
             'prd' => 'prd',
             'architecture' => 'architecture',
@@ -226,12 +227,10 @@ class PipelineRunner
 
         $value = $content;
         if ($key === 'architecture') {
-            $parsed = $this->parseArchText($content);
-            if ($parsed !== null) {
-                $this->emit('artifact', ['stage' => $key, 'content' => $content]);
-            } else {
-                throw new \RuntimeException("Arsitektur: Gagal parse output AI. Stage ditandai error.");
-            }
+            // Architecture disimpan sebagai TEXT mentah (bukan diagram).
+            // parseArchText hanya opsional untuk validasi diagram; bila output
+            // tidak berupa diagram, tetap simpan sebagai teks (jangan gagal).
+            $this->emit('artifact', ['stage' => $key, 'content' => $content]);
         } elseif ($key === 'erd') {
             $parsed = $this->parseErdText($content);
             if ($parsed !== null) {

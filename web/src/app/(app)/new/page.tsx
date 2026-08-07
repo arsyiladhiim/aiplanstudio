@@ -257,7 +257,15 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       stages.forEach(s => { if (loadedStatus[s.key] === 'error') loadedStatus[s.key] = 'pending'; });
       setStatus(loadedStatus);
 
-      const colMap: Record<string, keyof Version> = { analisa: 'analysis', prd: 'prd', architecture: 'architecture', erd: 'erd', phased_master: 'master_prompt' };
+      const colMap: Record<string, keyof Version> = {
+        pertanyaan: 'pertanyaan',
+        analisa: 'analysis',
+        prd: 'prd',
+        architecture: 'architecture',
+        erd: 'erd',
+        phased_master: 'master_prompt',
+        phased_master_mobile: 'mobile_master_prompt',
+      };
       const loaded: Record<string, string> = {};
       stages.forEach(s => {
         const col = colMap[s.key];

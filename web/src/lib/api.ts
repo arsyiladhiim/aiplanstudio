@@ -326,6 +326,8 @@ export type Version = {
   id: number;
   version_no: number;
   stage_status: Record<string, string>;
+  pertanyaan?: string;
+  answers?: Record<string, string>;
   analysis?: string;
   prd?: string;
   architecture?: string;
@@ -335,7 +337,6 @@ export type Version = {
   master_prompt?: string;
   standards?: string;
   agents?: string;
-  answers?: Record<string, string>;
   tracking_token?: string;
   mobile_phases?: PhaseData[];
   mobile_master_prompt?: string;

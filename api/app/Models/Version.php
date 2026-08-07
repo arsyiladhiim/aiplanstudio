@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'project_id', 'version_no', 'stage_status', 'answers', 'analysis', 'prd',
+    'project_id', 'version_no', 'stage_status', 'pertanyaan', 'answers', 'analysis', 'prd',
     'architecture', 'erd', 'api_contract', 'phases', 'master_prompt',
     'standards', 'agents', 'tracking_token',
     'mobile_phases', 'mobile_master_prompt', 'mobile_standards', 'mobile_agents',

@@ -117,6 +117,20 @@ class VersionController extends Controller
             "# {$v->project->title}",
             "Versi: v{$v->version_no}",
             "",
+            "## Pertanyaan Klarifikasi",
+            $v->pertanyaan ?? '_Belum ada_',
+            "",
+        ];
+
+        if ($v->answers) {
+            $lines[] = "### Jawaban";
+            foreach ($v->answers as $q => $a) {
+                $lines[] = "- **{$q}:** {$a}";
+            }
+            $lines[] = "";
+        }
+
+        $lines = array_merge($lines, [
             "## Analisa",
             $v->analysis ?? '_Belum ada_',
             "",
@@ -130,7 +144,7 @@ class VersionController extends Controller
             $v->erd ? '```json' . PHP_EOL . json_encode($v->erd, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL . '```' : '_Belum ada_',
             "",
             "## Phase Breakdown",
-        ];
+        ]);
 
         foreach (($v->phases ?? []) as $ph) {
             $lines[] = "### {$ph['title']}";
@@ -161,7 +175,7 @@ class VersionController extends Controller
     public function updateArtifact(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'stage' => ['required', 'string', 'in:analisa,prd,architecture,erd,phased_master,phased_master_mobile'],
+            'stage' => ['required', 'string', 'in:pertanyaan,analisa,prd,architecture,erd,phased_master,phased_master_mobile'],
             'content' => ['required', 'string'],
         ]);
 
@@ -169,6 +183,7 @@ class VersionController extends Controller
             ->findOrFail($id);
 
         $colMap = [
+            'pertanyaan' => 'pertanyaan',
             'analisa' => 'analysis',
             'prd' => 'prd',
             'architecture' => 'architecture',
@@ -183,8 +198,6 @@ class VersionController extends Controller
         if ($data['stage'] === 'erd') {
             $decoded = json_decode($value, true);
             if ($decoded !== null) $value = $decoded;
-        } elseif ($data['stage'] === 'phased_master_mobile') {
-            $col = 'mobile_master_prompt';
         }
 
         $version->update([$col => $value]);
@@ -207,8 +220,9 @@ class VersionController extends Controller
             ->with('project')
             ->findOrFail((int) $otherId);
 
-        $fields = ['analysis', 'prd', 'architecture', 'erd', 'master_prompt', 'mobile_master_prompt'];
+        $fields = ['pertanyaan', 'analysis', 'prd', 'architecture', 'erd', 'master_prompt', 'mobile_master_prompt'];
         $labels = [
+            'pertanyaan' => 'Pertanyaan',
             'analysis' => 'Analisa',
             'prd' => 'PRD',
             'architecture' => 'Arsitektur',
