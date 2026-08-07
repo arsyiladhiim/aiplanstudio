@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { apiGet, apiPost } from "@/lib/api";
-import type { User } from "@/lib/api";
+import { apiPost } from "@/lib/api";
+import { useUser } from "@/components/UserContext";
 import { ToastProvider } from "@/components/Toast";
 import {
   Sparkles, LayoutDashboard, FolderKanban, Wand2, LayoutTemplate,
@@ -24,8 +24,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [searchQ, setSearchQ] = useState("");
+  const { user } = useUser();
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -36,19 +36,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isActive = (item: (typeof nav)[number]) =>
     pathname === item.href || (item.match !== undefined && pathname.startsWith(item.match));
-
-  const fetchUser = useCallback(() => {
-    apiGet<User>("/user")
-      .then(setUser)
-      .catch((err) => console.error('Failed to fetch user:', err));
-  }, []);
-
-  useEffect(() => {
-    fetchUser();
-    const handler = () => fetchUser();
-    window.addEventListener('profile-updated', handler);
-    return () => window.removeEventListener('profile-updated', handler);
-  }, [fetchUser]);
 
   async function logout() {
     try {

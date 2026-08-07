@@ -1,5 +1,10 @@
 import { AppShell } from "@/components/AppShell";
+import { UserProvider } from "@/components/UserContext";
 
 export default function AppGroupLayout({ children }: { children: React.ReactNode }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <UserProvider>
+      <AppShell>{children}</AppShell>
+    </UserProvider>
+  );
 }

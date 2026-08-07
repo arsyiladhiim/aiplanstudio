@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react";
 import { Card, Input, Label, Badge } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
-import { CheckCircle2, AlertCircle, Zap, Plus, Trash2, Star, X } from "lucide-react";
-import { apiGet, apiPost, apiPatch, apiDelete, fetchCsrfCookie } from "@/lib/api";
+import { CheckCircle2, AlertCircle, Zap, Plus, Trash2, Star, X, Lock, Loader2 } from "lucide-react";
+import { apiGet, apiPost, apiPatch, apiDelete, fetchCsrfCookie, ApiError } from "@/lib/api";
 
 type Provider = {
   id: number; name: string; base_url: string; model: string;
@@ -26,6 +26,7 @@ function emptyForm(type?: string) {
 export default function ProviderSettings() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
+  const [denied, setDenied] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm());
@@ -37,7 +38,10 @@ export default function ProviderSettings() {
   const [promptRes, setPromptRes] = useState<{id: number; resp: string} | null>(null);
 
   function load() {
-    apiGet<Provider[]>("/settings/provider").then(setProviders).catch((err) => console.error('Failed to load providers:', err)).finally(() => setLoading(false));
+    apiGet<Provider[]>("/settings/provider").then(setProviders).catch((err) => {
+      if (err instanceof ApiError && err.status === 403) setDenied(true);
+      else console.error('Failed to load providers:', err);
+    }).finally(() => setLoading(false));
   }
   useEffect(load, []);
 
@@ -98,6 +102,26 @@ interface ProviderFormData {
   }
 
   const activeProvider = providers.find(p => p.is_active);
+
+  if (loading) {
+    return (
+      <div className="flex h-40 items-center justify-center">
+        <Loader2 size={24} className="animate-spin text-[var(--color-fg-muted)]" />
+      </div>
+    );
+  }
+
+  if (denied) {
+    return (
+      <Card className="flex flex-col items-center gap-3 p-10 text-center">
+        <Lock size={32} className="text-[var(--color-danger)]" />
+        <h3 className="font-semibold">Akses Ditolak</h3>
+        <p className="text-sm text-[var(--color-fg-muted)]">
+          Halaman ini hanya untuk administrator.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">

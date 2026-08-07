@@ -3,18 +3,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PageHeader } from "@/components/common";
 import { Cpu, Users, User } from "lucide-react";
-
-const tabs = [
-  { href: "/settings/profile", label: "Profile", icon: User },
-  { href: "/settings/provider", label: "AI Provider", icon: Cpu },
-  { href: "/settings/users", label: "User Management", icon: Users },
-];
+import { useUser } from "@/components/UserContext";
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user } = useUser();
+
+  const baseTabs = [
+    { href: "/settings/profile", label: "Profile", icon: User },
+    { href: "/settings/provider", label: "AI Provider", icon: Cpu },
+    { href: "/settings/users", label: "User Management", icon: Users },
+  ];
+  const tabs = user?.role === "admin" ? baseTabs : baseTabs.filter((t) => t.href === "/settings/profile");
+
   return (
     <>
-      <PageHeader title="Settings" subtitle="Kelola AI Provider dan pengguna." />
+      <PageHeader title="Settings" subtitle="Kelola profil dan pengaturan akun." />
       <div className="flex gap-2 border-b border-[var(--color-border)]">
         {tabs.map((t) => {
           const active = pathname === t.href;
