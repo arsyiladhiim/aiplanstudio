@@ -1,3 +1,5 @@
+@../AGENTS.md
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
@@ -15,3 +17,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Session cookie auth only, no Bearer tokens
 - Always call fetchCsrfCookie() before state-changing requests
 - Handle 401 → redirect to /login
+
+## Pipeline Stages (7 stages)
+Questions → Analysis → PRD → Architecture → ERD → Phased Master → Phased Master Mobile
+Keys: pertanyaan, analisa, prd, architecture, erd, phased_master, phased_master_mobile
