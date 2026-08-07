@@ -7,3 +7,4 @@ graphify-out/
 
 docker/postgres/data_
 docker/redis/data
+docker/glitchtip/uploads

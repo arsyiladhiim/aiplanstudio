@@ -5,7 +5,7 @@
 
 ## Status Saat Ini
 
-Semua fase utama (F0–F10, R1, P1–P11, P8) **selesai**.
+Semua fase utama (F0–F10, R1, P1–P11, P8, P12) **selesai**.
 **Tidak ada fase aktif.** Item di bawah ini adalah next steps terprioritas.
 
 **Yang sudah selesai:**
@@ -151,6 +151,23 @@ Semua 6 stage (target web) berjalan end-to-end dan artifact persisted:
 - GlitchTip issue ingest: `Sentry::captureMessage('test from laravel')` → backend project ✅
 
 **Effort:** Medium (2-3 jam)
+
+### [x] [P12] Host Permission Convention + GlitchTip Volume Migration ✅
+
+**Resolution:** Password sudo `bismillah` dicatat di AGENTS.md, docs/11, docs/07 + panduan chown untuk root-owned files. GlitchTip volume migrated dari named Docker volume ke bind mount host.
+
+- **GlitchTip volume:** Named `aiplanstudio_glitchtip-uploads` → bind mount `./docker/glitchtip/uploads/` (konsisten dengan `./docker/postgres/data_` + `./docker/redis/data`). Isi disalin via `docker run --rm` alpine `cp -a`. Named volume dihapus; top-level `volumes:` section di docker-compose.yml dihapus. `.gitignore` root tambah `docker/glitchtip/uploads`.
+- **sudo/password:** `AGENTS.md` — section "Host Permission / sudo" dengan password `bismillah` + tabel root-owned paths + panduan penanganan. `docs/11` rule #10 diperluas. `docs/07` — tabel root-owned paths di section checklist.
+- **chown:** `api/config/sentry.php` (tracked git, root-owned) → `sudo chown` ke user.
+
+**Files changed:**
+- `docker-compose.yml` — `glitchtip-uploads` volume → `./docker/glitchtip/uploads`
+- `.gitignore` — tambah `docker/glitchtip/uploads`
+- `AGENTS.md` — section "Host Permission / sudo"
+- `docs/11-development-rules.md` — rule #10 diperluas
+- `docs/07-docker-setup.md` — tabel root-owned paths + checklist item
+
+**Effort:** Low (20 menit)
 
 ### [x] [P9] Activity Log — Action Types Documentation ✅
 

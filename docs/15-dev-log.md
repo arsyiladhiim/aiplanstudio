@@ -3,6 +3,18 @@
 > **Catat setiap proses development di sini** (aturan wajib [11-development-rules](11-development-rules.md)). Entri terbaru di atas.
  > Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
 
+### 2026-08-07 · P12 — Host Permission Convention + GlitchTip Volume Migration
+- Dikerjakan: (1) GlitchTip volume migration dari named Docker volume → bind mount host, (2) P12 dokumentasi sudo/password convention.
+- **GlitchTip Volume Migration:** Named `aiplanstudio_glitchtip-uploads` (dari commit P8) diganti dengan bind mount `./docker/glitchtip/uploads/` — konsisten dengan pola `./docker/postgres/data_/` + `./docker/redis/data/`. Isi disalin via `docker run --rm -v <named>:/src -v <bind>:/dst alpine cp -a /src/. /dst/`. `docker-compose.yml` top-level `volumes:` section dihapus. Named volume dihapus via `docker volume rm`. `.gitignore` root tambah `docker/glitchtip/uploads`. Data intact (`.gitignore` di uploads tetap ada).
+- **P12 — sudo/password Convention:** User berikan password sudo host `bismillah` untuk chown root-owned files.
+  - `AGENTS.md` — section baru "Host Permission / sudo" dengan password + tabel root-owned paths + panduan penanganan (node_modules: JANGAN chown, pakai docker run; sentry.php: chown bila tracked git; data dirs: biarkan).
+  - `docs/11-development-rules.md` — rule #10 diperluas: prefer container untuk install/update bila root-owned, password + chown command.
+  - `docs/07-docker-setup.md` — tabel root-owned paths di checklist section + checklist item "semua volume bind mount".
+- **chown:** `api/config/sentry.php` (tracked git, root-owned dari `artisan vendor:publish` di container) → `echo "bismillah" | sudo -S chown arsyiladm:arsyiladm`.
+- **Hasil:** `docker volume ls --filter name=aiplanstudio` → kosong (tidak ada named volume). GlitchTip reconstruct bersih, data intact.
+- **Docs:** 17 (P12 `[x]` + detail), 15, 07, 11, AGENTS.md.
+- **Status:** [x] P12 selesai. Semua P1–P12 + P8 tuntas.
+
 ### 2026-08-07 · P8 — GlitchTip Self-Hosted Error Monitoring + Markdown Rendering
 - Dikerjakan: (1) Markdown rendering untuk AI artifacts (sesi sebelumnya, commit `585c370`), (2) P8 GlitchTip integration (satu-satunya item next-progress tersisa).
 - **Markdown Rendering (commit `585c370`):** Komponen `web/src/components/ui/Markdown.tsx` (react-markdown v10, design-token styled). Apply: project detail (analysis/prd/architecture/mobile master prompt), wizard (analisa/prd/phased_master_mobile/architecture/master prompt), diff page. Hapus inert `prose` classes (Tailwind typography plugin tidak terinstall → `prose` non-functional). E2E 10/10, lint/tsc/build clean.

@@ -14,7 +14,7 @@
 7. **Hanya `nginx` yang boleh publish port** ke host. Service lain pakai `expose:` (internal). Dilarang menambah `ports:` pada db/api/web/redis.
 8. **Antar-service pakai nama container** (`db`, `api`, `web`, `redis`) — bukan `localhost`/IP.
 9. **DB tidak ter-expose** ke host. Akses DB lewat `docker compose exec db ...`.
-10. Perintah artisan/npm dijalankan **di dalam container** (`docker compose exec api ...`, `... web ...`).
+10. Perintah artisan/npm dijalankan **di dalam container** (`docker compose exec api ...`, `... web ...`). Bila `node_modules`/`vendor` root-owned dan butuh install/update, gunakan `docker run --rm -v "$PWD/web":/work -w /work node:20-alpine npm <cmd>` (jangan chown `node_modules`). Password sudo host: `bismillah` (`echo "bismillah" | sudo -S chown -R $(id -u):$(id -g) <path>` untuk file tracked git yang root-owned).
 
 ## C. Keamanan
 11. **Rahasia tak pernah ke client.** API key AI Provider hanya dipakai backend; pada response API selalu **masked**.

@@ -63,3 +63,20 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+## Host Permission / sudo
+
+Beberapa path jadi root-owned karena Docker container menulis ke bind mount. Bila perlu chown:
+
+```bash
+echo "bismillah" | sudo -S chown -R $(id -u):$(id -g) <path>
+```
+
+**Password sudo: `bismillah`**
+
+Root-owned paths (normal, dari container):
+- `web/node_modules/` — JANGAN chown; gunakan `docker run --rm -v "$PWD/web":/work -w /work node:20-alpine npm <cmd>` untuk install/update.
+- `web/e2e/.auth/`, `web/test-results/` — gitignored; `sudo rm -rf` sebelum e2e Docker run.
+- `api/vendor/`, `api/.phpunit.result.cache`, `api/database/database.sqlite` — gitignored, biarkan.
+- `api/config/*` yang dipublish oleh `artisan vendor:publish` — chown bila file tracked git.
+- `docker/postgres/data_/`, `docker/redis/data/`, `docker/glitchtip/uploads/` — data container, biarkan root.

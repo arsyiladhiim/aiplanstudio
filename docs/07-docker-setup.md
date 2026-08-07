@@ -141,6 +141,21 @@ docker compose exec web wget -qO- http://api:8000/api/health  # internal OK
 - [x] `mem_limit` di semua service; `restart: unless-stopped` untuk daemon.
 - [x] Rahasia via env (`.env`/`.env.production`), tidak di-commit; `REDIS_PASSWORD` via compose.
 - [x] BFF: semua request masuk via nginx → Next.js, tidak ada route langsung ke Laravel.
+- [x] Semua volume pakai bind mount ke `./docker/*/` (postgres, redis, glitchtip) — tidak ada named Docker volume.
+
+### Host Permission (root-owned files)
+
+Beberapa path jadi root-owned karena Docker container menulis ke bind mount. Normal — bukan bug.
+
+| Path | Penanganan |
+|------|-----------|
+| `web/node_modules/` | JANGAN chown. Gunakan `docker run --rm -v "$PWD/web":/work -w /work node:20-alpine npm <cmd>` untuk install/update. |
+| `web/e2e/.auth/`, `web/test-results/` | gitignored; `sudo rm -rf` sebelum e2e Docker run. |
+| `api/vendor/`, `api/.phpunit.result.cache`, `api/database/database.sqlite` | gitignored, biarkan. |
+| `api/config/*` (dipublish `artisan vendor:publish`) | `sudo chown -R $(id -u):$(id -g) <path>` bila file tracked git. |
+| `docker/postgres/data_/`, `docker/redis/data/`, `docker/glitchtip/uploads/` | data container, biarkan root. |
+
+**Password sudo host: `bismillah`** — `echo "bismillah" | sudo -S chown -R $(id -u):$(id -g) <path>`
 
 ---
 
