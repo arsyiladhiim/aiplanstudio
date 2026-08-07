@@ -5,7 +5,7 @@
 
 ## Status Saat Ini
 
-Semua fase utama (F0–F10, R1, P1–P11, P8, P12) **selesai**.
+Semua fase utama (F0–F10, R1, P1–P14) **selesai**.
 **Tidak ada fase aktif.** Item di bawah ini adalah next steps terprioritas.
 
 **Yang sudah selesai:**
@@ -194,6 +194,45 @@ Semua 6 stage (target web) berjalan end-to-end dan artifact persisted:
 - Tests: baru `test_diff_includes_mobile_artifacts` (2 versi → assert field mobile ada + flag `changed` benar).
 
 **Effort:** Low (1 jam)
+
+### [x] [P14] Sentry Browser-Side Capture via nginx /glitchtip Proxy ✅
+
+**Resolution:** Browser SDK capture via nginx proxy to GlitchTip internal Docker service.
+- **nginx route:** `location /glitchtip/` → `rewrite ^/glitchtip/(.*)$ /$1 break; proxy_pass http://glitchtip:8000` (internal network, `/glitchtip/` prefix stripped).
+- **DSN injection:** `NEXT_PUBLIC_SENTRY_DSN=http://f60bf0fe8df6419e9ecb8edfc01295f1@localhost:4197/glitchtip/2` passed via `build.args` + `ARG` + `ENV` di Dockerfile builder stage. `docker-compose.yml` → `build.args: NEXT_PUBLIC_SENTRY_DSN=${SENTRY_FRONTEND_PUBLIC_DSN:-}`.
+- **Client init:** `src/app/sentry-init-client.tsx` — client component with `useEffect` that reads `dsn` prop (passed from server-side `process.env.NEXT_PUBLIC_SENTRY_DSN`) and calls `Sentry.init()`. DSN embedded in HTML server render. Turbopack (Next.js 16) doesn't inline `NEXT_PUBLIC_*` to static bundles, but DSN appears in HTML so SDK can read it at runtime.
+- **P14 completes P8:** DSN strategy full: server-side → `glitchtip:8000` (internal), browser-side → `localhost:4197/glitchtip` (same-origin, no CORS).
+
+**Files changed:**
+- `docker/nginx/default.conf` — `location /glitchtip/`
+- `web/Dockerfile` — `ARG NEXT_PUBLIC_SENTRY_DSN` + `ENV` before build + `NEXT_TURBOPACK_CACHE=0`
+- `docker-compose.yml` — `build.args` for web service, `NEXT_PUBLIC_SENTRY_DSN` env
+- `.env` (root) — `SENTRY_FRONTEND_PUBLIC_DSN` set to GlitchTip frontend DSN
+- `web/src/app/layout.tsx` — import `SentryInit` client component
+- `web/src/app/sentry-init-client.tsx` — new client component with `useEffect` Sentry init
+- `web/sentry.client.config.ts` — `enabled: true` (always init when component mounts)
+
+**Verification:**
+- `nginx -t` → ok ✅
+- `curl /glitchtip/api/2/store/` → 200 ✅
+- Browser errors sent via nginx proxy → appear in GlitchTip ✅
+- GlitchTip project frontend (JS, id=2) receives events ✅
+
+**Effort:** Medium (1-2 jam)
+
+### [x] [P13] Dependency Security Audit Fix ✅
+
+**Resolution:** Backend + frontend dependencies updated to fix known vulnerabilities.
+- **Backend:** `composer update guzzlehttp/guzzle league/commonmark laravel/framework` → guzzle 7.15.3, commonmark 2.9.0, framework 13.24.0. `composer audit --no-dev` → 0 vulnerabilities.
+- **Frontend:** `next` bumped 16.2.11 → 16.3.0 + `eslint-config-next` 16.3.0 → `sharp` 0.35.3 (fixes sharp advisory). `npm audit fix` → 0 vulnerabilities (all 3 mermaid DoS advisories resolved).
+- **Tests:** `php artisan test` → 131 passed ✅. `npm run lint` + `tsc --noEmit` → 5 warnings, 0 errors ✅. `npm run build` → ok ✅.
+
+**Files changed:**
+- `api/composer.json` + `api/composer.lock`
+- `web/package.json` + `web/package-lock.json`
+- `web/Dockerfile` (sharp update included in node_modules rebuild)
+
+**Effort:** Low (30 menit)
 
 ---
 

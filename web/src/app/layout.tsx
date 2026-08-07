@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { SentryInit } from "./sentry-init-client";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -11,7 +12,6 @@ export const metadata: Metadata = {
     "Ubah satu ide jadi dokumentasi & prompt lengkap untuk AI coding agent. Web & Mobile. Untuk solo developer.",
 };
 
-// Set tema sebelum paint (hindari flash)
 const themeScript = `try{var t=localStorage.getItem('theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -20,7 +20,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="bg-aurora min-h-full flex flex-col">{children}</body>
+      <body className="bg-aurora min-h-full flex flex-col">
+        <SentryInit dsn={process.env.NEXT_PUBLIC_SENTRY_DSN || ""} />
+        {children}
+      </body>
     </html>
   );
 }

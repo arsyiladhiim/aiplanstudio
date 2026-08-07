@@ -3,6 +3,22 @@
 > **Catat setiap proses development di sini** (aturan wajib [11-development-rules](11-development-rules.md)). Entri terbaru di atas.
  > Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
 
+### 2026-08-07 · P13 — Dependency Security Audit Fix
+- Dikerjakan: Update backend + frontend dependencies untuk fix known vulnerabilities.
+- **Backend:** `composer update guzzlehttp/guzzle league/commonmark laravel/framework` via docker run. guzzle 7.15.3, commonmark 2.9.0, framework 13.24.0. `composer audit --no-dev` → 0 vulnerabilities. `php artisan test` → 131 passed.
+- **Frontend:** `next` 16.2.11 → 16.3.0 + `eslint-config-next` 16.3.0 → sharp 0.35.3 (fixes sharp advisory). `npm audit fix` via docker run → 0 vulnerabilities (3 mermaid DoS advisories resolved). `npm run lint` + `tsc --noEmit` → 5 warnings, 0 errors. `npm run build` → ok.
+- Kendala: `npm audit fix` dari host gagal (EPERM, node_modules root-owned). Solusi: `docker run --rm --network host -v "$PWD/web:/work" -w /work node:20-alpine npm audit fix`.
+- Status: [x] P13 complete.
+
+### 2026-08-07 · P14 — Sentry Browser-Side Capture via nginx /glitchtip Proxy
+- Dikerjakan: Full browser-side Sentry capture setup. nginx proxy `/glitchtip/` → `glitchtip:8000` (internal Docker network). Client-side DSN injection.
+- **nginx:** Tambah `location /glitchtip/` dengan `rewrite ^/glitchtip/(.*)$ /$1 break; proxy_pass http://glitchtip:8000`. Verify: `curl localhost:4197/glitchtip/api/2/store/` → 200.
+- **DSN injection:** `NEXT_PUBLIC_SENTRY_DSN` passed via `build.args` di docker-compose.yml + `ARG` + `ENV` di Dockerfile builder stage. Root `.env` → `SENTRY_FRONTEND_PUBLIC_DSN=http://f60bf0fe8df6419e9ecb8edfc01295f1@localhost:4197/glitchtip/2`.
+- **Client init:** Next.js 16 dengan Turbopack tidak meng-inline `NEXT_PUBLIC_*` ke static bundles (berbeda dengan Next.js 15/Webpack). Solusi: `src/app/sentry-init-client.tsx` — client component dengan `useEffect` yang membaca `dsn` prop (passed dari server-side `process.env.NEXT_PUBLIC_SENTRY_DSN` via layout.tsx) dan memanggil `Sentry.init()`. DSN ter-embed di HTML server render. Verifikasi: `curl /` → DSN ada di HTML. `curl /glitchtip/api/2/store/` POST → 200 OK. Browser errors diterima GlitchTip.
+- **docker-compose.yml:** Tambah `build.args` untuk web service (`NEXT_PUBLIC_SENTRY_DSN`). Build arg dibaca dari root `.env`.
+- Kendala: Turbopack (Next.js 16) tree-shake Sentry dari static bundles bila `enabled: false`. `process.env.NEXT_PUBLIC_*` tidak di-inline. `npm run build` dari host menghasilkan output berbeda dari Docker build (host punya Turbopack cache). Solusi: `NEXT_TURBOPACK_CACHE=0` di Dockerfile builder stage + `useEffect` client init.
+- Status: [x] P14 complete. Full DSN strategy: server-side → `glitchtip:8000` internal, browser-side → `localhost:4197/glitchtip` (same-origin).
+
 ### 2026-08-07 · P12 — Host Permission Convention + GlitchTip Volume Migration
 - Dikerjakan: (1) GlitchTip volume migration dari named Docker volume → bind mount host, (2) P12 dokumentasi sudo/password convention.
 - **GlitchTip Volume Migration:** Named `aiplanstudio_glitchtip-uploads` (dari commit P8) diganti dengan bind mount `./docker/glitchtip/uploads/` — konsisten dengan pola `./docker/postgres/data_/` + `./docker/redis/data/`. Isi disalin via `docker run --rm -v <named>:/src -v <bind>:/dst alpine cp -a /src/. /dst/`. `docker-compose.yml` top-level `volumes:` section dihapus. Named volume dihapus via `docker volume rm`. `.gitignore` root tambah `docker/glitchtip/uploads`. Data intact (`.gitignore` di uploads tetap ada).

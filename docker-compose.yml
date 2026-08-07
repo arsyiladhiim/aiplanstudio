@@ -19,6 +19,8 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_SENTRY_DSN=${SENTRY_FRONTEND_PUBLIC_DSN:-}
     expose: ["3000"]
     environment:
       - LARAVEL_URL=http://api:8000
