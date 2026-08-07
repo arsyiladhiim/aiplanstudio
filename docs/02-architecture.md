@@ -22,14 +22,14 @@
                │  web   │   Next.js BFF (port 3000 internal, standalone)
                └────┬───┘
                     │ proxy /api/* → http://api:8000
-               ┌────▼─────────┐
-               │     api      │   Laravel php artisan serve (port 8000 internal)
-               └──┬────┬──────┘
-            ┌─────▼┐ ┌─▼──────┐
-            │  db  │ │ redis  │
-            │  pg  │ └────────┘
-            └──────┘
-                  (tanpa ports host)
+                ┌────▼─────────┐
+                │     api      │   nginx front (port 8000 internal) → php-fpm
+                └──┬────┬──────┘
+             ┌─────▼┐ ┌─▼──────┐
+             │  db  │ │ redis  │
+             │  pg  │ └────────┘
+             └──────┘
+                   (tanpa ports host)
 ```
 
 ## Routing Nginx
@@ -46,12 +46,13 @@ Semua `/api/*`, `/sanctum/*` masuk ke Next.js → Next.js proxy ke Laravel inter
 |---------|-----------|--------|-----------------|
 | `nginx` | nginx:alpine | 80 | **4197:80 (satu-satunya)** |
 | `web` | node:20-alpine (Next.js) | 3000 (internal) | tidak |
-| `api` | nginx:alpine (serve Laravel) | 8000 (internal) | tidak |
+| `api` | nginx:alpine (front Laravel) | 8000 (internal) | tidak |
+| `api-fpm` | php:8.3-fpm-alpine (`php-fpm -F`) | 9000 (internal) | tidak |
 | `db` | postgres:16-alpine | 5432 (internal) | **tidak** |
 | `redis` | redis:alpine | 6379 (internal) | tidak |
-| `migrate` | one-shot (sama image dengan api) | — | tidak |
+| `migrate` | one-shot (sama image dengan api-fpm) | — | tidak |
 
-> **Catatan serve:** API menggunakan `php artisan serve` (single process). Production upgrade ke php-fpm + nginx sudah diplan (RS-9).
+> **Catatan serve:** API berjalan di **php-fpm (production-ready)** — `api-fpm` (`php:8.3-fpm-alpine`, `CMD ["php-fpm","-F"]`, expose 9000) di-fronting nginx service `api` (listen 8000 → `fastcgi_pass api-fpm:9000`). Bukan lagi `php artisan serve` (RS-9 ✅).
 
 ## Jaringan
 - Satu Docker network internal (`aistack`).

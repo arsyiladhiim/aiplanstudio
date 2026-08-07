@@ -134,10 +134,19 @@ Unik: (`project_id`, `version_no`).
 | project_id | bigint FK → projects | cascade delete |
 | version_id | bigint FK → versions nullable | bisa null (activity tidak terkait versi tertentu) |
 | user_id | bigint FK → users nullable | pelaku (null untuk system) |
-| action | string | kategorisasi: `created_version`, `deleted_version`, dll |
+| action | string | kategorisasi — nilai dibatasi konstanta `Activity::ACTIONS` (lihat tabel di bawah) |
 | description | text | narasi aktivitas |
 | metadata | jsonb nullable | data tambahan polymorphic |
 | timestamps | | |
+
+**Nilai `activities.action`** (sumber: `api/app/Models/Activity.php` — `Activity::ACTIONS`):
+
+| Action | Kapan Dicatat | Call Site |
+|--------|---------------|-----------|
+| `created_version` | versi baru dibuat (auto v1 saat project dibuat, atau manual) | `VersionController::store()` |
+| `deleted_version` | versi dihapus | `VersionController::destroy()` |
+
+> Saat menambah aksi baru: daftarkan konstanta `ACTION_*` + tambahkan ke `Activity::ACTIONS`, lalu panggil via `Project::logActivity(Activity::ACTION_XXX, ...)`.
 
 ### versions — kolom tambahan (migrasi lanjutan)
 | Kolom | Tipe | Catatan |
@@ -169,7 +178,7 @@ Unik: (`project_id`, `version_no`).
 - Hapus Project → cascade Versions → cascade phase_progress + activities + project_api_tokens.
 - `api_key` **tidak pernah** dikembalikan mentah lewat API (mask, mis. `sk-...abcd`).
 - Semua query Project/Version **wajib** difilter `user_id` pemilik (kecuali admin bila diputuskan). Lihat [11-development-rules](11-development-rules.md).
-- `api_contract` diekstrak dari response ERD stage via regex parsing (`API: GET | /path | desc | auth`).
+- `api_contract` diekstrak dari response ERD stage via regex parsing (`API: GET | /path | desc | auth`), dengan fallback JSON block (`nodes`/`edges`/`api_contract`) bila output AI bukan format baris — lihat `PipelineRunner::parseErdText()`/`parseJsonErd()`.
 - Aktivitas otomatis tercatat via `Project::logActivity()` di controller.
 
 ## Seeder Awal

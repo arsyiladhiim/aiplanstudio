@@ -38,7 +38,7 @@ app/Prompts/*.php                # template prompt per stage (target-aware)
 | `analisa` | idea, target, stack, jawaban pertanyaan | `analysis` |
 | `prd` | idea, target, stack, jawaban, analysis | `prd` |
 | `architecture` | PRD, target, stack | `architecture` |
-| `erd` | PRD, arsitektur | `erd` (jsonb) + `api_contract` (jsonb, extracted from AI text output) |
+| `erd` | PRD, arsitektur | `erd` (jsonb) + `api_contract` (jsonb, extracted from AI text output; fallback JSON block) |
 | `phased_master` | PRD, arsitektur, ERD | `phases` (jsonb), `master_prompt`, `standards`, `agents` |
 | `phased_master_mobile` | PRD, arsitektur, ERD (mobile context) | `mobile_phases` (jsonb), `mobile_master_prompt`, `mobile_standards`, `mobile_agents` |
 

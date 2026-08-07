@@ -43,7 +43,7 @@ Saat memulai/melanjutkan sesi development, baca urut:
 - **BFF Pattern:** nginx → Next.js → Laravel ✅
 - **Docker:** 7 services (nginx, web, api, migrate, db, redis)
 - **Pipeline:** 7 stages aktif ✅
-- **Audit findings:** 73 items R1 selesai. 1 pending (RS-9 FPM).
+- **Audit findings:** 73 items R1 selesai (termasuk RS-9 FPM). 0 pending.
 - Next progress: lihat **[17-next-progress.md](17-next-progress.md)**
 
 ## Aturan Dokumen Realtime

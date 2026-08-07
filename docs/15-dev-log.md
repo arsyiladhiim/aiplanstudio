@@ -3,7 +3,16 @@
 > **Catat setiap proses development di sini** (aturan wajib [11-development-rules](11-development-rules.md)). Entri terbaru di atas.
 > Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
 
-### 2026-08-06 · P6 + P11 — Export & Diff Mobile Artifacts
+### 2026-08-06 · P7 + P9 + P10 — FPM Docs Sync, Activity Actions, api_contract Fallback
+- Dikerjakan: Tutup P7 (RS-9 docs), P9 (action types), P10 (api_contract fallback JSON). Semua item P1–P11 selesai.
+- **P7 — RS-9 FPM:** Terverifikasi **sudah terimplementasi** di code (`api/Dockerfile` CMD `php-fpm -F`, expose 9000; service `api` nginx listen 8000 → `fastcgi_pass api-fpm:9000`). Hanya docs yang basi → sinkron: 16-audit-fix-plan (RS-9 ✅, sisa 0), 17-next-progress (P7 `[x]`), 02-architecture (diagram + service table + note), 07-docker-setup (Dockerfile, topologi, env note).
+- **P9 — Activity Action Types:** `api/app/Models/Activity.php` → konstanta `ACTION_CREATED_VERSION`, `ACTION_DELETED_VERSION`, daftar `ACTIONS`; call sites di `VersionController::store()/destroy()` pakai konstanta. `docs/03-database-schema.md` → tabel nilai `activities.action` + panduan aksi baru.
+- **P10 — api_contract Fallback:** `PipelineRunner::parseErdText()` + method baru `parseJsonErd()` — jika line-parse (`TABEL:/RELASI:/API:`) kosong, baca `nodes`/`edges`/`api_contract` (atau `apiContract`) dari JSON block response AI via `extractJson()` + `tryJsonDecode()`; node sebagai object-keyed map dinormalisasi `array_values`. Bagian yang kosong dilengkapi (nodes dari JSON bila line kosong; api_contract dari JSON bila line kosong).
+  - Tests baru: `test_save_artifact_parses_erd_json_block`, `test_save_artifact_fills_missing_api_contract_from_json`, `test_save_artifact_throws_when_erd_json_has_no_nodes`.
+- **Hasil test:** Backend `php artisan test` → **131 passed (439 assertions)** (+3). Dev DB aman (1 user). `pint` applied (Activity, VersionController, PipelineRunner, tests).
+- **Docs:** 17 (P9/P10 `[x]`, status P1–P11), 15, 13 (total 131), 09 (status).
+- **Status:** [x] P7, P9, P10 selesai. **Semua item next-progress P1–P11 tuntas** — sisa P8 (Sentry) sebagai next step.
+
 - Dikerjakan: Lengkapi export (.md/.zip) dan diff agar include mobile artifacts; commit cleanup tree P1-P5+P4 (3 commit di devel).
 - **Commit:** `e5f37bb` (backend fixes), `bb3d146` (P4 e2e suite), `25f6bf2` (docs sync).
 - **P6 — Export Mobile Artifacts** (`api/app/Http/Controllers/VersionController.php`):

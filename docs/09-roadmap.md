@@ -11,7 +11,7 @@
 - **Build:** 17/17 pages ✅
 - **Auth:** Session-based (Sanctum SPA — HttpOnly cookie + CSRF) + User approval flow
 - **Pipeline:** 7 stages (pertanyaan→analisa→prd→architecture→erd→phased_master→phased_master_mobile)
-- **Testing:** Backend PHPUnit 128 pass ✅, Playwright E2E 10 test hijau ✅ (3 specs: auth, wizard, projects)
+- **Testing:** Backend PHPUnit 131 pass ✅, Playwright E2E 10 test hijau ✅ (3 specs: auth, wizard, projects)
 - **Status:** Semua fase utama selesai. Maintenance & next-progress (lihat [17-next-progress.md](17-next-progress.md))
 
 ## Aturan Lintas-Fase (wajib tiap fase)
@@ -102,11 +102,11 @@ Setiap fase baru boleh ditandai `[x]` bila:
 - [x] RP — AI Pipeline Code + Docs (7/7)
 - [x] RW — Wizard Frontend Code + Docs (7/7)
 - [x] RX — Export & Versioning Code + Tests (4/4)
-- [x] RS — Security & Infrastructure (9/10, RS-9 pending FPM upgrade)
+- [x] RS — Security & Infrastructure (10/10, RS-9 FPM done)
 - [x] RC — Component Structure Docs Sync (3/3)
 - [x] RT — Test Coverage (9/9)
 - [x] RL — Low Priority (5/5)
-- Catatan: RS-7 (middleware Next.js) adalah false-positive — middleware guard tidak perlu karena auth via session cookie sudah ditangani Laravel. RS-9 (FPM production) belum diimplementasi.
+- Catatan: RS-7 (middleware Next.js) adalah false-positive — middleware guard tidak perlu karena auth via session cookie sudah ditangani Laravel. RS-9 (FPM production) terkonfirmasi sudah terimplementasi (php-fpm + nginx api upstream).
 
 ### [x] Phase 4 — Activity Log, Favorites, Search/Filter, Provider Health, Dashboard
 - [x] Activity Log: migration, model, controller, BFF, UI tab

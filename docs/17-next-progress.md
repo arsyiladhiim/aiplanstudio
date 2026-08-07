@@ -5,7 +5,7 @@
 
 ## Status Saat Ini
 
-Semua fase utama (F0–F10, R1, P1–P6, P11) **selesai**.
+Semua fase utama (F0–F10, R1, P1–P11) **selesai**.
 **Tidak ada fase aktif.** Item di bawah ini adalah next steps terprioritas.
 
 **Yang sudah selesai:**
@@ -113,15 +113,11 @@ Semua 6 stage (target web) berjalan end-to-end dan artifact persisted:
 
 **Effort:** Medium (1-2 jam)
 
-### [P7] RS-9 — FPM Production Serve
+### [x] [P7] RS-9 — FPM Production Serve ✅
 
-**Problem:** API masih pakai `php artisan serve`. Production hardening perlu FPM.
+**Resolution:** Terverifikasi **sudah terimplementasi** — `api/Dockerfile` berbasis `php:8.3-fpm-alpine` dengan `CMD ["php-fpm","-F"]` (expose 9000); service `api` (nginx) listen 8000 → `fastcgi_pass api-fpm:9000` (`docker/api-nginx/default.conf`). Tidak ada lagi `php artisan serve`. Docs RS-9 di 16-audit-fix-plan.md disinkronkan.
 
-**Plan:** Migrasi ke php-fpm + nginx upstream. Sudah diplan di RS-9 (audit fix plan).
-
-**Definition of Done:** API jalan di FPM, bukan artisan serve. docker-compose.yml updated.
-
-**Effort:** High (4-6 jam, bisa paralel dengan item lain)
+**Effort:** High (4-6 jam) → **docs sync only (~15 menit)**
 
 ---
 
@@ -135,21 +131,21 @@ Semua 6 stage (target web) berjalan end-to-end dan artifact persisted:
 
 **Effort:** Medium (2-3 jam)
 
-### [P9] Activity Log — Action Types Documentation
+### [x] [P9] Activity Log — Action Types Documentation ✅
 
-**Problem:** `activities.action` field tidak punya daftar values yang jelas. Tidak ada enum atau dokumentasi.
-
-**Plan:** Tambah dokumentasi action values di 03-database-schema.md atau buat enum di model.
+**Resolution:** Nilai `activities.action` dikurasi & didokumentasikan.
+- `api/app/Models/Activity.php` → konstanta `ACTION_CREATED_VERSION`, `ACTION_DELETED_VERSION`, daftar `ACTIONS`.
+- Call sites memakai konstanta (`VersionController::store/destroy`).
+- `docs/03-database-schema.md` → tabel nilai action + panduan menambah aksi baru.
 
 **Effort:** Low (30 menit)
 
-### [P10] api_contract Extraction Enhancement
+### [x] [P10] api_contract Extraction Enhancement ✅
 
-**Problem:** `parseErdText()` extract api_contract hanya dari format text-line (`API: GET | /path | desc | auth`). Jika AI response dalam format berbeda, api_contract kosong.
-
-**Plan:** Tambah fallback: jika `api_contract` kosong setelah parsing, coba extract dari JSON block di response.
-
-**Definition of Done:** api_contract terisi dari berbagai format AI response.
+**Resolution:** `parseErdText()` punya fallback JSON.
+- Baru `parseJsonErd()` (pakai `extractJson()` + `tryJsonDecode()` yang sudah ada) — membaca `nodes`/`edges`/`api_contract` (atau `apiContract`) dari JSON block di response AI; menangani `nodes` sebagai object-keyed map via `array_values`.
+- Logika: isi bagian yang kosong — jika line-parse tidak menghasilkan nodes → ambil semua dari JSON; jika hanya `api_contract` kosong → merge dari JSON.
+- Tests: `test_save_artifact_parses_erd_json_block`, `test_save_artifact_fills_missing_api_contract_from_json`, `test_save_artifact_throws_when_erd_json_has_no_nodes`.
 
 **Effort:** Medium (2 jam)
 

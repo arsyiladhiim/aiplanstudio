@@ -16,9 +16,9 @@
 | Security | 1 | 1 | 2 | 1 | 5 |
 | **Total** | **8** | **22** | **21** | **22** | **73** |
 | **Selesai** | **8** | **22** | **21** | **22** | **73** |
-| **Sisa** | **0** | **1** | **0** | **0** | **1** |
+| **Sisa** | **0** | **0** | **0** | **0** | **0** |
 
-> **Sisa 1 item:** RS-9 (FPM production serve). RS-7 (middleware Next.js) adalah **false-positive** — auth guard sudah ditangani Laravel; middleware frontend tidak diperlukan.
+> **Semua item RS selesai (0 sisa).** RS-9 (FPM production serve) dikonfirmasi sudah terimplementasi di code (php-fpm + nginx api upstream) — tinggal sinkronisasi docs. RS-7 (middleware Next.js) adalah **false-positive** — auth guard sudah ditangani Laravel; middleware frontend tidak diperlukan.
 
 ---
 
@@ -113,7 +113,7 @@
 | RS-6 | Tambah password confirmation di register | 🟡 Medium | `api/app/Http/Controllers/AuthController.php` | Tambah `'password' => 'confirmed'` rule. | ✅ |
 | RS-7 | Implementasi middleware Next.js | 🟡 Medium | `web/src/proxy.ts` | **Resolved via `web/src/proxy.ts`** (Next.js 16 rename middleware→proxy). Guard route aktif: redirect unauthenticated ke `/login` untuk protected paths. JANGAN buat `middleware.ts` (konflik build). | ✅ |
 | RS-8 | Clipboard error handling | 🟢 Low | `web/src/app/(app)/projects/[id]/page.tsx` | Tambah `.catch()` untuk `navigator.clipboard.writeText()` + fallback `execCommand`. | ✅ |
-| RS-9 | Ganti `artisan serve` untuk production | 🟡 Medium | `docker-compose.yml`, `api/Dockerfile` | Gunakan FrankenPHP atau FPM + Nginx untuk production. Update `02-architecture.md`. | ❌ (pending — production hardening) |
+| RS-9 | Ganti `artisan serve` untuk production | 🟡 Medium | `docker-compose.yml`, `api/Dockerfile` | **Selesai:** `api-fpm` build `php:8.3-fpm-alpine` dengan `CMD ["php-fpm","-F"]` (expose 9000); service `api` = nginx listen 8000 → `fastcgi_pass api-fpm:9000` (`docker/api-nginx/default.conf`). Update `02-architecture.md`. | ✅ |
 | RS-10 | Cleanup test API key | 🟢 Low | `api/tests/Feature/AiClientTest.php`, `PipelineRunnerTest.php` | Ganti `sk-test-key-for-mocking` → `sk-test-invalid` | ✅ |
 
 ---

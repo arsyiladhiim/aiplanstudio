@@ -27,12 +27,12 @@ docker compose exec api php artisan test --filter=VersionTest
 | `tests/Feature/TemplateTest.php` | index, store, destroy | ✅ |
 | `tests/Feature/HealthCheckTest.php` | /health endpoint | ✅ |
 | `tests/Feature/AiClientTest.php` | streaming, mock SSE, HTTP mocking | ✅ |
-| `tests/Feature/PipelineRunnerTest.php` | stages, JSON validation, defaults | ✅ |
+| `tests/Feature/PipelineRunnerTest.php` | stages, JSON validation, defaults, ERD line + JSON fallback | ✅ |
 | `tests/Feature/SocialiteControllerTest.php` | Google OAuth fake | ✅ |
 | `tests/Feature/PasswordResetTest.php` | forgot/reset password | ✅ |
 | `tests/Unit/ModelTest.php` | isAdmin, isActive, isPending, maskedKey, nextVersionNo | ✅ |
 
-Total: **128 test functions** (terakhir diverifikasi 2026-08-06, 430 assertions).
+Total: **131 test functions** (terakhir diverifikasi 2026-08-06, 439 assertions).
 
 ## Cakupan per Feature
 

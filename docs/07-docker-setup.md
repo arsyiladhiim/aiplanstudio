@@ -15,7 +15,7 @@ aiplanstudio/
     postgres/data_/           # bind mount data PostgreSQL
     redis/data/               # bind mount data Redis
   api/                        # Laravel
-    Dockerfile                # php:8.3-fpm-alpine (artisan serve — FPM upgrade RS-9 pending)
+    Dockerfile                # php:8.3-fpm-alpine, CMD php-fpm -F (RS-9 ✅)
     .env.production.example   # template env produksi (termasuk SMTP)
   web/                        # Next.js (BFF)
     Dockerfile                # 3-stage build → standalone output
@@ -28,8 +28,8 @@ Host :4197
   └─ nginx (nginx:alpine) ── / → web:3000 (Next.js standalone, BFF)
                                 └─ /api/* → Laravel via BFF route handler
   web (Next.js) ── LARAVEL_URL=http://api:8000 ──> api
-  api (nginx:alpine :8000, root /app/public) ── fastcgi ──> api-fpm:9000  # RS-9: upgrade artisan serve → FPM
-  api-fpm (php:8.3-fpm-alpine, /app) ──> db / redis  # RS-9: upgrade artisan serve → FPM
+  api (nginx:alpine :8000, root /app/public) ── fastcgi ──> api-fpm:9000
+  api-fpm (php:8.3-fpm-alpine, php-fpm -F, /app) ──> db / redis
   migrate (one-shot, image yang sama dengan api)
   db (postgres:16-alpine) · redis (redis:alpine)
 ```
@@ -94,7 +94,7 @@ networks: { aiplanstudio: { driver: bridge } }
 - `try_files $uri $uri/ /index.php?$query_string`; blok `.php$`; deny dotfiles.
 
 ## Env
-- **`api/.env`** (Laravel, dipakai `api-fpm` via `env_file`): `APP_KEY` (wajib `php artisan key:generate`), `DB_HOST=db`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST=redis`, `REDIS_PASSWORD`, `SESSION_DRIVER=database`, `SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`, `APP_URL`, `FRONTEND_URL`, blok `MAIL_*`.
+- **`api/.env`** (Laravel, dibaca langsung oleh `api-fpm` — **tanpa** `env_file`, agar PHPUnit bisa meng-override `DB_*` untuk test DB): `APP_KEY` (wajib `php artisan key:generate`), `DB_HOST=db`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST=redis`, `REDIS_PASSWORD`, `SESSION_DRIVER=database`, `SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`, `APP_URL`, `FRONTEND_URL`, blok `MAIL_*`.
 - **`api/.env.production.example`**: template produksi lengkap — `APP_ENV=production`, `APP_URL`/`FRONTEND_URL` https publik, `SANCTUM_STATEFUL_DOMAINS` + `SESSION_DOMAIN` domain produksi, `SESSION_SECURE_COOKIE=true`, `SESSION_HTTP_ONLY=true`, `GOOGLE_REDIRECT_URI`, SMTP (`MAIL_MAILER=smtp`, `MAIL_HOST/PORT/USERNAME/PASSWORD/ENCRYPTION/FROM`), `LOG_LEVEL=error`.
 - **`web/.env`** (Next.js): `LARAVEL_URL=http://api:8000` di Docker; `http://localhost:8000` saat dev tanpa Docker.
 - **`.env` root compose**: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`.
