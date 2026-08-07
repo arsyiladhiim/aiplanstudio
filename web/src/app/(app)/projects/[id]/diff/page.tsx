@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Card } from "@/components/ui";
+import { Card, Markdown } from "@/components/ui";
 import { ButtonLink } from "@/components/ui/Button";
 import { PageHeader } from "@/components/common";
 import { apiGet } from "@/lib/api";
@@ -41,7 +41,7 @@ function DiffBlock({ label, left, right, changed }: DiffEntry) {
         <div className="p-4">
           <div className="mb-2 text-xs font-medium text-[var(--color-fg-muted)]">Sebelum</div>
           {left ? (
-            <pre className="whitespace-pre-wrap text-sm text-[var(--color-fg)]">{left}</pre>
+            <Markdown className="text-sm text-[var(--color-fg)]">{left}</Markdown>
           ) : (
             <span className="text-sm italic text-[var(--color-fg-muted)]">Kosong</span>
           )}
@@ -49,7 +49,7 @@ function DiffBlock({ label, left, right, changed }: DiffEntry) {
         <div className="p-4">
           <div className="mb-2 text-xs font-medium text-[var(--color-fg-muted)]">Sesudah</div>
           {right ? (
-            <pre className="whitespace-pre-wrap text-sm text-[var(--color-fg)]">{right}</pre>
+            <Markdown className="text-sm text-[var(--color-fg)]">{right}</Markdown>
           ) : (
             <span className="text-sm italic text-[var(--color-fg-muted)]">Kosong</span>
           )}

@@ -45,7 +45,7 @@ docker run --rm --network host -v "$PWD/web":/work -w /work \
 
 Semua alur pakai real backend di Docker; test login tidak lewat UI throttle (`throttle:5,1`) — global-setup pakai API login sekali.
 
-## Smoke Test Menyeluruh (wajib sebelum F9 selesai)
+## Smoke Test Menyeluruh
 Satu spec yang **mengklik seluruh menu & tombol utama** berurutan (crawl UI) dan memastikan tak ada:
 - error konsol browser (`page.on('console')` error/`pageerror`),
 - request gagal (4xx/5xx) pada aksi utama,

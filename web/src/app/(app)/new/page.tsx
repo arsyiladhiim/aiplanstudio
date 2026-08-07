@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useCallback, useEffect, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Textarea, Label } from "@/components/ui";
+import { Card, Badge, Textarea, Label, Markdown } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { ErdDiagram } from "@/components/wizard/ErdDiagram";
 import { getStages, type StageKey, type StageState, type Target } from "@/lib/mock";
@@ -669,11 +669,11 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     </Button>
                   </div>
                 ) : (activeKey === "erd" && status.erd === "done") || (activeKey === "architecture" && status.architecture === "done") || (activeKey === "phased_master" && status.phased_master === "done") ? null : (
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-fg-muted)]">
+                  <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
                     {status[activeKey] === "done" && !artifacts[activeKey]
                       ? "Tidak ada output"
                       : artifacts[activeKey] || "Menunggu hasil AI..."}
-                  </div>
+                  </Markdown>
                 )}
 
                 {activeKey === "architecture" && artifacts.architecture && (() => {
@@ -706,9 +706,9 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     <>
                       {nodes.length > 0 && <div className="mb-6"><ErdDiagram erd={{ nodes, edges }} /></div>}
                       {cleanText && (
-                        <div className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-fg-muted)]">
+                        <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
                           {cleanText}
-                        </div>
+                        </Markdown>
                       )}
                     </>
                   );
@@ -812,7 +812,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                                 <Copy size={13} /> Salin Master Prompt
                               </Button>
                             </div>
-                            <pre className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</pre>
+                            <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</Markdown>
                           </Card>
                         )}
 

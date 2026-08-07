@@ -56,3 +56,5 @@ export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
 export function Label({ className, ...props }: ComponentProps<"label">) {
   return <label className={cx("mb-1.5 block text-sm font-medium text-[var(--color-fg-muted)]", className)} {...props} />;
 }
+
+export { Markdown } from "./Markdown";

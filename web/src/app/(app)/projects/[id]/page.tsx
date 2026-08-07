@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { notFound } from "next/navigation";
 import { use } from "react";
-import { Card, Badge } from "@/components/ui";
+import { Card, Badge, Markdown } from "@/components/ui";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { TargetBadge } from "@/components/common";
 import { ErdDiagram } from "@/components/wizard/ErdDiagram";
@@ -376,31 +376,25 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                 </div>
               )}
               {tab === "analysis" && (
-                <article className="prose prose-sm max-w-none">
-                  {selectedVersion.analysis ? (
-                    <pre className="whitespace-pre-wrap text-sm text-[var(--color-fg-muted)]">{selectedVersion.analysis}</pre>
-                  ) : (
-                    <p className="text-[var(--color-fg-subtle)]">Analisa belum dihasilkan.</p>
-                  )}
-                </article>
+                selectedVersion.analysis ? (
+                  <Markdown className="text-sm text-[var(--color-fg-muted)]">{selectedVersion.analysis}</Markdown>
+                ) : (
+                  <p className="text-[var(--color-fg-subtle)]">Analisa belum dihasilkan.</p>
+                )
               )}
               {tab === "prd" && (
-                <article className="prose prose-sm max-w-none">
-                  {selectedVersion.prd ? (
-                    <pre className="whitespace-pre-wrap text-sm text-[var(--color-fg-muted)]">{selectedVersion.prd}</pre>
-                  ) : (
-                    <p className="text-[var(--color-fg-subtle)]">PRD belum dihasilkan.</p>
-                  )}
-                </article>
+                selectedVersion.prd ? (
+                  <Markdown className="text-sm text-[var(--color-fg-muted)]">{selectedVersion.prd}</Markdown>
+                ) : (
+                  <p className="text-[var(--color-fg-subtle)]">PRD belum dihasilkan.</p>
+                )
               )}
               {tab === "architecture" && (
-                <article className="prose prose-sm max-w-none">
-                  {selectedVersion.architecture ? (
-                    <pre className="whitespace-pre-wrap text-sm text-[var(--color-fg-muted)]">{selectedVersion.architecture}</pre>
-                  ) : (
-                    <p className="text-[var(--color-fg-subtle)]">Arsitektur belum dihasilkan.</p>
-                  )}
-                </article>
+                selectedVersion.architecture ? (
+                  <Markdown className="text-sm text-[var(--color-fg-muted)]">{selectedVersion.architecture}</Markdown>
+                ) : (
+                  <p className="text-[var(--color-fg-subtle)]">Arsitektur belum dihasilkan.</p>
+                )
               )}
               {tab === "erd" && (
                 selectedVersion.erd ? (
@@ -495,7 +489,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                           <Copy size={13} /> Salin
                         </Button>
                       </div>
-                      <pre className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-fg-muted)]">{selectedVersion.mobile_master_prompt}</pre>
+                      <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{selectedVersion.mobile_master_prompt}</Markdown>
                     </Card>
                   )}
                 </div>

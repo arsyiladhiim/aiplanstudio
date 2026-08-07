@@ -43,7 +43,7 @@ web/
       api.ts                       # fetch wrapper + CSRF + SSE helpers
       bff.ts                       # BFF proxy helpers (cookie forwarding)
       mock.ts                      # mock data (fallback — tidak dipakai di production)
-    middleware.ts                  # saat ini no-op (belum ada guard)
+    proxy.ts                       # route guard (Next.js 16) — redirect unauthenticated ke /login
 ```
 
 > **Catatan:** Dokumentasi awal menyebut struktur komponen yang lebih granular (`landing/Nav`, `wizard/IdeaInput`, `project/ProjectList`, `settings/ProviderForm`, `e2e/`). Saat ini kode masih inline di page files dan hanya komponen umum yang diekstrak.
