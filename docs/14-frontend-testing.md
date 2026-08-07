@@ -10,6 +10,8 @@
 - Catat tiap run (pass/fail + error + perbaikan) di [15-dev-log](15-dev-log.md).
 
 ## Setup
+
+### Unit / Smoke (host Chromium)
 ```bash
 # Dari host (spec ada di web/e2e/)
 cd web && npx playwright test
@@ -17,23 +19,31 @@ cd web && npx playwright test --headed      # lihat browser
 cd web && npx playwright test --ui          # mode UI (debug)
 ```
 - Config `web/playwright.config.ts`: `baseURL: 'http://localhost'`, `actionTimeout: 15000`, `navigationTimeout: 30000`, `projects: [{ name:'chromium', use:{ ...devices['Desktop Chrome'] } }]`, `trace:'on-first-retry'`, `screenshot:'only-on-failure'`, `video:'retain-on-failure'`.
-- Struktur: `web/e2e/*.spec.ts` (11 files, ~1410 lines).
-- Shared helpers: `web/e2e/helpers.ts` (loginAsAdmin, loginAs, navTo, consoleErrorCollector, registerUser).
 
-## Cakupan per Spec
+### E2E (browser wajib via Docker — host Linux kurang libs browser)
+```bash
+cd web
+docker run --rm --network host -v "$PWD/web":/work -w /work \
+  -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+  -e E2E_BASE_URL=http://localhost:4197 \
+  mcr.microsoft.com/playwright:v1.62.0-noble \
+  npx playwright test --config=playwright.e2e.config.ts
+```
+- Config `web/playwright.e2e.config.ts`: baseURL `E2E_BASE_URL`, `globalSetup: e2e/global-setup.ts` (login API + simpan state auth), 2 retries, screenshot/video `retain-on-failure`.
+- Pre-req: stack up + dev DB tersedia (login `admin@aistack.dev` / `password123`).
+- **Struktur:** `web/e2e/*.spec.ts` + `helpers.ts` (`ensureAuthed`, `consoleErrorCollector`) + `global-setup.ts`.
+- **Artefak** (`web/test-results/`, `web/e2e/.auth/`, `web/out.png`, `web/playwright-report/`) di-`gitignore`; cleanup root-owned files via `docker run --rm -v "$PWD/web":/w alpine sh -c 'rm -rf /w/test-results /w/e2e/.auth'`.
 
-| Spek | Cakupan | Status |
-|------|---------|--------|
-| `auth.spec.ts` | Login form, login sukses/gagal, logout, protected routes, guard | ✅ |
-| `full.spec.ts` | Smoke test semua halaman (auth, projects, templates, landing, dashboard, settings, nav, wizard) | ✅ |
-| `register.spec.ts` | Register form, valid credentials, duplicate email, short password, login after register | ✅ |
-| `rbac.spec.ts` | Admin access settings, unauthenticated redirect, authenticated protected routes | ✅ |
-| `wizard.spec.ts` | Wizard form, target buttons, auto-run, submit enable/disable, 6 stages, reset | ✅ |
-| `wizard-e2e.spec.ts` | Target selection state, auto-run toggle, submit states, stack field | ✅ |
-| `project-detail.spec.ts` | Projects list, empty state, project detail elements, tab switching, 404 | ✅ |
-| `projects-templates.spec.ts` | Projects list, CTA nav, templates page, template cards, landing page | ✅ |
-| `settings-nav.spec.ts` | Sidebar navigation, "Buat Plan Baru" CTA | ✅ |
-| `settings-crud.spec.ts` | Provider form fields, save, test connection, user list, admin delete disabled | ✅ |
+## Cakupan Spec Aktual
+
+**E2E suite (3 spec files / 10 test):**
+| Spec | Cakupan |
+|---|---|
+| `e2e/auth.spec.ts` | login sukses, login salah ditolak, logout |
+| `e2e/wizard.spec.ts` | render wizard, validasi input, submit → real AI pipeline (7-stage) → phases persist |
+| `e2e/projects.spec.ts` | list project, create via API, open detail, tab navigasi, delete |
+
+Semua alur pakai real backend di Docker; test login tidak lewat UI throttle (`throttle:5,1`) — global-setup pakai API login sekali.
 
 ## Smoke Test Menyeluruh (wajib sebelum F9 selesai)
 Satu spec yang **mengklik seluruh menu & tombol utama** berurutan (crawl UI) dan memastikan tak ada:

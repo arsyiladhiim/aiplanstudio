@@ -15,7 +15,7 @@ aiplanstudio/
     postgres/data_/           # bind mount data PostgreSQL
     redis/data/               # bind mount data Redis
   api/                        # Laravel
-    Dockerfile                # php:8.3-fpm-alpine (php-fpm, bukan artisan serve)
+    Dockerfile                # php:8.3-fpm-alpine (artisan serve — FPM upgrade RS-9 pending)
     .env.production.example   # template env produksi (termasuk SMTP)
   web/                        # Next.js (BFF)
     Dockerfile                # 3-stage build → standalone output
@@ -28,9 +28,9 @@ Host :4197
   └─ nginx (nginx:alpine) ── / → web:3000 (Next.js standalone, BFF)
                                 └─ /api/* → Laravel via BFF route handler
   web (Next.js) ── LARAVEL_URL=http://api:8000 ──> api
-  api (nginx:alpine :8000, root /app/public) ── fastcgi ──> api-fpm:9000
-  api-fpm (php:8.3-fpm-alpine, /app) ──> db / redis
-  migrate (one-shot, image yang sama dengan api-fpm)
+  api (nginx:alpine :8000, root /app/public) ── fastcgi ──> api-fpm:9000  # RS-9: upgrade artisan serve → FPM
+  api-fpm (php:8.3-fpm-alpine, /app) ──> db / redis  # RS-9: upgrade artisan serve → FPM
+  migrate (one-shot, image yang sama dengan api)
   db (postgres:16-alpine) · redis (redis:alpine)
 ```
 

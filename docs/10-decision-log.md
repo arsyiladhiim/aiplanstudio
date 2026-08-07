@@ -2,11 +2,31 @@
 
 > Catatan keputusan penting + alasan. Tambah entri baru di atas (terbaru dulu). Format: tanggal · keputusan · alasan · alternatif ditolak.
 
-## 2026-07-31
+## 2026-08-06
+
+### D-025 · Sinkronisasi dokumentasi menyeluruh Phase 2
+- **Keputusan:** Perbaikan gap docs vs code yang ditemukan setelah Phase 1: 7 stages pipeline (vs "6 tahap"), schema mobile artifacts, API contract endpoints, RS-7 false-positive, dan decision log duplicates.
+- **Alasan:** Dokumentasi harus akurat dan mencerminkan realitas kode untuk resume development yang reliable.
+- **Ditolak:** Membiarkan docs outdated (risiko misguidance di sesi berikutnya).
+
+### D-018 · Dashboard analytics endpoint replaces client-side computation
+- **Keputusan:** New `GET /api/dashboard/stats` endpoint in ProjectController returns server-computed stats (total_projects, total_versions, active_projects, projects_this_week, versions_this_week, recent_projects).
+- **Alasan:** Client-side computation from `/api/projects` was inaccurate (missed versions that belong to projects with no versions_count). Server-side query is authoritative.
+- **Ditolak:** Keeping client-side aggregation.
+
+### D-019 · Inline artifact editing: single PATCH endpoint for all stages
+- **Keputusan:** `PATCH /api/versions/{id}/artifacts` with `{stage, content}` body maps stage key (pertanyaan/analisa/prd/architecture/erd/phased_master) to the correct DB column. ERD content is JSON-decoded before storage.
+- **Alasan:** One endpoint for all artifact types is simpler than separate endpoints.
+- **Ditolak:** Separate endpoints per stage type.
+
+### D-020 · Version diff: GET endpoint with `?compare=` query param
+- **Keputusan:** `GET /api/versions/{id}/diff?compare={otherId}` returns a structured diff of all 6 artifact fields with `changed` boolean.
+- **Alasan:** Side-by-side comparison is the most intuitive way to review changes between versions.
+- **Ditolak:** JS-based diff on frontend (inconsistent with SSR); unified diff format (less readable).
 
 ### D-021 · Activity Log menggunakan tabel sendiri (bukan log laravel)
-- **Keputusan:** Migration `create_activities_table` dengan `project_id`, `user_id`, `type`, `description`, `metadata` (jsonb). `Project::logActivity()` helper.
-- **Alasan:** Fitur-specific, perlu query per-project dengan pagination. Lebih ringan dari log laravel. Metadata jsonb untuk data polymorphic.
+- **Keputusan:** Migration `create_activities_table` dengan `project_id`, `user_id`, `action`, `description`, `metadata` (jsonb). `Project::logActivity()` helper.
+- **Alasan:** Fitur-specific, perlu query per-project dengan pagination. Metadata jsonb untuk data polymorphic.
 - **Ditolak:** Menggunakan Logging Laravel (`\Log::info`); event sourcing dengan package eksternal.
 
 ### D-022 · Search menggunakan `ilike` (bukan full-text search)
@@ -24,27 +44,12 @@
 - **Alasan:** React 19 `set-state-in-effect` rule mencegah `setQuestions` di dalam effect. Nilai questions selalu derivatif dari artifact, jadi useMemo lebih tepat.
 - **Ditolak:** Menyimpan questions di ref; memparsing di event handler.
 
-### D-018 · Dashboard analytics endpoint replaces client-side computation
-- **Keputusan:** New `GET /api/dashboard/stats` endpoint in ProjectController returns server-computed stats (total_projects, total_versions, active_projects, projects_this_week, versions_this_week, recent_projects).
-- **Alasan:** Client-side computation from `/api/projects` was inaccurate (missed versions that belong to projects with no versions_count). Server-side query is authoritative.
-- **Ditolak:** Keeping client-side aggregation.
-
-### D-019 · Inline artifact editing: single PATCH endpoint for all stages
-- **Keputusan:** `PATCH /api/versions/{id}/artifacts` with `{stage, content}` body maps stage key (analisa/prd/architecture/erd/phased_master) to the correct DB column. ERD content is JSON-decoded before storage.
-- **Alasan:** One endpoint for all 5 artifact types is simpler than 5 separate endpoints. Wizard page already had editingStage/editContent state but was never wired.
-- **Ditolak:** Separate endpoints per stage type.
-
-### D-020 · Version diff: GET endpoint with `?compare=` query param
-- **Keputusan:** `GET /api/versions/{id}/diff?compare={otherId}` returns a structured diff of all 5 artifact fields with `changed` boolean. Frontend renders side-by-side diff blocks.
-- **Alasan:** Side-by-side comparison is the most intuitive way to review changes between versions. Backend computes per-field comparison for reliable results.
-- **Ditolak:** JS-based diff on frontend (inconsistent with SSR); unified diff format (less readable for long artifacts).
-
-### D-021 · Project API tokens: BFF routes + UI in project detail
+### D-026 · Project API tokens: BFF routes + UI in project detail
 - **Keputusan:** Tokens are managed via 3 routes (GET/POST/DELETE) under `/api/projects/{id}/tokens`. UI embedded as a collapsible card in the project detail page.
 - **Alasan:** Tokens are project-scoped, not user-scoped. Embedding in project detail keeps UX simple without a separate page.
 - **Ditolak:** Separate tokens management page.
 
-### D-022 · Fallback artifact fetcher: single batch request instead of per-stage loop
+### D-027 · Fallback artifact fetcher: single batch request instead of per-stage loop
 - **Keputusan:** Changed the `useEffect` fallback fetcher to collect all missing stages first, then make a single `/versions/{id}` call and set all artifacts at once.
 - **Alasan:** Original code had a `break` that caused only the first missing stage to be fetched. The single-fetch approach also reduces network calls.
 - **Ditolak:** Keeping per-stage loop with proper `break` removal (still N network calls).

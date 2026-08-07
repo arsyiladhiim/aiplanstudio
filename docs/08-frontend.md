@@ -23,7 +23,7 @@ web/
       (app)/
         layout.tsx                 # app shell (sidebar, header, nav)
         dashboard/page.tsx         # ringkasan + project terbaru
-        new/page.tsx               # WIZARD 6 tahap (inti)
+        new/page.tsx               # WIZARD 7 tahap (inti)
         projects/page.tsx          # daftar project
         projects/[id]/page.tsx     # detail: versi, artefak, progress, export
         templates/page.tsx         # galeri template
@@ -55,7 +55,7 @@ web/
 4. Jika 401 → redirect ke `/login`.
 5. Logout → `POST /api/logout` → invalidate session → redirect ke `/login`.
 6. Guard: halaman `/settings/*` hanya untuk `role === 'admin'` (dicek via `/api/user`).
-   Halaman app lain butuh login. **Middleware Next.js saat ini no-op** (belum implementasi guard — lihat [16-audit-fix-plan](16-audit-fix-plan.md#rs)).
+   Halaman app lain butuh login. **Guard route via `web/src/proxy.ts`** (Next.js 16 rename `middleware.ts` → `proxy.ts`): redirect unauthenticated users ke `/login?redirect={path}` untuk protected paths (`/dashboard`, `/projects`, `/new`, `/templates`, `/settings`, `/activities`, `/help`).
 
 `lib/api.ts` menyediakan `apiGet/apiPost/...` yang otomatis menyertakan cookies + CSRF headers.
 `lib/bff.ts` menyediakan helper untuk BFF route handler (proxy ke Laravel dengan cookie forwarding).

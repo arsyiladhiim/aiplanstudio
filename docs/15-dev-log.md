@@ -3,6 +3,78 @@
 > **Catat setiap proses development di sini** (aturan wajib [11-development-rules](11-development-rules.md)). Entri terbaru di atas.
 > Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
 
+### 2026-08-06 · P4 — E2E Test Suite + Fix Sesi 401 + Fix DB Test Env
+- Dikerjakan: Bangun E2E suite (3 specs/10 test hijau), temukan & perbaiki 2 bug serius di luar scope E2E.
+- **E2E suite:** `web/e2e/auth.spec.ts` (login/logout), `wizard.spec.ts` (submit real AI pipeline), `projects.spec.ts` (CRUD) + `helpers.ts` (`ensureAuthed`, `consoleErrorCollector`) + `global-setup.ts` (API login sekali, simpan state). Config terpisah `web/playwright.e2e.config.ts` (baseURL `E2E_BASE_URL`, 2 retries, artifact retain-on-failure).
+- **Jalankan via Docker** (browser host gagal missing libs):
+  ```
+  docker run --rm --network host -v "$PWD/web":/work -w /work \
+    -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    -e E2E_BASE_URL=http://localhost:4197 \
+    mcr.microsoft.com/playwright:v1.62.0-noble \
+    npx playwright test --config=playwright.e2e.config.ts
+  ```
+- **Bug 1 — Sesi rusak pada request stateful (401 beruntun):** `bootstrap/app.php` api group menjalankan pipeline sesi `[EncryptCookies, AddQueuedCookies, StartSession, ShareErrorsFromSession]`, lalu Sanctum `EnsureFrontendRequestsAreStateful` (dari `fromFrontend()` → Origin/Referer localhost) menjalankan stack yang SAMA lagi. `EncryptCookies` kedua gagal mendekripsi cookie yang sudah didekripsi → cookie dinull-kan → StartSession kedua buat ID baru tiap request → update DB 0 row → `/api/user` 401 di request berikutnya.
+  - **Diagnosis:** dekripsi cookie manual (`decrypt_cookies.php`) → tanpa Origin/Referer session ID stabil (`0eOF...`, 200/200/200); dengan Origin/Referer ID berganti tiap request (`VSIfU...` → ROW NOT FOUND).
+  - **Fix:** `api/app/Http/Middleware/StartSessionIfStateless.php` baru — jalankan pipeline sesi HANYA jika bukan stateful (`EnsureFrontendRequestsAreStateful::fromFrontend($request)`); jika stateful langsung `$next`. `api/bootstrap/app.php` → api group `[StartSessionIfStateless, EnsureFrontendRequestsAreStateful]`, import sesi dirapikan.
+  - **Verifikasi curl:** stateful login 200 → user1/user2/user3 200, session ID stabil (`SBQsv...`); non-stateful login 200 → user 200.
+- **Bug 2 — `php artisan test` menghapus DB dev:** `docker-compose.yml` service api-fpm/migrate pakai `env_file: ./api/.env` → `DB_*` jadi real env di container. PHPUnit 12 menghapus dukungan atribut `force` → nilai `DB_DATABASE=aiplanstudio_test` di phpunit.xml TIDAK override env real → `migrate:fresh` menimpa DB utama `aiplanstudio` (users jadi 0).
+  - **Fix:** hapus `env_file: ./api/.env` dari api-fpm & migrate (Laravel baca `.env` sendiri) + hapus semua atribut `force="true"` di `api/phpunit.xml`.
+  - **Verifikasi:** `php artisan test` → 126 passed, DB dev AMAN (1 user tetap ada); 4x run konsisten hijau.
+- **Hasil test:** Backend `php artisan test` → **126 passed (359 assertions)**. E2E → **10 passed (~27s)**. `npm run lint` & `tsc --noEmit` bersih. `vendor/bin/pint --test` & `php -l` pass.
+- **Cleanup:** file debug dihapus (`api/inspect_db.php`, `api/trace/`, `api/cookies.txt`, `api/decrypt_cookies.php`, `api/inspect.php`); `web/test-results/`, `web/e2e/.auth/`, `web/out.png` dihapus + ditambahkan ke `web/.gitignore`.
+- **Status:** [x] P4 selesai. Docs disinkronkan: 14, 17, 09, 15.
+
+- Dikerjakan: Setup stack Docker + AI provider nyata, jalankan pipeline penuh, perbaiki 3 bug pipeline nyata.
+- **Setup:** Generate `.env` root + `api/.env` (docker compose). Stack up: nginx/web/api/api-fpm/db/redis + migrate. 22 migrations + seed. BFF health + landing 200.
+- **AI Provider:** base_url `https://9r.arsyiladm.my.id/v1`, model `aiplanstudio`. Config via settings API → api_key encrypted di DB, masked (`sk-••••••ad6c`).
+- **Pipeline Test (project "Test Pipeline E2E", target web):**
+  - `pertanyaan` → 23 tokens, content tersimpan di kolom `pertanyaan` ✅
+  - `analisa` → 53 tokens, `analysis` ✅
+  - `prd` → 21 tokens, `prd` ✅
+  - `architecture` → awalnya error, setelah fix ✅
+  - `erd` → awalnya error, setelah fix → nodes/edges + api_contract 6 endpoint ✅
+  - `phased_master` → 74 tokens, phases + master_prompt + standards + agents ✅
+- **Bug 1 — architecture stage selalu gagal:** `saveArtifact()` throw bila `parseArchText()` null, padahal prompt minta output bebas. Fix: simpan sebagai text mentah (sesuai docs 03/06), parse opsional. File: `api/app/Services/PipelineRunner.php`.
+- **Bug 2 — erd stage gagal + api_contract kosong:** prompt pakai `===x===`/`Field:`, parser butuh `TABEL:`/`RELASI:`/`API:`. Fix: rewrite `api/app/Prompts/erd.php` dengan format garis. api_contract kini terisi (menutup gap RP-3).
+- **Bug 3 — healthcheck api container:** `localhost` resolve IPv6 → wget connection refused. Fix: `127.0.0.1` di `docker-compose.yml`.
+- **Test:** Backend `php artisan test` → **126 passed (359 assertions)** di container api-fpm. Pipeline real sukses semua stage.
+- **Status:** [x] P5 selesai. P1 fix terverifikasi di pipeline nyata. Bug pipeline fixed + docs diupdate.
+
+### 2026-08-06 · Sinkronisasi Dokumentasi + P1/P2/P3
+- Dikerjakan: Sinkronisasi penuh 16 dokumen vs codebase (Phase A + B + C), fix P2 middleware.ts, verifikasi P3 API contract, fix P1 pertanyaan persistence.
+- **Sinkronisasi (Critical Fixes):**
+  - **03-database-schema.md:** Fix mobile artifact columns (hapus yang tidak ada: mobile_analysis/prd/architecture), fix types (standards/agents = text bukan jsonb), add missing (users.status, email_verified_at, tracking_token, project_api_tokens), fix activities.action field.
+  - **05-wizard-flow.md:** Rewrite total — "6 tahap" → 7 tahap dengan keys benar.
+  - **06-ai-pipeline.md:** Rewrite total — sinkron ALL_STAGES constant, context prompts, multi-strategy JSON decoder.
+  - **04-api-contract.md:** Rewrite — SSE stage list fix, tambah endpoint missing (activities, tokens, webhook, profile, standards/agents).
+  - **02-architecture.md:** Sinkron pipeline 7 stages, activity log, RS-7 note.
+- **Sinkronisasi (Secondary):**
+  - **09-roadmap.md:** Rewrite status, Phase 4 done, RS-9 pending.
+  - **16-audit-fix-plan.md:** RS-7 false-positive note, D-01..D-10 sinkronisasi tambahan.
+  - **10-decision-log.md:** Fix D-021/D-022 duplikat, add D-025, D-026, D-027.
+  - **00-README.md:** AUTH.md + AGENTS.md di-list, status updated.
+  - **13-backend-testing.md:** Rewrite — semua items [x], test file table actual.
+  - **14-frontend-testing.md:** Fix spec count (infra + 1 smoke).
+  - **11-development-rules.md:** Rule #4 diperkuat: "update docs terlebih dahulu".
+  - **web/AGENTS.md:** Tambah 7-stage pipeline reference.
+- **Dokumen baru:** `docs/17-next-progress.md` — next steps P1-P11 terprioritas.
+- **P2 — middleware.ts:** Awalnya buat `web/src/middleware.ts` no-op, TAPI konflik Next.js 16 (middleware + proxy.ts). Reversed — Next.js 16 pakai `web/src/proxy.ts` yang SUDAH ada dan implement guard route. RS-7 sebenarnya resolved via proxy.ts (bukan false-positive).
+- **P3 — API Contract Verify:** Semua 43 endpoint di 04-api-contract.md ✅ terverifikasi ada di routes/api.php + BFF routes. Tidak ada gap.
+- **P1 — pertanyaan Persistence Fix:**
+  - Migration `2026_08_06_000000_add_pertanyaan_to_versions.php` — tambah kolom `pertanyaan` (text).
+  - `Version.php` fillable + pertanyaan mapping.
+  - `PipelineRunner.php` saveArtifact map — tambah `pertanyaan => pertanyaan`.
+  - `VersionController.php` — colMap + validation + updateArtifact fix.
+  - `web/src/lib/api.ts` — Version type tambah `pertanyaan?`.
+  - `web/src/app/(app)/new/page.tsx` — colMap (fallback fetch) tambah pertanyaan + phased_master_mobile.
+  - Export markdown — tambah pertanyaan + answers section.
+  - Docs: 03-schema, 05-wizard-flow, 06-pipeline diupdate.
+- **Kendala:** PHP/artisan tidak tersedia di host (Docker tidak jalan) — semua perubahan diverifikasi secara visual. Tests perlu dijalankan setelah Docker tersedia.
+- **Test (verified 2026-08-06):** Setup ulang via `php-test-pg` (php:8.3-cli-alpine + pdo_pgsql) + throwaway postgres:16 di port 15432. `php artisan test` → **126 passed (359 assertions)** ✅. Migration `add_pertanyaan_to_versions` jalan bersih di migrate:fresh.
+- **Status:** ✅ Sinkronisasi penuh selesai. P2 ✅. P3 ✅. P1 ✅ (code + docs + tests verified 126/126).
+- **Frontend verification:** `next build` validated via docker compose build web (berhasil setelah fix: hapus middleware.ts konflik + fix duplicate `answers` di Version type di `web/src/lib/api.ts`). `npm run lint` belum dijalankan (butuh node_modules host).
+
 ### 2026-07-31 · Phase 4 — Activity Log, Favorites, Search/Filter, Provider Health, Dashboard
 - Dikerjakan: Lint sweep (27→0 errors) + 5 fitur baru + build fix + graphify update.
 - **Fitur Baru:**

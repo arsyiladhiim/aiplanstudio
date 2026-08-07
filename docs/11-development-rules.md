@@ -6,7 +6,7 @@
 1. **Selalu mulai dari [09-roadmap](09-roadmap.md)** — kerjakan hanya fase aktif; jangan lompat fase tanpa alasan.
 2. **Update roadmap** setiap sub-task selesai (ubah `[ ]`→`[~]`→`[x]`) dan tanggal "terakhir diupdate".
 3. **Keputusan baru dicatat** di [10-decision-log](10-decision-log.md) (dengan alasan + alternatif ditolak).
-4. **Dokumen adalah sumber kebenaran.** Bila implementasi menyimpang dari docs, update docs di PR/commit yang sama — jangan biarkan docs basi.
+4. **Dokumen adalah sumber kebenaran.** Sebelum mengubah kode, update dokumentasi terkait terlebih dahulu. Docs di-commit bersamaan atau sebelum kode. Jangan pernah biarkan docs basi terhadap kode yang sudah berubah. Lihat [17-next-progress.md](17-next-progress.md) untuk next steps aktif.
 5. Satu fase = unit yang bisa diverifikasi berdiri sendiri (lihat kriteria "Selesai bila" tiap fase).
 
 ## B. Docker & Infrastruktur
