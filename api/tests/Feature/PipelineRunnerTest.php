@@ -16,6 +16,7 @@ class PipelineRunnerTest extends TestCase
     use RefreshDatabase;
 
     private Project $project;
+
     private Version $version;
 
     protected function setUp(): void
@@ -30,7 +31,7 @@ class PipelineRunnerTest extends TestCase
 
         $user = User::create([
             'name' => 'Test User',
-            'email' => 'test_' . uniqid() . '@example.com',
+            'email' => 'test_'.uniqid().'@example.com',
             'password' => bcrypt('password'),
             'role' => 'member',
         ]);
@@ -50,6 +51,7 @@ class PipelineRunnerTest extends TestCase
     private function runner(AiClient $client): array
     {
         $stream = fopen('php://memory', 'w+');
+
         return [new PipelineRunner($this->version, $client, $stream), $stream];
     }
 
@@ -58,6 +60,7 @@ class PipelineRunnerTest extends TestCase
         rewind($stream);
         $content = stream_get_contents($stream);
         fclose($stream);
+
         return $content;
     }
 
@@ -65,7 +68,7 @@ class PipelineRunnerTest extends TestCase
     {
         AiProvider::query()->delete();
 
-        [$runner, $stream] = $this->runner(new AiClient());
+        [$runner, $stream] = $this->runner(new AiClient);
         $runner->run('analisa', false);
         $output = $this->streamContents($stream);
 
@@ -81,7 +84,7 @@ class PipelineRunnerTest extends TestCase
             'model' => 'gpt-4o',
         ]);
 
-        [$runner, $stream] = $this->runner(new AiClient());
+        [$runner, $stream] = $this->runner(new AiClient);
         $runner->run('analisa', false);
         $this->streamContents($stream);
 
@@ -136,7 +139,7 @@ class PipelineRunnerTest extends TestCase
             'model' => 'gpt-4o',
         ]);
 
-        [$runner, $stream] = $this->runner(new AiClient());
+        [$runner, $stream] = $this->runner(new AiClient);
         $runner->run('analisa', true);
         $this->streamContents($stream);
 
@@ -153,13 +156,13 @@ class PipelineRunnerTest extends TestCase
             'api_key' => '',
             'model' => 'gpt-4o',
         ]);
-        $client = new AiClient();
+        $client = new AiClient;
         $this->assertFalse($client->isConfigured());
     }
 
     public function test_system_prompt_loads_from_file(): void
     {
-        $client = new AiClient();
+        $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'systemPrompt');
         $ref->setAccessible(true);
@@ -177,7 +180,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_all_stage_prompt_files_loadable(): void
     {
-        $client = new AiClient();
+        $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'systemPrompt');
         $ref->setAccessible(true);
@@ -191,7 +194,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_pipeline_runner_emits_token_with_stage_key(): void
     {
-        $client = new AiClient();
+        $client = new AiClient;
         [$runner, $stream] = $this->runner($client);
 
         $runner->run('analisa', false);
@@ -206,7 +209,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_save_artifact_stores_non_json_as_string(): void
     {
-        $client = new AiClient();
+        $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
         $ref->setAccessible(true);
@@ -221,7 +224,7 @@ class PipelineRunnerTest extends TestCase
     {
         $content = "TABEL: users | id, name, email\nRELASI: posts -> users | belongs_to\nAPI: GET | /users | list users | true";
 
-        $client = new AiClient();
+        $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
         $ref->setAccessible(true);
@@ -237,7 +240,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_save_artifact_throws_when_erd_parse_fails(): void
     {
-        $runner = new PipelineRunner($this->version, new AiClient());
+        $runner = new PipelineRunner($this->version, new AiClient);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
         $ref->setAccessible(true);
 
@@ -246,9 +249,57 @@ class PipelineRunnerTest extends TestCase
         $ref->invoke($runner, 'erd', 'not valid erd content');
     }
 
+    public function test_save_artifact_parses_erd_json_block(): void
+    {
+        $content = "Berikut ERD:\n```json\n{\n\"nodes\": [{\"id\": \"users\", \"label\": \"users\", \"fields\": [\"id\", \"name\"]}],\n\"edges\": [{\"from\": \"posts\", \"to\": \"users\", \"relation\": \"belongs_to\"}],\n\"api_contract\": [{\"method\": \"GET\", \"path\": \"/users\", \"description\": \"list users\", \"auth\": true}]\n}\n```";
+
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'erd', $content);
+
+        $this->version->refresh();
+        $this->assertIsArray($this->version->erd);
+        $this->assertSame('users', $this->version->erd['nodes'][0]['id']);
+        $this->assertSame('belongs_to', $this->version->erd['edges'][0]['relation']);
+        $this->assertSame('GET', $this->version->erd['api_contract'][0]['method']);
+    }
+
+    public function test_save_artifact_fills_missing_api_contract_from_json(): void
+    {
+        $content = "TABEL: users | id, name\n{\"api_contract\": [{\"method\": \"POST\", \"path\": \"/users\", \"description\": \"create\", \"auth\": true}]}";
+
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'erd', $content);
+
+        $this->version->refresh();
+        $this->assertSame('users', $this->version->erd['nodes'][0]['id']);
+        $this->assertSame('POST', $this->version->erd['api_contract'][0]['method']);
+        $this->assertSame('/users', $this->version->erd['api_contract'][0]['path']);
+    }
+
+    public function test_save_artifact_throws_when_erd_json_has_no_nodes(): void
+    {
+        $content = "```json\n{\"api_contract\": [{\"method\": \"GET\", \"path\": \"/ping\", \"description\": \"ping\", \"auth\": false}]}\n```";
+
+        $runner = new PipelineRunner($this->version, new AiClient);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Gagal parse');
+        $ref->invoke($runner, 'erd', $content);
+    }
+
     public function test_run_uses_idea_and_target_from_project(): void
     {
-        $client = new AiClient();
+        $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'contextPrompt');
         $ref->setAccessible(true);
@@ -261,7 +312,7 @@ class PipelineRunnerTest extends TestCase
     public function test_run_uses_stack_when_present(): void
     {
         $this->project->update(['stack' => 'Laravel + React']);
-        $client = new AiClient();
+        $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'contextPrompt');
         $ref->setAccessible(true);

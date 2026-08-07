@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Activity;
 use App\Models\Project;
 use App\Models\Version;
 use App\Services\AiClient;
@@ -30,7 +31,7 @@ class VersionController extends Controller
             ]);
         });
 
-        $project->logActivity('created_version', "Membuat versi v{$version->version_no}", $version->id);
+        $project->logActivity(Activity::ACTION_CREATED_VERSION, "Membuat versi v{$version->version_no}", $version->id);
 
         return response()->json($version, 201);
     }
@@ -365,7 +366,7 @@ class VersionController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $project->logActivity('deleted_version', "Menghapus versi v{$versionNo}");
+        $project->logActivity(Activity::ACTION_DELETED_VERSION, "Menghapus versi v{$versionNo}");
 
         return response()->json(null, 204);
     }

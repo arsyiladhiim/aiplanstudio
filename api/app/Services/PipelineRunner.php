@@ -9,7 +9,9 @@ use Throwable;
 class PipelineRunner
 {
     private Version $version;
+
     private AiClient $client;
+
     /** @var resource */
     private $stdout;
 
@@ -29,13 +31,14 @@ class PipelineRunner
         }
     }
 
-    public function run(string|null $stage, bool $auto): void
+    public function run(?string $stage, bool $auto): void
     {
         // Eager load project to avoid N+1 on every stage iteration
         $this->version->load('project');
 
         if (! $this->client->isConfigured()) {
             $this->emit('fail', ['stage' => $stage ?? 'start', 'message' => 'AI Provider belum dikonfigurasi.']);
+
             return;
         }
 
@@ -51,6 +54,7 @@ class PipelineRunner
             // Only run phased_master_mobile for 'both' target
             if ($key === 'phased_master_mobile' && ($this->version->project->target ?? 'web') !== 'both') {
                 $this->updateStageStatus($key, 'done');
+
                 continue;
             }
 
@@ -82,7 +86,9 @@ class PipelineRunner
     {
         DB::transaction(function () use ($stage, $state) {
             $locked = Version::where('id', $this->version->id)->lockForUpdate()->first();
-            if (! $locked) return;
+            if (! $locked) {
+                return;
+            }
 
             $status = array_merge($locked->stage_status ?? [], [$stage => $state]);
             $locked->update(['stage_status' => $status]);
@@ -107,6 +113,7 @@ class PipelineRunner
                     $delta = mb_substr($delta, 0, $maxBufferBytes - strlen($buffer));
                     $buffer .= $delta;
                     $this->emit('token', ['stage' => $key, 'delta' => $delta]);
+
                     return;
                 }
                 $buffer .= $delta;
@@ -158,14 +165,19 @@ class PipelineRunner
 
     private function systemPrompt(string $stage, string $target): string
     {
-        $helpers = __DIR__ . '/../Prompts/helpers.php';
-        if (file_exists($helpers)) require_once $helpers;
+        $helpers = __DIR__.'/../Prompts/helpers.php';
+        if (file_exists($helpers)) {
+            require_once $helpers;
+        }
 
         $promptStage = $stage === 'phased_master_mobile' ? 'phased_master' : $stage;
-        $path = __DIR__ . "/../Prompts/{$promptStage}.php";
-        if (!file_exists($path)) return '';
+        $path = __DIR__."/../Prompts/{$promptStage}.php";
+        if (! file_exists($path)) {
+            return '';
+        }
 
         $loader = require $path;
+
         return $loader($target);
     }
 
@@ -181,7 +193,7 @@ class PipelineRunner
         }
 
         $ctx = "### Ide Aplikasi\n{$idea}\n\n### Target Platform\n{$target}\n\n### Tech Stack\n{$stack}";
-        if (!empty($answers)) {
+        if (! empty($answers)) {
             $answersText = '';
             foreach ($answers as $q => $a) {
                 $answersText .= "- {$q}: {$a}\n";
@@ -194,15 +206,15 @@ class PipelineRunner
 
             'analisa' => $ctx,
 
-            'prd' => $ctx . "\n\n### Hasil Analisa\n{$v->analysis}\n\n### Ide Awal\n{$idea}\n### Target Platform\n{$target}",
+            'prd' => $ctx."\n\n### Hasil Analisa\n{$v->analysis}\n\n### Ide Awal\n{$idea}\n### Target Platform\n{$target}",
 
-            'architecture' => $ctx . "\n\n### Dokumen PRD\n{$v->prd}",
+            'architecture' => $ctx."\n\n### Dokumen PRD\n{$v->prd}",
 
-            'erd' => $ctx . "\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}",
+            'erd' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}",
 
-            'phased_master' => $ctx . "\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n" . json_encode($v->erd ?? new \stdClass(), JSON_PRETTY_PRINT) . "\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n" . config('app.url') . "/api/webhooks/phase-complete",
+            'phased_master' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
 
-            'phased_master_mobile' => $ctx . "\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n" . json_encode($v->erd ?? new \stdClass(), JSON_PRETTY_PRINT) . "\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n" . config('app.url') . "/api/webhooks/phase-complete",
+            'phased_master_mobile' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
 
             default => $idea,
         };
@@ -240,7 +252,7 @@ class PipelineRunner
                 }
                 $this->emit('artifact', ['stage' => $key, 'content' => json_encode($parsed)]);
             } else {
-                throw new \RuntimeException("ERD: Gagal parse output AI. Stage ditandai error.");
+                throw new \RuntimeException('ERD: Gagal parse output AI. Stage ditandai error.');
             }
         } elseif ($key === 'phased_master' || $key === 'phased_master_mobile') {
             $parsed = $this->parsePhasedMaster($content);
@@ -259,7 +271,7 @@ class PipelineRunner
                 $value = $parsed['master'];
                 $this->emit('artifact', ['stage' => $key, 'content' => json_encode($parsed)]);
             } else {
-                throw new \RuntimeException("Phased Master: Gagal parse output AI. Stage ditandai error.");
+                throw new \RuntimeException('Phased Master: Gagal parse output AI. Stage ditandai error.');
             }
         } elseif ($key === 'api_contract') {
             $cleaned = $this->extractJson($content);
@@ -284,7 +296,9 @@ class PipelineRunner
 
         foreach (explode("\n", $content) as $line) {
             $line = trim($line);
-            if ($line === '') continue;
+            if ($line === '') {
+                continue;
+            }
 
             if (preg_match('/^TABEL:\s*(.+?)\s*\|\s*(.+)$/i', $line, $m)) {
                 $name = trim($m[1]);
@@ -302,7 +316,50 @@ class PipelineRunner
             }
         }
 
-        if (empty($nodes)) return null;
+        // Fallback: bila output AI berupa JSON block (bukan baris format),
+        // ambil nodes/edges/api_contract dari sana. Lengkapi bagian yang kosong.
+        $json = $this->parseJsonErd($content);
+        if ($json !== null) {
+            if (empty($nodes)) {
+                $nodes = $json['nodes'];
+                $edges = array_merge($edges, $json['edges']);
+            }
+            if (empty($api)) {
+                $api = array_merge($api, $json['api_contract']);
+            }
+        }
+
+        if (empty($nodes)) {
+            return null;
+        }
+
+        return ['nodes' => $nodes, 'edges' => $edges, 'api_contract' => $api];
+    }
+
+    private function parseJsonErd(string $content): ?array
+    {
+        $cleaned = $this->extractJson($content);
+        if ($cleaned === '') {
+            return null;
+        }
+
+        $decoded = $this->tryJsonDecode($cleaned);
+        if (! is_array($decoded)) {
+            return null;
+        }
+
+        $nodes = $decoded['nodes'] ?? [];
+        $edges = $decoded['edges'] ?? [];
+        $api = $decoded['api_contract'] ?? $decoded['apiContract'] ?? [];
+
+        $nodes = is_array($nodes) ? array_values($nodes) : [];
+        $edges = is_array($edges) ? array_values($edges) : [];
+        $api = is_array($api) ? array_values($api) : [];
+
+        if (empty($nodes) && empty($edges) && empty($api)) {
+            return null;
+        }
+
         return ['nodes' => $nodes, 'edges' => $edges, 'api_contract' => $api];
     }
 
@@ -313,7 +370,9 @@ class PipelineRunner
 
         foreach (explode("\n", $content) as $line) {
             $line = trim($line);
-            if ($line === '') continue;
+            if ($line === '') {
+                continue;
+            }
 
             if (preg_match('/^KOMPONEN:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+)$/i', $line, $m)) {
                 $id = trim($m[1]);
@@ -329,7 +388,10 @@ class PipelineRunner
             }
         }
 
-        if (empty($nodes)) return null;
+        if (empty($nodes)) {
+            return null;
+        }
+
         return ['nodes' => $nodes, 'edges' => $edges];
     }
 
@@ -340,7 +402,9 @@ class PipelineRunner
 
         foreach ($blocks as $block) {
             $block = trim($block);
-            if ($block === '') continue;
+            if ($block === '') {
+                continue;
+            }
 
             $key = '';
             $title = '';
@@ -358,8 +422,8 @@ class PipelineRunner
                     $prompt = trim($m[1]);
                 } else {
                     // Append continuation lines to the current PROMPT
-                    if ($prompt !== '' && !preg_match('/^(FASE|TASK|PROMPT):/i', $line)) {
-                        $prompt .= "\n" . $line;
+                    if ($prompt !== '' && ! preg_match('/^(FASE|TASK|PROMPT):/i', $line)) {
+                        $prompt .= "\n".$line;
                     }
                 }
             }
@@ -374,14 +438,15 @@ class PipelineRunner
             }
         }
 
-        return !empty($phases) ? $phases : null;
+        return ! empty($phases) ? $phases : null;
     }
 
     private function parsePhasedMaster(string $content): ?array
     {
         $extract = function (string $marker, string $content): string {
-            $pattern = '/^={3,}' . preg_quote($marker, '/') . '={3,}\s*$/m';
+            $pattern = '/^={3,}'.preg_quote($marker, '/').'={3,}\s*$/m';
             $parts = preg_split($pattern, $content, 2);
+
             return trim($parts[1] ?? '');
         };
 
@@ -414,6 +479,7 @@ class PipelineRunner
         }
         // Remove trailing commas before ] or }
         $content = preg_replace('/,\s*([\]}])/', '$1', $content);
+
         return $content;
     }
 
@@ -421,34 +487,52 @@ class PipelineRunner
     {
         // Strategy 1: Direct parse
         $decoded = json_decode($content, true);
-        if (json_last_error() === JSON_ERROR_NONE) return $decoded;
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $decoded;
+        }
 
         // Strategy 2: Strip control characters
         $stripped = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $content);
         $decoded = json_decode($stripped, true);
-        if (json_last_error() === JSON_ERROR_NONE) return $decoded;
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $decoded;
+        }
 
         // Strategy 3: Balance braces - try removing last chars one by one
         for ($i = 0; $i < 10; $i++) {
             $trimmed = substr($stripped, 0, -1 - $i);
             $decoded = json_decode($trimmed, true);
-            if (json_last_error() === JSON_ERROR_NONE) return $decoded;
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
         }
 
         // Strategy 4: Fix missing [ after known keys + balance brackets
         $fixed = preg_replace('/"(nodes|edges|api_contract)":\s*(?!\[)/', '"$1": [', $stripped);
-        $open = substr_count($fixed, '['); $close = substr_count($fixed, ']');
-        while ($close < $open) { $fixed .= ']'; $close++; }
+        $open = substr_count($fixed, '[');
+        $close = substr_count($fixed, ']');
+        while ($close < $open) {
+            $fixed .= ']';
+            $close++;
+        }
         $decoded = json_decode($fixed, true);
-        if (json_last_error() === JSON_ERROR_NONE) return $decoded;
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $decoded;
+        }
 
         // Strategy 5: Single quotes fix + brackets balanced
         $fixed = preg_replace("/'([^']+)'/", '"$1"', $stripped);
         $fixed = preg_replace('/"(nodes|edges|api_contract)":\s*(?!\[)/', '"$1": [', $fixed);
-        $open = substr_count($fixed, '['); $close = substr_count($fixed, ']');
-        while ($close < $open) { $fixed .= ']'; $close++; }
+        $open = substr_count($fixed, '[');
+        $close = substr_count($fixed, ']');
+        while ($close < $open) {
+            $fixed .= ']';
+            $close++;
+        }
         $decoded = json_decode($fixed, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
-        if (json_last_error() === JSON_ERROR_NONE) return $decoded;
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $decoded;
+        }
 
         return null;
     }
