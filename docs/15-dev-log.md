@@ -1,7 +1,29 @@
 # 15 — Development Log
 
 > **Catat setiap proses development di sini** (aturan wajib [11-development-rules](11-development-rules.md)). Entri terbaru di atas.
-> Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
+ > Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
+
+### 2026-08-07 · P8 — GlitchTip Self-Hosted Error Monitoring + Markdown Rendering
+- Dikerjakan: (1) Markdown rendering untuk AI artifacts (sesi sebelumnya, commit `585c370`), (2) P8 GlitchTip integration (satu-satunya item next-progress tersisa).
+- **Markdown Rendering (commit `585c370`):** Komponen `web/src/components/ui/Markdown.tsx` (react-markdown v10, design-token styled). Apply: project detail (analysis/prd/architecture/mobile master prompt), wizard (analisa/prd/phased_master_mobile/architecture/master prompt), diff page. Hapus inert `prose` classes (Tailwind typography plugin tidak terinstall → `prose` non-functional). E2E 10/10, lint/tsc/build clean.
+- **P8 — GlitchTip Integration:**
+  - **Infrastructure:** `docker-compose.yml` tambah service `glitchtip` (image `glitchtip/glitchtip:6`, `SERVER_ROLE: all_in_one`, expose internal `8000`). Reuse existing `db` (PostgreSQL DB `glitchtip`, dibuat via `psql`) + `redis` (DB index 2, password via `${REDIS_PASSWORD}`). Volume `glitchtip-uploads`. `GLITCHTIP_SECRET_KEY` di root `.env` (generated `openssl rand -hex 32`). Always-on (no profile).
+  - **GlitchTip setup:** Superuser `admin@aiplanstudio.local`/`admin123` via Django shell. Organization `aiplanstudio` + 2 projects: backend (PHP, id=1) + frontend (JS, id=2). DSN pre-created via `ProjectKey`.
+  - **Backend Laravel:** `composer require sentry/sentry-laravel ^4.27` → auto-discovery. `config/sentry.php` published (reads `SENTRY_LARAVEL_DSN`). Env via docker-compose `api-fpm.environment` substitution dari root `.env` (`SENTRY_BACKEND_DSN=http://<key>@glitchtip:8000/1`). Terverifikasi: `Sentry::captureMessage('test from laravel')` → issue muncul di GlitchTip backend project ✅.
+  - **Frontend Next.js:** `npm install @sentry/nextjs ^10.69` (via docker run, host node_modules root-owned). Config: `sentry.client.config.ts` (browser, `NEXT_PUBLIC_SENTRY_DSN`), `sentry.server.config.ts` (Node, `SENTRY_DSN`), `sentry.edge.config.ts` (Edge). `src/instrumentation.ts` → `register()` by `NEXT_RUNTIME` + `onRequestError = Sentry.captureRequestError`. `next.config.ts` wrapped `withSentryConfig` (org="", project="frontend", silent, disableLogger). `error.tsx` + `global-error.tsx` (baru) → `Sentry.captureException`. Env via docker-compose `web.environment` (`SENTRY_FRONTEND_DSN` internal, `SENTRY_FRONTEND_PUBLIC_DSN` kosong untuk browser).
+  - **DSN strategy:** Server-side (Laravel + Next SSR) → internal Docker DNS `glitchtip:8000` (resolve di network `aiplanstudio`). Browser-side → kosong (no nginx route to GlitchTip yet; add `/glitchtip` nginx location + external host saat perlu client-side capture). Empty DSN → `enabled: false` → SDK silent (no-op safety untuk dev tanpa GlitchTip).
+  - **`.env.example`:** `api/.env.example` → `SENTRY_LARAVEL_DSN=` + `SENTRY_ENVIRONMENT=local`. `web/.env.example` (baru) → `SENTRY_DSN=` + `NEXT_PUBLIC_SENTRY_DSN=`.
+- **Kendala & Perbaikan:**
+  1. node_modules root-owned (Docker) → `npm install` host gagal (EPERM rename). Fix: `docker run --rm -v "$PWD/web":/work node:20-alpine npm install @sentry/nextjs --save`.
+  2. Sentry v10 API changed: `autoSessionTracking` removed (GlitchTip doesn't support sessions, default ok), `hideSourceMaps` → removed. Fix: strip invalid options from configs + next.config.
+  3. GlitchTip user model uses `email` not `username` (Django custom user). Fix: `filter(email=...)` + `create_superuser(email=, name=, password=)`.
+  4. GlitchTip app modules under `apps.` prefix (e.g. `apps.organizations_ext`, `apps.projects`, `apps.issue_events`). Fix: import path `apps.*.models`.
+  5. DSN `dsn` is a bound method not property → call `pk.dsn()`.
+  6. 502 Bad Gateway nginx front → DNS cache stale setelah web restart. Fix: `docker compose restart nginx`.
+  7. prettier reformatted entire files → massive diff. Fix: revert, re-apply targeted edits only; prettier hanya pada file baru.
+- **Hasil test:** Backend `php artisan test` → **131 passed (439 assertions)** ✅. Frontend lint + tsc + build → clean ✅. E2E Playwright (Docker) → **10/10** ✅. `pint` clean. GlitchTip issue ingest verified ✅.
+- **Docs:** 17 (P8 `[x]` + detail), 09 (status P1-P8 selesai), 12 (section "I. Error Monitoring"), 07 (service glitchtip + env + checklist), 02 (service table + note), 15.
+- **Status:** [x] P8 selesai. **Semua item next-progress P1–P11 + P8 tuntas.** Project complete — maintenance only.
 
 ### 2026-08-06 · P7 + P9 + P10 — FPM Docs Sync, Activity Actions, api_contract Fallback
 - Dikerjakan: Tutup P7 (RS-9 docs), P9 (action types), P10 (api_contract fallback JSON). Semua item P1–P11 selesai.

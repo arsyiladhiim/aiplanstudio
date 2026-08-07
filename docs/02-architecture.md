@@ -51,8 +51,11 @@ Semua `/api/*`, `/sanctum/*` masuk ke Next.js → Next.js proxy ke Laravel inter
 | `db` | postgres:16-alpine | 5432 (internal) | **tidak** |
 | `redis` | redis:alpine | 6379 (internal) | tidak |
 | `migrate` | one-shot (sama image dengan api-fpm) | — | tidak |
+| `glitchtip` | glitchtip/glitchtip:6 | 8000 (internal) | tidak |
 
 > **Catatan serve:** API berjalan di **php-fpm (production-ready)** — `api-fpm` (`php:8.3-fpm-alpine`, `CMD ["php-fpm","-F"]`, expose 9000) di-fronting nginx service `api` (listen 8000 → `fastcgi_pass api-fpm:9000`). Bukan lagi `php artisan serve` (RS-9 ✅).
+
+> **Error monitoring:** GlitchTip (Sentry-compatible) self-hosted reuse `db` (PostgreSQL DB `glitchtip`) + `redis` (DB index 2). SDK `sentry/sentry-laravel` (backend) + `@sentry/nextjs` (frontend) → DSN internal (P8 ✅).
 
 ## Jaringan
 - Satu Docker network internal (`aistack`).

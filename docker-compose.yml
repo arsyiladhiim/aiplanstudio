@@ -22,6 +22,8 @@ services:
     expose: ["3000"]
     environment:
       - LARAVEL_URL=http://api:8000
+      - SENTRY_DSN=${SENTRY_FRONTEND_DSN:-}
+      - NEXT_PUBLIC_SENTRY_DSN=${SENTRY_FRONTEND_PUBLIC_DSN:-}
     depends_on:
       - api
     networks: [aiplanstudio]
@@ -53,6 +55,9 @@ services:
       dockerfile: api/Dockerfile
     image: aiplanstudio-api
     expose: ["9000"]
+    environment:
+      - SENTRY_LARAVEL_DSN=${SENTRY_BACKEND_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-local}
     # NB: jangan gunakan env_file: ./api/.env — Laravel membaca .env sendiri.
     # Mengekspor DB_* sebagai real env membuat PHPUnit (12) tidak bisa
     # meng-override-nya untuk DB test (force= di PHPUnit sudah dihapus) sehingga
@@ -113,6 +118,31 @@ services:
     mem_limit: 64m
     restart: unless-stopped
 
+  glitchtip:
+    image: glitchtip/glitchtip:6
+    expose: ["8000"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/glitchtip
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/2
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+      EMAIL_URL: consolemail://
+      GLITCHTIP_DOMAIN: http://glitchtip:8000
+      DEFAULT_FROM_EMAIL: glitchtip@localhost
+      SERVER_ROLE: all_in_one
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - glitchtip-uploads:/code/uploads
+    networks: [aiplanstudio]
+    mem_limit: 256m
+    restart: unless-stopped
+
 networks:
   aiplanstudio:
     driver: bridge
+
+volumes:
+  glitchtip-uploads:

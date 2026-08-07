@@ -61,6 +61,16 @@
 - [x] Dari host, `curl localhost:8000` → **connection refused** (tidak ada port mapping).
 - [x] Dari host ke Laravel harus lewat nginx → Next.js (BFF) → Laravel.
 
+## I. Error Monitoring (GlitchTip self-hosted)
+- [x] GlitchTip service internal-only (`glitchtip:8000`, tidak di-expose ke host).
+- [x] Reuse existing `db` (PostgreSQL DB `glitchtip`) + `redis` (DB index 2) — no extra containers.
+- [x] `GLITCHTIP_SECRET_KEY` di root `.env` (tidak di-commit).
+- [x] DSN backend (Laravel) via env `SENTRY_LARAVEL_DSN` — internal Docker DNS `glitchtip:8000`.
+- [x] DSN frontend server-side (Next.js SSR) via env `SENTRY_DSN` — internal Docker DNS.
+- [x] DSN browser-side (`NEXT_PUBLIC_SENTRY_DSN`) kosong untuk dev — no nginx route to GlitchTip yet (add `/glitchtip` nginx location saat perlu client-side capture).
+- [x] SDK no-op bila DSN kosong (`enabled: false`) — dev tanpa GlitchTip tetap aman.
+- [x] Tidak ada API key/info sensitif bocor ke GlitchTip (sanitize default Sentry SDK).
+
 ## Verifikasi Cepat
 ```bash
 docker compose ps                       # hanya nginx publish (80:80)

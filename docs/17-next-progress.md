@@ -5,7 +5,7 @@
 
 ## Status Saat Ini
 
-Semua fase utama (F0–F10, R1, P1–P11) **selesai**.
+Semua fase utama (F0–F10, R1, P1–P11, P8) **selesai**.
 **Tidak ada fase aktif.** Item di bawah ini adalah next steps terprioritas.
 
 **Yang sudah selesai:**
@@ -123,11 +123,32 @@ Semua 6 stage (target web) berjalan end-to-end dan artifact persisted:
 
 ## Prioritas Rendah
 
-### [P8] Sentry Integration
+### [x] [P8] Sentry / GlitchTip Integration ✅
 
-**Problem:** AGENTS.md bilang "When you encounter errors, use Sentry MCP" tapi Sentry belum dikonfigurasi.
+**Resolution:** Self-hosted GlitchTip (Sentry-compatible) di Docker Compose, reuse existing `db` + `redis` (DB `glitchtip`, Redis DB 2). SDK terinstall kedua sisi.
+- **Backend:** `sentry/sentry-laravel ^4.27` via composer, `config/sentry.php` published, auto-discovery. DSN via `SENTRY_LARAVEL_DSN` env (docker-compose → api-fpm). Terverifikasi: `Sentry::captureMessage('test')` → issue muncul di GlitchTip project "backend" (PHP, id=1).
+- **Frontend:** `@sentry/nextjs ^10.69` via npm. Config: `sentry.client.config.ts` (browser, NEXT_PUBLIC_SENTRY_DSN), `sentry.server.config.ts` (Node SENTRY_DSN), `sentry.edge.config.ts` (Edge). `src/instrumentation.ts` → register by NEXT_RUNTIME + `onRequestError`. `next.config.ts` wrapped with `withSentryConfig`. `error.tsx` + `global-error.tsx` updated to `Sentry.captureException`. DSN via `SENTRY_DSN` (server) + `NEXT_PUBLIC_SENTRY_DSN` (browser) env (docker-compose → web).
+- **Infrastructure:** GlitchTip service always-on, internal `glitchtip:8000` (not exposed). `GLITCHTIP_SECRET_KEY` in root `.env`. 2 projects + DSNs pre-created via Django shell: backend (PHP, id=1) + frontend (JS, id=2).
+- **DSN strategy:** Server-side SDK (Laravel + Next SSR) uses internal Docker DNS `glitchtip:8000`. Browser-side DSN (`NEXT_PUBLIC_SENTRY_DSN`) empty for now (no nginx route to GlitchTip yet — add `/glitchtip` nginx location + external host when client-side capture needed).
+- **No-op safety:** Empty DSN → `enabled: false` → SDK silent. Dev tanpa GlitchTip tetap aman.
 
-**Plan:** Setup Sentry untuk Laravel (backend) dan Next.js (frontend).
+**Files changed:**
+- `docker-compose.yml` — service `glitchtip`, env injection api-fpm + web, volume
+- `api/composer.json` + `api/composer.lock` — sentry/sentry-laravel
+- `api/config/sentry.php` — published config
+- `api/.env.example` — SENTRY_LARAVEL_DSN + SENTRY_ENVIRONMENT placeholder
+- `web/package.json` + `web/package-lock.json` — @sentry/nextjs
+- `web/next.config.ts` — withSentryConfig
+- `web/sentry.client.config.ts`, `web/sentry.server.config.ts`, `web/sentry.edge.config.ts`
+- `web/src/instrumentation.ts`
+- `web/src/app/error.tsx`, `web/src/app/global-error.tsx`
+- `web/.env.example`
+
+**Verification:**
+- Backend `php artisan test` → 131 passed ✅
+- Frontend lint + tsc + build → clean ✅
+- E2E Playwright → 10/10 ✅
+- GlitchTip issue ingest: `Sentry::captureMessage('test from laravel')` → backend project ✅
 
 **Effort:** Medium (2-3 jam)
 
@@ -175,7 +196,7 @@ Item-item di bawah ini dihold sampai ada kebutuhan eksplisit:
 
 ## Cara Pakai
 
-1. Baca [P1]–[P3] dulu — highest priority.
+1. Baca [P1]–[P8] dulu — highest priority.
 2. Pilih item yang cocok dengan waktu tersedia.
 3. Kerjakan per item; update status di sini.
 4. Sesudah selesai, update [09-roadmap.md](09-roadmap.md) dan [15-dev-log.md](15-dev-log.md).

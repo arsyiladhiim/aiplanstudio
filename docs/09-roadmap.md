@@ -4,15 +4,15 @@
 > Status: `[ ]` todo · `[~]` in-progress · `[x]` done
 
 ## Status Global
-- **Terakhir diupdate:** 2026-08-06
-- **Kode aplikasi:** Backend 100% ✅, Frontend UI 100% ✅, **Full BFF 100% ✅**
+- **Terakhir diupdate:** 2026-08-07
+- **Kode aplikasi:** Backend 100% ✅, Frontend UI 100% ✅, **Full BFF 100% ✅**, **Error Monitoring 100% ✅** (P8 GlitchTip)
 - **Lint:** 0 errors ✅
 - **TypeScript:** 0 errors ✅
 - **Build:** 17/17 pages ✅
 - **Auth:** Session-based (Sanctum SPA — HttpOnly cookie + CSRF) + User approval flow
 - **Pipeline:** 7 stages (pertanyaan→analisa→prd→architecture→erd→phased_master→phased_master_mobile)
 - **Testing:** Backend PHPUnit 131 pass ✅, Playwright E2E 10 test hijau ✅ (3 specs: auth, wizard, projects)
-- **Status:** Semua fase utama selesai. Maintenance & next-progress (lihat [17-next-progress.md](17-next-progress.md))
+- **Status:** Semua fase utama + next-progress P1-P11 + P8 selesai. Maintenance only (lihat [17-next-progress.md](17-next-progress.md))
 
 ## Aturan Lintas-Fase (wajib tiap fase)
 Setiap fase baru boleh ditandai `[x]` bila:
