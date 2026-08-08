@@ -28,7 +28,7 @@
              sehingga nilai <env> di sini benar-benar diterapkan dan test suite
              tidak menimpa DB utama aiplanstudio lewat migrate:fresh. -->
         <env name="DB_CONNECTION" value="pgsql"/>
-        <env name="DB_HOST" value="db"/>
+        <env name="DB_HOST" value="aiplanstudio_db"/>
         <env name="DB_PORT" value="5432"/>
         <env name="DB_DATABASE" value="aiplanstudio_test"/>
         <env name="DB_USERNAME" value="postgres"/>
