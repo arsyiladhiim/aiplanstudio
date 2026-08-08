@@ -32,7 +32,7 @@ Host :4197
   api-fpm (php:8.3-fpm-alpine, php-fpm -F, /app) ──> db / redis
   migrate (one-shot, image yang sama dengan api)
   db (postgres:16-alpine) · redis (redis:alpine)
-  glitchtip (glitchtip/glitchtip:6, :8000 internal) ──> db (DB `glitchtip`) / redis (DB 2)
+  glitchtip (glitchtip/glitchtip:6, :8000 internal) ──> db (DB `glitchtip`) / redis (DB 2) — **DISABLED** (service di-comment, lihat catatan di bawah)
 ```
 
 ## docker-compose.yml (ringkas)
@@ -82,14 +82,13 @@ services:
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     expose: ["6379"]
 
-  glitchtip:
-    image: glitchtip/glitchtip:6
-    expose: ["8000"]
-    environment: { DATABASE_URL: postgres://{POSTGRES_USER}:{POSTGRES_PASSWORD}@db:5432/glitchtip, REDIS_URL: redis://:{REDIS_PASSWORD}@redis:6379/2, SECRET_KEY: ${GLITCHTIP_SECRET_KEY}, EMAIL_URL: consolemail://, GLITCHTIP_DOMAIN: http://glitchtip:8000, DEFAULT_FROM_EMAIL: glitchtip@localhost, SERVER_ROLE: all_in_one }
-    volumes: [glitchtip-uploads:/code/uploads]
+  # glitchtip: — DISABLED. Service di-comment di docker-compose.yml.
+  #   image: glitchtip/glitchtip:6
+  #   expose: ["8000"]
+  #   environment: { DATABASE_URL: postgres://{POSTGRES_USER}:{POSTGRES_PASSWORD}@db:5432/glitchtip, REDIS_URL: redis://:{REDIS_PASSWORD}@redis:6379/2, SECRET_KEY: ${GLITCHTIP_SECRET_KEY}, EMAIL_URL: consolemail://, GLITCHTIP_DOMAIN: http://glitchtip:8000, DEFAULT_FROM_EMAIL: glitchtip@localhost, SERVER_ROLE: all_in_one }
+  #   volumes: [glitchtip-uploads:/code/uploads]
 
 networks: { aiplanstudio: { driver: bridge } }
-volumes: { glitchtip-uploads: }
 ```
 
 ## nginx/default.conf (nginx utama)
@@ -135,7 +134,7 @@ docker compose exec web wget -qO- http://api:8000/api/health  # internal OK
 
 ## Checklist Keamanan Infra
 - [x] Hanya `nginx` punya `ports:` (host `:5432`/`:8000`/`:3000`/`:9000` tertutup).
-- [x] `db`, `api`, `api-fpm`, `web`, `redis`, `glitchtip` tanpa `ports:`.
+- [x] `db`, `api`, `api-fpm`, `web`, `redis` tanpa `ports:` (glitchtip DISABLED — service di-comment).
 - [x] `migrate` one-shot (`restart: "no"`), depend `api-fpm` menunggu `service_completed_successfully`.
 - [x] Healthcheck di `db` (`pg_isready`) & `api` (wget `/api/health`).
 - [x] `mem_limit` di semua service; `restart: unless-stopped` untuk daemon.

@@ -61,7 +61,8 @@
 - [x] Dari host, `curl localhost:8000` → **connection refused** (tidak ada port mapping).
 - [x] Dari host ke Laravel harus lewat nginx → Next.js (BFF) → Laravel.
 
-## I. Error Monitoring (GlitchTip self-hosted)
+## I. Error Monitoring (GlitchTip self-hosted) — **DISABLED**
+> Service GlitchTip di-comment di docker-compose.yml; `.env` DSN di-comment; route nginx `/glitchtip` di-comment. SDK (`sentry/sentry-laravel`, `@sentry/nextjs`) dipertahankan — DSN kosong → no-op. Aktifkan kembali dengan uncomment service + env + route nginx, lalu `docker compose build web`.
 - [x] GlitchTip service internal-only (`glitchtip:8000`, tidak di-expose ke host).
 - [x] Reuse existing `db` (PostgreSQL DB `glitchtip`) + `redis` (DB index 2) — no extra containers.
 - [x] `GLITCHTIP_SECRET_KEY` di root `.env` (tidak di-commit).

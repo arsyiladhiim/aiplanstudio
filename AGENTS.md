@@ -8,7 +8,7 @@
 
 ## Workflow
 - When searching for docs or package references, use `context7` tools.
-- When you encounter errors, use Sentry MCP to check error traces.
+- When you encounter errors, use Sentry MCP to check error traces. (Note: GlitchTip service saat ini DISABLED — aktifkan kembali di docker-compose.yml bila dibutuhkan.)
 - Always run `npm run lint` and `npx tsc --noEmit` after TypeScript edits.
 - Always run `php artisan test` after PHP edits.
 - Format code with pint (PHP) and prettier (TS/JS) before finalizing changes.

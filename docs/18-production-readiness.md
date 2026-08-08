@@ -17,7 +17,7 @@
 | Build | ✅ 17/17 pages | `npm run build` |
 | E2E Playwright | ✅ 10 test hijau (auth, wizard, projects) | lihat [14-frontend-testing](14-frontend-testing.md) |
 | Database schema | ✅ 3 schema master/project/settings, `public` dropped | psql query |
-| Error monitoring | ✅ GlitchTip aktif (backend + browser) | issue list GlitchTip |
+| Error monitoring | ⚠️ GlitchTip **DISABLED** (service di-comment, DSN kosong, SDK no-op) | re-enable bila dibutuhkan |
 | Dependency audit | ✅ `composer audit` + `npm audit` 0 vuln | command audit |
 | Persistent volume | ✅ semua data → host `./docker/` | docker inspect mount |
 | Cloudflare Tunnel | ✅ nginx join network `cloudflare_tunnel_default` | `docker network inspect` |
@@ -235,7 +235,7 @@ Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dok
 - [ ] Data volume ter-map host (`./docker/postgres/data_`, `./docker/redis/data`, `./docker/glitchtip/uploads`)
 
 ### E4. Stack & Network
-- [ ] 7 containers aktif (nginx, web, api, api-fpm, db, redis, glitchtip) — tanpa `aiplanstudio-migrate`
+- [ ] 6 containers aktif (nginx, web, api, api-fpm, db, redis) — glitchtip DISABLED; tanpa `aiplanstudio-migrate`
 - [ ] nginx endpoint dari host port `4197`
 - [ ] nginx join `cloudflare_tunnel_default` network (external)
 - [ ] `curl http://localhost:4197/api/health` → `{"status":"ok"}`
@@ -259,7 +259,7 @@ Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dok
 - [ ] Diff 2 versi menampilkan field
 
 ### E8. Monitoring
-- [ ] GlitchTip menerima error server-side (jalankan test error)
+- [ ] GlitchTip menerima error server-side (jalankan test error) — *DISABLED saat ini, nonaktif dulu*
 - [ ] Error none real logs (`docker compose logs api-fpm/web/nginx` tidak ada error aktif)
 
 ### E9. Production Env (jika diluncurkan ke publik)

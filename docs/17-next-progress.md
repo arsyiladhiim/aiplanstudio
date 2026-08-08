@@ -123,9 +123,9 @@ Semua 9 stage (target web) berjalan end-to-end dan artifact persisted:
 
 ## Prioritas Rendah
 
-### [x] [P8] Sentry / GlitchTip Integration ✅
+### [x] [P8] Sentry / GlitchTip Integration ✅ *(secara teknis done; service kini DISABLED — lihat catatan "GlitchTip Disabled" di [15-dev-log](15-dev-log.md))*
 
-**Resolution:** Self-hosted GlitchTip (Sentry-compatible) di Docker Compose, reuse existing `db` + `redis` (DB `glitchtip`, Redis DB 2). SDK terinstall kedua sisi.
+**Resolution:** Self-hosted GlitchTip (Sentry-compatible) di Docker Compose, reuse existing `db` + `redis` (DB `glitchtip`, Redis DB 2). SDK terinstall kedua sisi. IDE: service di-comment (2026-08-08) — SDK dipertahankan, DSN kosong, re-enable via uncomment compose + env + nginx route.
 - **Backend:** `sentry/sentry-laravel ^4.27` via composer, `config/sentry.php` published, auto-discovery. DSN via `SENTRY_LARAVEL_DSN` env (docker-compose → api-fpm). Terverifikasi: `Sentry::captureMessage('test')` → issue muncul di GlitchTip project "backend" (PHP, id=1).
 - **Frontend:** `@sentry/nextjs ^10.69` via npm. Config: `sentry.client.config.ts` (browser, NEXT_PUBLIC_SENTRY_DSN), `sentry.server.config.ts` (Node SENTRY_DSN), `sentry.edge.config.ts` (Edge). `src/instrumentation.ts` → register by NEXT_RUNTIME + `onRequestError`. `next.config.ts` wrapped with `withSentryConfig`. `error.tsx` + `global-error.tsx` updated to `Sentry.captureException`. DSN via `SENTRY_DSN` (server) + `NEXT_PUBLIC_SENTRY_DSN` (browser) env (docker-compose → web).
 - **Infrastructure:** GlitchTip service always-on, internal `glitchtip:8000` (not exposed). `GLITCHTIP_SECRET_KEY` in root `.env`. 2 projects + DSNs pre-created via Django shell: backend (PHP, id=1) + frontend (JS, id=2).
@@ -195,7 +195,7 @@ Semua 9 stage (target web) berjalan end-to-end dan artifact persisted:
 
 **Effort:** Low (1 jam)
 
-### [x] [P14] Sentry Browser-Side Capture via nginx /glitchtip Proxy ✅
+### [x] [P14] Sentry Browser-Side Capture via nginx /glitchtip Proxy ✅ *(DISABLED 2026-08-08 — route nginx di-comment, lihat 15-dev-log)*
 
 **Resolution:** Browser SDK capture via nginx proxy to GlitchTip internal Docker service.
 - **nginx route:** `location /glitchtip/` → `rewrite ^/glitchtip/(.*)$ /$1 break; proxy_pass http://glitchtip:8000` (internal network, `/glitchtip/` prefix stripped).
