@@ -16,7 +16,7 @@ class ProjectFactory extends Factory
             'user_id' => User::factory(),
             'title' => fake()->sentence(3),
             'idea' => fake()->paragraph(),
-            'target' => fake()->randomElement(['web', 'mobile', 'both']),
+            'target' => fake()->randomElement(['web', 'both']),
             'stack' => fake()->optional()->word(),
         ];
     }

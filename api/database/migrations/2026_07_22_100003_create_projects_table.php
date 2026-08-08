@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('aiplanstudio_master.users')->cascadeOnDelete();
             $table->string('title');
             $table->text('idea');
-            $table->enum('target', ['web', 'mobile', 'both'])->default('web');
+            $table->enum('target', ['web', 'both'])->default('web');
             $table->string('stack')->nullable();
             $table->timestamps();
         });

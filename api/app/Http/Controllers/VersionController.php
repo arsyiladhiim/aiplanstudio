@@ -189,7 +189,7 @@ class VersionController extends Controller
     public function updateArtifact(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'stage' => ['required', 'string', 'in:pertanyaan,analisa,prd,architecture,erd,phased_master,phased_master_mobile'],
+            'stage' => ['required', 'string', 'in:pertanyaan,analisa,prd,architecture,erd,master_web,master_mobile'],
             'content' => ['required', 'string'],
         ]);
 
@@ -202,8 +202,8 @@ class VersionController extends Controller
             'prd' => 'prd',
             'architecture' => 'architecture',
             'erd' => 'erd',
-            'phased_master' => 'master_prompt',
-            'phased_master_mobile' => 'mobile_master_prompt',
+            'master_web' => 'master_prompt',
+            'master_mobile' => 'mobile_master_prompt',
         ];
 
         $col = $colMap[$data['stage']];

@@ -97,7 +97,11 @@ class PipelineRunnerTest extends TestCase
     public function test_version_has_default_stage_status(): void
     {
         $default = Version::defaultStageStatus();
-        $expected = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'phased_master', 'phased_master_mobile'];
+        $expected = [
+            'pertanyaan', 'analisa', 'prd', 'architecture', 'erd',
+            'standards_web', 'agents_web', 'phases_web', 'master_web',
+            'phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile',
+        ];
         foreach ($expected as $stage) {
             $this->assertArrayHasKey($stage, $default);
             $this->assertEquals('pending', $default[$stage]);
@@ -125,7 +129,11 @@ class PipelineRunnerTest extends TestCase
 
     public function test_all_stages_defined(): void
     {
-        $expected = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'phased_master', 'phased_master_mobile'];
+        $expected = [
+            'pertanyaan', 'analisa', 'prd', 'architecture', 'erd',
+            'standards_web', 'agents_web', 'phases_web', 'master_web',
+            'phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile',
+        ];
         $const = (new \ReflectionClass(PipelineRunner::class))->getConstant('ALL_STAGES');
         $this->assertEquals($expected, $const);
     }
@@ -185,7 +193,11 @@ class PipelineRunnerTest extends TestCase
         $ref = new \ReflectionMethod($runner, 'systemPrompt');
         $ref->setAccessible(true);
 
-        $stages = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'phased_master', 'phased_master_mobile'];
+        $stages = [
+            'pertanyaan', 'analisa', 'prd', 'architecture', 'erd',
+            'standards_web', 'agents_web', 'phases_web', 'master_web',
+            'phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile',
+        ];
         foreach ($stages as $stage) {
             $prompt = $ref->invoke($runner, $stage, 'web');
             $this->assertNotEmpty($prompt, "Prompt {$stage} tidak boleh kosong");

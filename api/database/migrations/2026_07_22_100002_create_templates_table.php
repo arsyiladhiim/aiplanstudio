@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('aiplanstudio_master.templates', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->enum('target', ['web', 'mobile', 'both']);
+            $table->enum('target', ['web', 'both']);
             $table->text('description')->nullable();
             $table->jsonb('seed')->nullable();
             $table->timestamps();

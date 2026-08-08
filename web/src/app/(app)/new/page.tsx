@@ -7,13 +7,12 @@ import { ErdDiagram } from "@/components/wizard/ErdDiagram";
 import { getStages, type StageKey, type StageState, type Target } from "@/lib/mock";
 import { apiPost, apiGet, apiPatch, createSSEPost, type Project, type Template, type Version } from "@/lib/api";
 import {
-  Wand2, Globe, Smartphone, Layers, Loader2, Check, Copy, ArrowRight,
+  Wand2, Globe, Layers, Loader2, Check, Copy, ArrowRight,
   RotateCcw, CircleDot, Sparkles, AlertCircle, Pencil,
 } from "lucide-react";
 
 const TARGETS: { key: Target; label: string; icon: typeof Globe }[] = [
   { key: "web", label: "Web App", icon: Globe },
-  { key: "mobile", label: "Mobile (APK)", icon: Smartphone },
   { key: "both", label: "Web + Mobile", icon: Layers },
 ];
 
@@ -188,7 +187,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     const seed = tpl.seed as Record<string, string>;
     if (seed.title) setTitle(seed.title);
     if (seed.idea) setIdea(seed.idea);
-    if (seed.target && ["web","mobile","both"].includes(seed.target)) {
+      if (seed.target && ["web","both"].includes(seed.target)) {
       setTargetAndReset(seed.target as Target);
     }
   }
@@ -212,8 +211,9 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   useEffect(() => {
     if (!versionId) return;
     const colMap: Record<string, string> = {
-      analisa: 'analysis', prd: 'prd', architecture: 'architecture',
-      erd: 'erd', phased_master: 'master_prompt',
+      analisa: 'analysis', prd: 'prd', architecture: 'architecture', erd: 'erd',
+      standards_web: 'standards', agents_web: 'agents', phases_web: 'phases', master_web: 'master_prompt',
+      phases_mobile: 'mobile_phases', standards_mobile: 'mobile_standards', agents_mobile: 'mobile_agents', master_mobile: 'mobile_master_prompt',
     };
     const missing = stages.filter(s =>
       status[s.key] === 'done' && !artifacts[s.key] && !fallbackFetched.current.has(s.key)
@@ -263,8 +263,14 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         prd: 'prd',
         architecture: 'architecture',
         erd: 'erd',
-        phased_master: 'master_prompt',
-        phased_master_mobile: 'mobile_master_prompt',
+        standards_web: 'standards',
+        agents_web: 'agents',
+        phases_web: 'phases',
+        master_web: 'master_prompt',
+        phases_mobile: 'mobile_phases',
+        standards_mobile: 'mobile_standards',
+        agents_mobile: 'mobile_agents',
+        master_mobile: 'mobile_master_prompt',
       };
       const loaded: Record<string, string> = {};
       stages.forEach(s => {
@@ -668,7 +674,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                       <ArrowRight size={15} /> Kirim Jawaban & Lanjutkan
                     </Button>
                   </div>
-                ) : (activeKey === "erd" && status.erd === "done") || (activeKey === "architecture" && status.architecture === "done") || (activeKey === "phased_master" && status.phased_master === "done") ? null : (
+                ) : (activeKey === "erd" && status.erd === "done") || (activeKey === "architecture" && status.architecture === "done") || (activeKey === "master_web" && status.master_web === "done") ? null : (
                   <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
                     {status[activeKey] === "done" && !artifacts[activeKey]
                       ? "Tidak ada output"
@@ -768,102 +774,105 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     })()}
                   </>
                 )}
-                {activeKey === "phased_master" && artifacts.phased_master && (() => {
+                {activeKey === "phases_web" && artifacts.phases_web && (() => {
                   try {
-                    const data: ErdParsed = JSON.parse(artifacts.phased_master);
-                    const phases: PhaseItem[] = data.phases || [];
-                    const masterPrompt = data.master || '';
-
+                    const parsed = JSON.parse(artifacts.phases_web);
+                    const phases: PhaseItem[] = Array.isArray(parsed) ? parsed : [];
+                    if (phases.length === 0) throw new Error("not array");
                     return (
-                      <div className="mt-2 space-y-6">
-                        {phases.length > 0 && (
-                          <Card className="p-4">
-                            <h3 className="mb-4 font-semibold">Phase Breakdown ({phases.length} fase)</h3>
-                            <div className="space-y-3">
-                              {phases.map((p: PhaseItem, i: number) => (
-                                <div key={p.key || i} className="rounded-lg border border-[var(--color-border)] p-4">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1">
-                                      <div className="text-sm font-semibold">{p.title}</div>
-                                      {(() => { const tasks = p.tasks; return tasks && tasks.length > 0 ? (
-                                        <ul className="mt-1 list-disc pl-4 text-xs text-[var(--color-fg-muted)]">
-                                          {tasks.map((t: string, j: number) => <li key={j}>{t}</li>)}
-                                        </ul>
-                                      ) : null; })()}
-                                      {p.ac && <div className="mt-1 text-xs text-[var(--color-fg-muted)]"><span className="font-medium">AC:</span> {p.ac}</div>}
-                                    </div>
-                                    {p.prompt && (
-                                      <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(p.prompt ?? '').catch(() => {}); }}>
-                                        <Copy size={12} /> Copy Prompt
-                                      </Button>
-                                    )}
-                                  </div>
+                      <Card className="p-4">
+                        <h3 className="mb-4 font-semibold">Phase Breakdown Web ({phases.length} fase)</h3>
+                        <div className="space-y-3">
+                          {phases.map((p: PhaseItem, i: number) => (
+                            <div key={p.key || i} className="rounded-lg border border-[var(--color-border)] p-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="text-sm font-semibold">{p.title}</div>
+                                  {(() => { const tasks = p.tasks; return tasks && tasks.length > 0 ? (
+                                    <ul className="mt-1 list-disc pl-4 text-xs text-[var(--color-fg-muted)]">
+                                      {tasks.map((t: string, j: number) => <li key={j}>{t}</li>)}
+                                    </ul>
+                                  ) : null; })()}
+                                  {p.ac && <div className="mt-1 text-xs text-[var(--color-fg-muted)]"><span className="font-medium">AC:</span> {p.ac}</div>}
                                 </div>
-                              ))}
+                                {p.prompt && (
+                                  <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(p.prompt ?? '').catch(() => {}); }}>
+                                    <Copy size={12} /> Copy Prompt
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                          </Card>
-                        )}
-
-                        {masterPrompt && (
-                          <Card className="p-4">
-                            <div className="mb-3 flex items-center justify-between">
-                              <h3 className="font-semibold">Master Prompt</h3>
-                              <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(masterPrompt).catch(() => {}); }}>
-                                <Copy size={13} /> Salin Master Prompt
-                              </Button>
-                            </div>
-                            <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</Markdown>
-                          </Card>
-                        )}
-
-                        <Card className="p-4">
-                          <h3 className="mb-3 font-semibold">Standards & Rules</h3>
-                          <p className="mb-3 text-xs text-[var(--color-fg-muted)]">Download dan letakkan di root project sebelum AI coding agent mulai.</p>
-                          <div className="flex flex-wrap items-center gap-4">
-                            <div className="flex items-center gap-2">
-                              <span className={`inline-block h-2 w-2 rounded-full ${data.standards ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                              <span className="text-xs">
-                                {data.standards ? 'STANDARDS.md tersedia' : 'STANDARDS.md belum tersedia'}
-                              </span>
-                              {data.standards ? (
-                                <Button variant="secondary" size="sm" onClick={() => window.open(`/api/versions/${versionId}/standards`, '_blank')}>
-                                  <Copy size={13} /> Download
-                                </Button>
-                              ) : (
-                                <Button variant="secondary" size="sm" onClick={() => {
-                                  apiPost(`/versions/${versionId}/regenerate-standards`).then(() => {
-                                    window.location.reload();
-                                  }).catch((err: Error) => alert(err.message));
-                                }}>
-                                  <Copy size={13} /> Generate
-                                </Button>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`inline-block h-2 w-2 rounded-full ${data.agents ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                              <span className="text-xs">
-                                {data.agents ? 'AGENTS.md tersedia' : 'AGENTS.md belum tersedia'}
-                              </span>
-                              {data.agents ? (
-                                <Button variant="secondary" size="sm" onClick={() => window.open(`/api/versions/${versionId}/agents`, '_blank')}>
-                                  <Copy size={13} /> Download
-                                </Button>
-                              ) : (
-                                <Button variant="secondary" size="sm" onClick={() => {
-                                  apiPost(`/versions/${versionId}/regenerate-standards`).then(() => {
-                                    window.location.reload();
-                                  }).catch((err: Error) => alert(err.message));
-                                }}>
-                                  <Copy size={13} /> Generate
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </Card>
-                      </div>
+                          ))}
+                        </div>
+                      </Card>
                     );
-                  } catch {}
-                  return <div className="whitespace-pre-wrap text-sm text-[var(--color-fg-muted)]">{artifacts.phased_master}</div>;
+                  } catch {
+                    return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.phases_web}</Markdown>;
+                  }
+                })()}
+                {activeKey === "phases_mobile" && artifacts.phases_mobile && (() => {
+                  try {
+                    const parsed = JSON.parse(artifacts.phases_mobile);
+                    const phases: PhaseItem[] = Array.isArray(parsed) ? parsed : [];
+                    if (phases.length === 0) throw new Error("not array");
+                    return (
+                      <Card className="p-4">
+                        <h3 className="mb-4 font-semibold">Phase Breakdown Mobile ({phases.length} fase)</h3>
+                        <div className="space-y-3">
+                          {phases.map((p: PhaseItem, i: number) => (
+                            <div key={p.key || i} className="rounded-lg border border-[var(--color-border)] p-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="text-sm font-semibold">{p.title}</div>
+                                  {(() => { const tasks = p.tasks; return tasks && tasks.length > 0 ? (
+                                    <ul className="mt-1 list-disc pl-4 text-xs text-[var(--color-fg-muted)]">
+                                      {tasks.map((t: string, j: number) => <li key={j}>{t}</li>)}
+                                    </ul>
+                                  ) : null; })()}
+                                  {p.ac && <div className="mt-1 text-xs text-[var(--color-fg-muted)]"><span className="font-medium">AC:</span> {p.ac}</div>}
+                                </div>
+                                {p.prompt && (
+                                  <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(p.prompt ?? '').catch(() => {}); }}>
+                                    <Copy size={12} /> Copy Prompt
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    );
+                  } catch {
+                    return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.phases_mobile}</Markdown>;
+                  }
+                })()}
+                {activeKey === "master_web" && artifacts.master_web && (() => {
+                  const masterPrompt = artifacts.master_web;
+                  return (
+                    <Card className="p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h3 className="font-semibold">Master Prompt Web</h3>
+                        <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(masterPrompt).catch(() => {}); }}>
+                          <Copy size={13} /> Salin Master Prompt
+                        </Button>
+                      </div>
+                      <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</Markdown>
+                    </Card>
+                  );
+                })()}
+                {activeKey === "master_mobile" && artifacts.master_mobile && (() => {
+                  const masterPrompt = artifacts.master_mobile;
+                  return (
+                    <Card className="p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h3 className="font-semibold">Master Prompt Mobile</h3>
+                        <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(masterPrompt).catch(() => {}); }}>
+                          <Copy size={13} /> Salin Master Prompt
+                        </Button>
+                      </div>
+                      <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</Markdown>
+                    </Card>
+                  );
                 })()}
               </>
             )}
@@ -895,7 +904,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    const mp = artifacts.phased_master;
+                    const mp = artifacts.master_web;
                     if (mp) navigator.clipboard.writeText(mp).catch(() => {
                       const ta = document.createElement('textarea');
                       ta.value = mp;

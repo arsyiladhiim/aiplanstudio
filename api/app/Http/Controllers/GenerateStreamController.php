@@ -16,16 +16,20 @@ class GenerateStreamController extends Controller
         $stage = $request->query('stage');
         $auto = $request->query('auto', '0') === '1';
 
-        if (!$versionId || !$stage) {
+        if (! $versionId || ! $stage) {
             abort(422, 'Parameter "version" dan "stage" wajib diisi.');
         }
 
-        $validStages = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'phased_master', 'phased_master_mobile'];
-        if (!in_array($stage, $validStages)) {
-            abort(422, 'Stage tidak valid. Pilih: ' . implode(', ', $validStages));
+        $validStages = [
+            'pertanyaan', 'analisa', 'prd', 'architecture', 'erd',
+            'standards_web', 'agents_web', 'phases_web', 'master_web',
+            'phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile',
+        ];
+        if (! in_array($stage, $validStages)) {
+            abort(422, 'Stage tidak valid. Pilih: '.implode(', ', $validStages));
         }
 
-        $version = Version::whereHas('project', fn($q) => $q->where('user_id', $request->user()->id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->findOrFail($versionId);
 
         $pipeline = new PipelineRunner($version, $client);
@@ -35,7 +39,7 @@ class GenerateStreamController extends Controller
         ob_implicit_flush(true);
 
         return response()->stream(
-            fn() => $pipeline->run($stage, $auto),
+            fn () => $pipeline->run($stage, $auto),
             200,
             [
                 'Content-Type' => 'text/event-stream',

@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -49,8 +49,14 @@ class Version extends Model
             'prd' => 'pending',
             'architecture' => 'pending',
             'erd' => 'pending',
-            'phased_master' => 'pending',
-            'phased_master_mobile' => 'pending',
+            'standards_web' => 'pending',
+            'agents_web' => 'pending',
+            'phases_web' => 'pending',
+            'master_web' => 'pending',
+            'phases_mobile' => 'pending',
+            'standards_mobile' => 'pending',
+            'agents_mobile' => 'pending',
+            'master_mobile' => 'pending',
         ];
     }
 }

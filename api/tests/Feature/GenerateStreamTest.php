@@ -14,7 +14,9 @@ class GenerateStreamTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private Project $project;
+
     private Version $version;
 
     protected function setUp(): void
@@ -62,7 +64,7 @@ class GenerateStreamTest extends TestCase
             ->postJson("/api/generate/stream?version={$this->version->id}&stage=invalid");
 
         $response->assertStatus(422);
-        $response->assertJson(['message' => 'Stage tidak valid. Pilih: pertanyaan, analisa, prd, architecture, erd, phased_master, phased_master_mobile']);
+        $response->assertJson(['message' => 'Stage tidak valid. Pilih: pertanyaan, analisa, prd, architecture, erd, standards_web, agents_web, phases_web, master_web, phases_mobile, standards_mobile, agents_mobile, master_mobile']);
     }
 
     public function test_returns_streamed_response_with_correct_headers(): void

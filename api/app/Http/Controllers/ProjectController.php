@@ -53,7 +53,7 @@ class ProjectController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'idea' => ['required', 'string'],
-            'target' => ['required', 'in:web,mobile,both'],
+            'target' => ['required', 'in:web,both'],
             'stack' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -83,7 +83,7 @@ class ProjectController extends Controller
         $data = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
             'idea' => ['sometimes', 'string'],
-            'target' => ['sometimes', 'in:web,mobile,both'],
+            'target' => ['sometimes', 'in:web,both'],
         ]);
 
         $project->update($data);

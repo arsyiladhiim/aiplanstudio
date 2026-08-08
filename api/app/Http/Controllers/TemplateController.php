@@ -17,7 +17,7 @@ class TemplateController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string'],
-            'target' => ['required', 'in:web,mobile,both'],
+            'target' => ['required', 'in:web,both'],
             'description' => ['nullable', 'string'],
             'seed' => ['nullable', 'array'],
         ]);

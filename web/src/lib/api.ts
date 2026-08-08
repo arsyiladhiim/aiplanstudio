@@ -281,7 +281,7 @@ export async function createSSEPost(
   return controller;
 }
 
-export type Target = "web" | "mobile" | "both";
+export type Target = "web" | "both";
 export type User = {
   id: number;
   name: string;

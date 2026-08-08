@@ -13,7 +13,7 @@ class TemplateFactory extends Factory
     {
         return [
             'name' => fake()->sentence(3),
-            'target' => fake()->randomElement(['web', 'mobile', 'both']),
+            'target' => fake()->randomElement(['web', 'both']),
             'description' => fake()->optional()->sentence(),
             'seed' => null,
         ];

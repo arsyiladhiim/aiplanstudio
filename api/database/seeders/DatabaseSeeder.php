@@ -50,7 +50,7 @@ class DatabaseSeeder extends Seeder
             ],
             [
                 'name' => 'Mobile CRUD',
-                'target' => 'mobile',
+                'target' => 'both',
                 'description' => 'App data sederhana dengan sync offline.',
                 'seed' => json_encode(['idea' => 'Aplikasi mobile untuk mengelola data inventory offline-first.']),
                 'created_at' => now(),

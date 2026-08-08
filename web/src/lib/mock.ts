@@ -1,5 +1,5 @@
-export type Target = "web" | "mobile" | "both";
-export type StageKey = "pertanyaan" | "analisa" | "prd" | "architecture" | "erd" | "phased_master" | "phased_master_mobile";
+export type Target = "web" | "both";
+export type StageKey = "pertanyaan" | "analisa" | "prd" | "architecture" | "erd" | "standards_web" | "agents_web" | "phases_web" | "master_web" | "phases_mobile" | "standards_mobile" | "agents_mobile" | "master_mobile";
 export type StageState = "pending" | "running" | "done" | "error";
 
 const ALL_STAGES: { key: StageKey; label: string; desc: string }[] = [
@@ -8,13 +8,19 @@ const ALL_STAGES: { key: StageKey; label: string; desc: string }[] = [
   { key: "prd", label: "PRD", desc: "Dokumen kebutuhan produk terstruktur." },
   { key: "architecture", label: "Arsitektur", desc: "Struktur folder & pilihan teknologi." },
   { key: "erd", label: "ERD", desc: "Skema data dalam bahasa sederhana." },
-  { key: "phased_master", label: "Web — Phases & Master Prompt", desc: "Fase pembangunan web + master prompt." },
-  { key: "phased_master_mobile", label: "Mobile — Phases & Master Prompt", desc: "Fase pembangunan mobile + master prompt." },
+  { key: "standards_web", label: "Web — Standards", desc: "STANDARDS.md untuk proyek web." },
+  { key: "agents_web", label: "Web — Agents", desc: "AGENTS.md untuk proyek web." },
+  { key: "phases_web", label: "Web — Phases", desc: "Breakdown fase pembangunan web." },
+  { key: "master_web", label: "Web — Master Prompt", desc: "Master prompt self-contained untuk AI agent web." },
+  { key: "phases_mobile", label: "Mobile — Phases", desc: "Breakdown fase pembangunan mobile." },
+  { key: "standards_mobile", label: "Mobile — Standards", desc: "STANDARDS.md untuk proyek mobile." },
+  { key: "agents_mobile", label: "Mobile — Agents", desc: "AGENTS.md untuk proyek mobile." },
+  { key: "master_mobile", label: "Mobile — Master Prompt", desc: "Master prompt self-contained untuk AI agent mobile." },
 ];
 
 export function getStages(target: Target): { key: StageKey; label: string; desc: string }[] {
   if (target === 'both') return ALL_STAGES;
-  return ALL_STAGES.filter(s => s.key !== 'phased_master_mobile');
+  return ALL_STAGES.filter(s => !s.key.includes('mobile'));
 }
 
 export const STAGES = ALL_STAGES;
@@ -31,10 +37,10 @@ export type Project = {
 };
 
 export const projects: Project[] = [
-  { id: "p1", title: "Kasir UMKM Mobile", idea: "Aplikasi kasir untuk warung dengan stok & laporan harian.", target: "mobile", updatedAt: "2 jam lalu", versions: 3, progress: 72, tags: ["POS", "Flutter"] },
+  { id: "p1", title: "Kasir UMKM Mobile", idea: "Aplikasi kasir untuk warung dengan stok & laporan harian.", target: "both", updatedAt: "2 jam lalu", versions: 3, progress: 72, tags: ["POS", "Flutter"] },
   { id: "p2", title: "SaaS Manajemen Proyek", idea: "Dashboard tim untuk task, timeline, dan billing.", target: "web", updatedAt: "kemarin", versions: 2, progress: 45, tags: ["SaaS", "Next.js"] },
   { id: "p3", title: "Marketplace Jasa Lokal", idea: "Platform mempertemukan penyedia jasa & pelanggan sekitar.", target: "both", updatedAt: "3 hari lalu", versions: 1, progress: 18, tags: ["Marketplace"] },
-  { id: "p4", title: "Habit Tracker", idea: "Pelacak kebiasaan dengan streak & pengingat.", target: "mobile", updatedAt: "1 minggu lalu", versions: 4, progress: 100, tags: ["Mobile", "RN"] },
+  { id: "p4", title: "Habit Tracker", idea: "Pelacak kebiasaan dengan streak & pengingat.", target: "both", updatedAt: "1 minggu lalu", versions: 4, progress: 100, tags: ["Mobile", "RN"] },
 ];
 
 export type Template = {
@@ -49,7 +55,7 @@ export type Template = {
 export const templates: Template[] = [
   { id: "t1", name: "SaaS Dashboard", target: "web", description: "Auth, billing, multi-tenant, dashboard analytics.", icon: "layout-dashboard" },
   { id: "t2", name: "E-Commerce", target: "both", description: "Katalog, keranjang, checkout, pembayaran.", icon: "shopping-cart" },
-  { id: "t3", name: "Mobile CRUD", target: "mobile", description: "App data sederhana dengan sync offline.", icon: "smartphone" },
+  { id: "t3", name: "Mobile CRUD", target: "both", description: "App data sederhana dengan sync offline.", icon: "smartphone" },
   { id: "t4", name: "Marketplace", target: "both", description: "Dua sisi: penjual & pembeli, rating, chat.", icon: "store" },
   { id: "t5", name: "Landing + Waitlist", target: "web", description: "Halaman peluncuran dengan pengumpulan email.", icon: "rocket" },
   { id: "t6", name: "Internal Tool", target: "web", description: "Admin panel + tabel data + role.", icon: "wrench" },

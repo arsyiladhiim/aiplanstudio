@@ -15,7 +15,17 @@ class PipelineRunner
     /** @var resource */
     private $stdout;
 
-    private const ALL_STAGES = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'phased_master', 'phased_master_mobile'];
+    private const ALL_STAGES = [
+        'pertanyaan', 'analisa', 'prd', 'architecture', 'erd',
+        'standards_web', 'agents_web', 'phases_web', 'master_web',
+        'phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile',
+    ];
+
+    // Stage mana yang termasuk jalur mobile (hanya untuk target 'both').
+    private const MOBILE_STAGES = ['phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile'];
+
+    // Stage sebelum mobile track → gate: mobile menunggu web selesai.
+    private const WEB_DONE_STAGE = 'master_web';
 
     public function __construct(Version $version, AiClient $client, $stdout = null)
     {
@@ -51,11 +61,22 @@ class PipelineRunner
         }
 
         foreach (array_slice(self::ALL_STAGES, $startIdx) as $key) {
-            // Only run phased_master_mobile for 'both' target
-            if ($key === 'phased_master_mobile' && ($this->version->project->target ?? 'web') !== 'both') {
-                $this->updateStageStatus($key, 'done');
+            $target = $this->version->project->target ?? 'web';
 
-                continue;
+            // Stage jalur mobile HANYA untuk target 'both', dan menunggu web selesai.
+            if (in_array($key, self::MOBILE_STAGES, true)) {
+                if ($target !== 'both') {
+                    $this->updateStageStatus($key, 'done');
+
+                    continue;
+                }
+                // Gate: mobile tidak boleh mulai sebelum master_web done.
+                if (($this->version->stage_status[self::WEB_DONE_STAGE] ?? 'pending') !== 'done') {
+                    $this->emit('status', ['stage' => 'web_gate', 'state' => 'waiting']);
+                    $this->emit('fail', ['stage' => $key, 'message' => 'Web track belum selesai. Selesaikan master_web sebelum melanjutkan ke mobile.']);
+
+                    return;
+                }
             }
 
             $this->emit('status', ['stage' => $key, 'state' => 'running']);
@@ -149,10 +170,14 @@ class PipelineRunner
     {
         $v = $this->version;
         $target = $overrideTarget ?? $v->project->target ?? 'web';
-        // phased_master_mobile always targets mobile regardless of project target
-        if ($stage === 'phased_master_mobile') {
+        // Stage jalur mobile selalu menargetkan platform mobile.
+        if (in_array($stage, self::MOBILE_STAGES, true)) {
             $target = 'mobile';
             $overrideTarget = 'mobile';
+        } elseif (in_array($stage, ['standards_web', 'agents_web', 'phases_web', 'master_web'], true)) {
+            // Track web selalu diselesaikan sebagai platform web (walau target both).
+            $target = 'web';
+            $overrideTarget = 'web';
         }
         $system = $this->systemPrompt($stage, $target);
         $context = $this->contextPrompt($stage, $v, $overrideTarget);
@@ -170,7 +195,17 @@ class PipelineRunner
             require_once $helpers;
         }
 
-        $promptStage = $stage === 'phased_master_mobile' ? 'phased_master' : $stage;
+        $promptStage = match ($stage) {
+            'standards_web' => 'standards',
+            'agents_web' => 'agents',
+            'phases_web' => 'phases',
+            'master_web' => 'phased_master',
+            'standards_mobile' => 'standards',
+            'agents_mobile' => 'agents',
+            'phases_mobile' => 'phases_mobile',
+            'master_mobile' => 'phased_master_mobile',
+            default => $stage,
+        };
         $path = __DIR__."/../Prompts/{$promptStage}.php";
         if (! file_exists($path)) {
             return '';
@@ -212,9 +247,21 @@ class PipelineRunner
 
             'erd' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}",
 
-            'phased_master' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+            'standards_web' => $ctx."\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT),
 
-            'phased_master_mobile' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+            'agents_web' => $ctx."\n\n### Standars (STANDARDS.md web)\n{$v->standards}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}",
+
+            'phases_web' => $ctx."\n\n### Standars\n{$v->standards}\n\n### AGENTS (web)\n{$v->agents}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+
+            'master_web' => $ctx."\n\n### Standars (web)\n{$v->standards}\n\n### AGENTS (web)\n{$v->agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+
+            'phases_mobile' => $ctx."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### Dokumen PRD (web)\n{$v->prd}\n\n### Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH SELESAI — referensi lengkap web)\n{$v->master_prompt}\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+
+            'standards_mobile' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Web (SUDAH SELESAI)\n{$v->master_prompt}",
+
+            'agents_mobile' => $ctx."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### Master Web (SUDAH SELESAI)\n{$v->master_prompt}",
+
+            'master_mobile' => $ctx."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### AGENTS Mobile\n{$v->mobile_agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH 100% — referensi lengkap web)\n{$v->master_prompt}\n\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
 
             default => $idea,
         };
@@ -228,8 +275,14 @@ class PipelineRunner
             'prd' => 'prd',
             'architecture' => 'architecture',
             'erd' => 'erd',
-            'phased_master' => 'master_prompt',
-            'phased_master_mobile' => 'mobile_master_prompt',
+            'standards_web' => 'standards',
+            'agents_web' => 'agents',
+            'phases_web' => 'phases',
+            'master_web' => 'master_prompt',
+            'phases_mobile' => 'mobile_phases',
+            'standards_mobile' => 'mobile_standards',
+            'agents_mobile' => 'mobile_agents',
+            'master_mobile' => 'mobile_master_prompt',
         ];
 
         $col = $map[$key] ?? null;
@@ -254,25 +307,14 @@ class PipelineRunner
             } else {
                 throw new \RuntimeException('ERD: Gagal parse output AI. Stage ditandai error.');
             }
-        } elseif ($key === 'phased_master' || $key === 'phased_master_mobile') {
-            $parsed = $this->parsePhasedMaster($content);
-            if ($parsed !== null) {
-                $update = [];
-                if ($key === 'phased_master_mobile') {
-                    $update['mobile_phases'] = $parsed['phases'];
-                    $update['mobile_standards'] = $parsed['standards'];
-                    $update['mobile_agents'] = $parsed['agents'];
-                } else {
-                    $update['phases'] = $parsed['phases'];
-                    $update['standards'] = $parsed['standards'];
-                    $update['agents'] = $parsed['agents'];
-                }
-                $this->version->update($update);
-                $value = $parsed['master'];
-                $this->emit('artifact', ['stage' => $key, 'content' => json_encode($parsed)]);
-            } else {
-                throw new \RuntimeException('Phased Master: Gagal parse output AI. Stage ditandai error.');
+        } elseif ($key === 'phases_web' || $key === 'phases_mobile') {
+            $phases = $this->parsePhasesText($content);
+            if ($phases === null) {
+                throw new \RuntimeException('Phases: Gagal parse output AI. Stage ditandai error.');
             }
+            $this->version->update([$col => $phases]);
+            $value = $content;
+            $this->emit('artifact', ['stage' => $key, 'content' => $content]);
         } elseif ($key === 'api_contract') {
             $cleaned = $this->extractJson($content);
             $decoded = $this->tryJsonDecode($cleaned);
@@ -439,30 +481,6 @@ class PipelineRunner
         }
 
         return ! empty($phases) ? $phases : null;
-    }
-
-    private function parsePhasedMaster(string $content): ?array
-    {
-        $extract = function (string $marker, string $content): string {
-            $pattern = '/^={3,}'.preg_quote($marker, '/').'={3,}\s*$/m';
-            $parts = preg_split($pattern, $content, 2);
-
-            return trim($parts[1] ?? '');
-        };
-
-        $phasesText = $extract('PHASES', $content);
-        $masterText = $extract('MASTER', $content);
-        $standardsText = $extract('STANDARDS', $content);
-        $agentsText = $extract('AGENTS', $content);
-
-        $phases = $this->parsePhasesText($phasesText);
-
-        return [
-            'phases' => $phases ?? [],
-            'master' => $masterText ?: $content,
-            'standards' => $standardsText,
-            'agents' => $agentsText,
-        ];
     }
 
     private function extractJson(string $content): string
