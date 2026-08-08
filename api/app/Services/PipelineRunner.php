@@ -86,6 +86,9 @@ class PipelineRunner
 
             try {
                 $content = $this->runStage($key);
+                if ($key === 'pertanyaan') {
+                    $content = $this->retryPertanyaanForMinimum($content);
+                }
                 $this->saveArtifact($key, $content);
 
                 $this->emit('done', ['stage' => $key]);
@@ -119,9 +122,13 @@ class PipelineRunner
         });
     }
 
-    private function runStage(string $key, ?string $overrideTarget = null): string
+    private function runStage(string $key, ?string $overrideTarget = null, string $extraInstruction = ''): string
     {
         $messages = $this->buildMessages($key, $overrideTarget);
+        $system = $messages[0]['content'] ?? '';
+        if ($extraInstruction !== '' && is_string($system)) {
+            $messages[0]['content'] = $system."\n\n[PERINGATAN TAMBAHAN]\n{$extraInstruction}";
+        }
         $buffer = '';
         $maxChunks = 3;
         $maxBufferBytes = 10 * 1024 * 1024; // 10MB limit
@@ -342,6 +349,41 @@ class PipelineRunner
         }
 
         $this->version->update([$col => $value]);
+    }
+
+    private const MIN_MCQ_QUESTIONS = 5;
+
+    private const MAX_MCQ_RETRIES = 4;
+
+    private function retryPertanyaanForMinimum(string $content): string
+    {
+        if ($this->mcqCount($content) >= self::MIN_MCQ_QUESTIONS) {
+            return $content;
+        }
+
+        $prompt = $this->contextPrompt('pertanyaan', $this->version);
+        for ($i = 1; $i <= self::MAX_MCQ_RETRIES; $i++) {
+            $this->emit('status', ['stage' => 'pertanyaan', 'state' => 'retrying', 'attempt' => $i, 'message' => "Pertanyaan kurang dari ".self::MIN_MCQ_QUESTIONS.', generate ulang...']);
+            $content = $this->runStage('pertanyaan', null, 'Kamu sebelumnya mengeluarkan kurang dari '.self::MIN_MCQ_QUESTIONS.' pertanyaan. Output ulang SELURUH JSON dengan minimal '.self::MIN_MCQ_QUESTIONS.' pertanyaan (target 5-10) berdasarkan konteks ini: '.$prompt);
+            if ($this->mcqCount($content) >= self::MIN_MCQ_QUESTIONS) {
+                break;
+            }
+        }
+        $this->emit('status', ['stage' => 'pertanyaan', 'state' => 'running']);
+
+        return $content;
+    }
+
+    private function mcqCount(string $content): int
+    {
+        $cleaned = $this->extractJson($content);
+        $decoded = $this->tryJsonDecode($cleaned);
+        if (! is_array($decoded)) {
+            return 0;
+        }
+        $questions = $decoded['questions'] ?? [];
+
+        return is_array($questions) ? count($questions) : 0;
     }
 
     private function isListKey(array $arr, string $key): bool

@@ -412,4 +412,36 @@ class PipelineRunnerTest extends TestCase
         $this->expectExceptionMessage('JSON tidak valid');
         $ref->invoke($runner, 'api_contract', $content);
     }
+
+    public function test_mcq_count_returns_question_count(): void
+    {
+        $content = '{"ambiguities":["a"],"questions":[{"id":"q1"},{"id":"q2"},{"id":"q3"}]}';
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'mcqCount');
+        $ref->setAccessible(true);
+
+        $this->assertSame(3, $ref->invoke($runner, $content));
+    }
+
+    public function test_mcq_count_returns_zero_for_non_json(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'mcqCount');
+        $ref->setAccessible(true);
+
+        $this->assertSame(0, $ref->invoke($runner, 'bukan json'));
+    }
+
+    public function test_mcq_count_returns_zero_without_questions_key(): void
+    {
+        $content = '{"foo":"bar"}';
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'mcqCount');
+        $ref->setAccessible(true);
+
+        $this->assertSame(0, $ref->invoke($runner, $content));
+    }
 }

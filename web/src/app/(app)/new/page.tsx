@@ -5,7 +5,7 @@ import { Card, Badge, Textarea, Label, Markdown } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { ErdDiagram } from "@/components/wizard/ErdDiagram";
 import { getStages, type StageKey, type StageState, type Target } from "@/lib/mock";
-import { apiPost, apiGet, apiPatch, createSSEPost, type Project, type Template, type Version, type McqData, type McqQuestion, type McqAnswer } from "@/lib/api";
+import { apiPost, apiGet, apiPatch, apiDelete, createSSEPost, type Project, type Template, type Version, type McqData, type McqQuestion, type McqAnswer } from "@/lib/api";
 import {
   Wand2, Globe, Layers, Loader2, Check, Copy, ArrowRight,
   RotateCcw, CircleDot, Sparkles, AlertCircle, Pencil,
@@ -71,6 +71,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [artifacts, setArtifacts] = useState<Record<StageKey, string>>({} as Record<StageKey, string>);
   const [error, setError] = useState<string>("");
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [editingStage, setEditingStage] = useState<StageKey | null>(null);
   const [editContent, setEditContent] = useState("");
 
@@ -120,6 +121,24 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     if (parsed.length === 0) parsed = ['Jelaskan lebih detail tentang aplikasi yang kamu inginkan?'];
     return parsed;
   }, [artifacts.pertanyaan, mcqData]);
+
+  // Parse ERD artifact toleran: strip code fence + ambil blok JSON terluar.
+  const parseErdArtifact = useCallback((raw: string): ErdParsed | null => {
+    try {
+      return JSON.parse(raw) as ErdParsed;
+    } catch {
+      /* fallthrough */
+    }
+    try {
+      const unFenced = raw.replace(/```(?:json)?/gi, '').trim();
+      const first = unFenced.indexOf('{');
+      const last = unFenced.lastIndexOf('}');
+      if (first === -1 || last === -1) return null;
+      return JSON.parse(unFenced.slice(first, last + 1)) as ErdParsed;
+    } catch {
+      return null;
+    }
+  }, []);
 
   // handleSSEEvent must be defined before startPipeline
   const handleSSEEvent = useCallback((event: string, rawData: unknown) => {
@@ -419,20 +438,45 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     setError("Pembuatan plan dibatalkan.");
   }
 
-  function reset() {
+  async function reset() {
+    if (deleting) return;
     cancelled.current = true;
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
     }
     fallbackFetched.current.clear();
+
+    const pid = projectId;
+    setDeleting(true);
+    setError("");
+
+    // Hapus project yang sedang berjalan secara permanen (backend cascade menghapus versions).
+    if (pid) {
+      try {
+        await apiDelete(`/projects/${pid}`);
+      } catch (err) {
+        console.error("Gagal menghapus project:", err);
+      }
+    }
+
+    setDeleting(false);
+    setProjectId(null);
+    setVersionId(null);
     setStarted(false);
     setCurrent(0);
     setStatus(initStatus(target));
-    setProjectId(null);
-    setVersionId(null);
     setArtifacts({} as Record<StageKey, string>);
-    setError("");
+    setAnswers({});
+    setMcqAnswers({});
+    setMobileMcqAnswers({});
+    setTitle("");
+    setIdea("");
+    setSelectedTemplate("");
+    setEditingStage(null);
+    setEditContent("");
+    // Kosongkan query resume agar isResume=false → kembali ke form input (bukan spinner).
+    router.replace("/new");
   }
 
   // ===== Input screen =====
@@ -547,7 +591,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           <h1 className="text-2xl font-bold">Menyusun Plan…</h1>
           <p className="mt-1 line-clamp-1 text-sm text-[var(--color-fg-muted)]">{idea}</p>
         </div>
-        <Button variant="secondary" size="sm" onClick={reset} data-testid="reset-plan"><RotateCcw size={15} /> Mulai Ulang</Button>
+        <Button variant="secondary" size="sm" onClick={reset} disabled={deleting} data-testid="reset-plan">{deleting ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />} {deleting ? "Menghapus..." : "Mulai Ulang"}</Button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -932,11 +976,11 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                       </div>
                     )}
                     {status.erd === "done" && artifacts.erd && (() => {
-                      try {
-                        const erdData: ErdParsed = JSON.parse(artifacts.erd);
-                        return (
-                          <>
-                            <div className="mb-6 mt-4"><ErdDiagram erd={erdData} /></div>
+                      const erdData = parseErdArtifact(artifacts.erd);
+                      if (!erdData) return <pre className="whitespace-pre-wrap text-sm">{artifacts.erd}</pre>;
+                      return (
+                        <>
+                          <div className="mb-6 mt-4"><ErdDiagram erd={erdData} /></div>
                             {(() => { const ac = erdData.api_contract; return ac && ac.length > 0 ? <>
                               <div className="mt-6">
                                 <h4 className="mb-3 font-semibold">API Contract</h4>
@@ -970,11 +1014,8 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                                 </div>
                               </div>
                             </> : null; })()}
-                          </>
-                        );
-                      } catch {
-                        return <pre className="whitespace-pre-wrap text-sm">{artifacts.erd}</pre>;
-                      }
+                        </>
+                      );
                     })()}
                   </>
                 )}

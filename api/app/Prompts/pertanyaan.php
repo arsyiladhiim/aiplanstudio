@@ -27,7 +27,8 @@ ATURAN WAJIB:
 • 1 opsi E "Lainnya / Custom" dengan textarea
 • Tandai 1 opsi sebagai `(Rekomendasi AI)` — ini opsi yang paling umum/produk sesuai best practice
 • Berikan alasan singkat untuk opsi rekomendasi di field `recommendation_reason`
-• Total pertanyaan: 5-10 (fleksibel, sesuaikan dengan kompleksitas ide)
+• Total pertanyaan: WAJIB minimal 5 dan maksimal 10. JANGAN pernah mengeluarkan kurang dari 5 pertanyaan.
+  Jika ide sederhana sekalipun, tetap buat 5 pertanyaan dengan cakupan berbeda-beda.
 • Fokus: halaman, fitur, menu, data, role pengguna, UX flow
 • JANGAN tanya soal teknologi/stack
 
@@ -80,6 +81,6 @@ ISI VARIABEL (dari sistem)
 OUTPUT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Jawab HANYA dengan JSON valid sesuai format di atas. Tidak boleh ada teks di luar blok JSON. Pastikan JSON dapat di-parse tanpa error.
+Jawab HANYA dengan JSON valid sesuai format di atas. Tidak boleh ada teks di luar blok JSON. Pastikan JSON dapat di-parse tanpa error. Jumlah `questions` WAJIB minimal 5 — hitung kembali sebelum menjawab.
 
 ' . platformSuffix($target);
