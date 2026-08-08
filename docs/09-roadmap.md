@@ -4,15 +4,15 @@
 > Status: `[ ]` todo · `[~]` in-progress · `[x]` done
 
 ## Status Global
-- **Terakhir diupdate:** 2026-08-07
+- **Terakhir diupdate:** 2026-08-08
 - **Kode aplikasi:** Backend 100% ✅, Frontend UI 100% ✅, **Full BFF 100% ✅**, **Error Monitoring 100% ✅** (P8 GlitchTip)
 - **Lint:** 0 errors ✅
 - **TypeScript:** 0 errors ✅
 - **Build:** 17/17 pages ✅
 - **Auth:** Session-based (Sanctum SPA — HttpOnly cookie + CSRF) + User approval flow
-- **Pipeline:** 13 stages (pertanyaan→analisa→prd→architecture→erd→standards_web→agents_web→phases_web→master_web→phases_mobile→standards_mobile→agents_mobile→master_mobile)
+- **Pipeline:** 14 stages (pertanyaan-MCQ → analisa → prd → architecture → erd → api_contract → phases_web → standards_web → master_web → pertanyaan_mobile-MCQ → phases_mobile → standards_mobile → master_mobile → agents)
 - **Testing:** Backend PHPUnit 131 pass ✅, Playwright E2E 10 test hijau ✅ (3 specs: auth, wizard, projects)
-- **Status:** Semua fase utama + next-progress P1-P14 selesai. Maintenance only (lihat [17-next-progress.md](17-next-progress.md) + [18-production-readiness.md](18-production-readiness.md))
+- **Status:** Semua fase utama + next-progress P1-P16 selesai. Maintenance only (lihat [17-next-progress.md](17-next-progress.md) + [18-production-readiness.md](18-production-readiness.md))
 
 ## Aturan Lintas-Fase (wajib tiap fase)
 Setiap fase baru boleh ditandai `[x]` bila:

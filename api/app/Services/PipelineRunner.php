@@ -16,13 +16,15 @@ class PipelineRunner
     private $stdout;
 
     private const ALL_STAGES = [
-        'pertanyaan', 'analisa', 'prd', 'architecture', 'erd',
-        'standards_web', 'agents_web', 'phases_web', 'master_web',
-        'phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile',
+        'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
+        'phases_web', 'standards_web', 'master_web',
+        'pertanyaan_mobile',
+        'phases_mobile', 'standards_mobile', 'master_mobile',
+        'agents',
     ];
 
     // Stage mana yang termasuk jalur mobile (hanya untuk target 'both').
-    private const MOBILE_STAGES = ['phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile'];
+    private const MOBILE_STAGES = ['pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile'];
 
     // Stage sebelum mobile track → gate: mobile menunggu web selesai.
     private const WEB_DONE_STAGE = 'master_web';
@@ -174,7 +176,7 @@ class PipelineRunner
         if (in_array($stage, self::MOBILE_STAGES, true)) {
             $target = 'mobile';
             $overrideTarget = 'mobile';
-        } elseif (in_array($stage, ['standards_web', 'agents_web', 'phases_web', 'master_web'], true)) {
+        } elseif (in_array($stage, ['phases_web', 'standards_web', 'master_web'], true)) {
             // Track web selalu diselesaikan sebagai platform web (walau target both).
             $target = 'web';
             $overrideTarget = 'web';
@@ -197,13 +199,12 @@ class PipelineRunner
 
         $promptStage = match ($stage) {
             'standards_web' => 'standards',
-            'agents_web' => 'agents',
+            'standards_mobile' => 'standards',
             'phases_web' => 'phases',
             'master_web' => 'phased_master',
-            'standards_mobile' => 'standards',
-            'agents_mobile' => 'agents',
             'phases_mobile' => 'phases_mobile',
             'master_mobile' => 'phased_master_mobile',
+            'pertanyaan_mobile' => 'pertanyaan_mobile',
             default => $stage,
         };
         $path = __DIR__."/../Prompts/{$promptStage}.php";
@@ -249,19 +250,19 @@ class PipelineRunner
 
             'standards_web' => $ctx."\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT),
 
-            'agents_web' => $ctx."\n\n### Standars (STANDARDS.md web)\n{$v->standards}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}",
-
-            'phases_web' => $ctx."\n\n### Standars\n{$v->standards}\n\n### AGENTS (web)\n{$v->agents}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+            'phases_web' => $ctx."\n\n### Standars\n{$v->standards}\n\n### AGENTS\n{$v->agents}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
 
             'master_web' => $ctx."\n\n### Standars (web)\n{$v->standards}\n\n### AGENTS (web)\n{$v->agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
 
-            'phases_mobile' => $ctx."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### Dokumen PRD (web)\n{$v->prd}\n\n### Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH SELESAI — referensi lengkap web)\n{$v->master_prompt}\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+            'pertanyaan_mobile' => $ctx."\n\n### Master Prompt Web (SUDAH SELESAI)\n{$v->master_prompt}\n\n### API Contract\n".json_encode($v->erd ? ($v->erd['api_contract'] ?? []) : [], JSON_PRETTY_PRINT)."\n\n### ERD\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[]], JSON_PRETTY_PRINT),
 
-            'standards_mobile' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Web (SUDAH SELESAI)\n{$v->master_prompt}",
+            'phases_mobile' => $ctx."\n\n### Mobile Answers (klarifikasi mobile)\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### Dokumen PRD (web)\n{$v->prd}\n\n### Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH SELESAI — referensi lengkap web)\n{$v->master_prompt}\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
 
-            'agents_mobile' => $ctx."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### Master Web (SUDAH SELESAI)\n{$v->master_prompt}",
+            'standards_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Web (SUDAH SELESAI)\n{$v->master_prompt}",
 
-            'master_mobile' => $ctx."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### AGENTS Mobile\n{$v->mobile_agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH 100% — referensi lengkap web)\n{$v->master_prompt}\n\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+            'master_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### AGENTS Mobile\n{$v->mobile_agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH 100% — referensi lengkap web)\n{$v->master_prompt}\n\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+
+            'agents' => $ctx."\n\n### Master Prompt Web (WAJIB — base untuk semua agent)\n{$v->master_prompt}\n\n### Master Prompt Mobile (jika target=both, SUDAH SELESAI)\n".(($target === 'both' && ! empty($v->mobile_master_prompt)) ? $v->mobile_master_prompt : '_Belum ada (target=web)_'),
 
             default => $idea,
         };
@@ -271,18 +272,19 @@ class PipelineRunner
     {
         $map = [
             'pertanyaan' => 'pertanyaan',
+            'pertanyaan_mobile' => 'pertanyaan_mobile',
             'analisa' => 'analysis',
             'prd' => 'prd',
             'architecture' => 'architecture',
             'erd' => 'erd',
-            'standards_web' => 'standards',
-            'agents_web' => 'agents',
+            'api_contract' => 'api_contract',
             'phases_web' => 'phases',
+            'standards_web' => 'standards',
             'master_web' => 'master_prompt',
             'phases_mobile' => 'mobile_phases',
             'standards_mobile' => 'mobile_standards',
-            'agents_mobile' => 'mobile_agents',
             'master_mobile' => 'mobile_master_prompt',
+            'agents' => 'agents',
         ];
 
         $col = $map[$key] ?? null;

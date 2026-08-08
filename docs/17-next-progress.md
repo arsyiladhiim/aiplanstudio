@@ -224,6 +224,30 @@ Semua 9 stage (target web) berjalan end-to-end dan artifact persisted:
 
 **Resolution:** Split `phased_master` dan `phased_master_mobile` menjadi 8 stage terpisah. Total 13 stage (both) / 9 stage (web). Hapus target `mobile` standalone. Gate: mobile track menunggu `master_web` done. Lihat [docs/19-pipeline-13stage.md](19-pipeline-13stage.md).
 
+### [x] [P16] Dynamic MCQ Questions + Pertanyaan Mobile Stage (14 Stage) ✅
+
+**Resolution:** `pertanyaan` (stage 1) menghasilkan JSON MCQ 5-10 pertanyaan A-E (dengan area samar). `pertanyaan_mobile` (stage 10) muncul setelah `master_web` selesai untuk target `both`. Frontend render interactive MCQ card. Lihat [docs/20-dynamic-mcq-questions.md](20-dynamic-mcq-questions.md).
+
+**Files changed:**
+- `api/database/migrations/2026_08_08_000000_add_pertanyaan_mobile_to_versions.php` — kolom baru
+- `api/app/Models/Version.php` — `$fillable`, `$casts`, `defaultStageStatus()` 14 keys
+- `api/app/Http/Controllers/VersionController.php` — `pertanyaan_mobile` colMap, `mobile_answers` endpoint
+- `api/app/Http/Controllers/GenerateStreamController.php` — validStages 14
+- `api/app/Prompts/pertanyaan.php` — rewrite JSON MCQ A-E + ambiguities
+- `api/app/Prompts/pertanyaan_mobile.php` — baru: mobile MCQ
+- `api/app/Prompts/api_contract.php` — baru: JSON API contract
+- `api/app/Services/PipelineRunner.php` — ALL_STAGES 14, pertanyaan_mobile gate, mobile_answers in context
+- `api/tests/Feature/PipelineRunnerTest.php`, `GenerateStreamTest.php`, `api/tests/Unit/ModelTest.php` — 14 stage assertions
+- `web/src/lib/mock.ts` — StageKey 14, ALL_STAGES updated
+- `web/src/lib/api.ts` — `pertanyaan_mobile?`, `mobile_answers?`, MCQ Types
+- `web/src/app/(app)/new/page.tsx` — MCQ JSON parser, interactive A-D card + E textarea, rekomendasi AI badge
+- `web/AGENTS.md` — 14 stages keys
+
+**Verification:**
+- `php artisan test` → 131/131 PASS ✅
+- `npx tsc --noEmit` → 0 errors ✅
+- `npm run lint` → 0 errors (5 pre-existing warnings) ✅
+
 - Backend: PipelineRunner ALL_STAGES 13, gate, systemPrompt/contextPrompt/saveArtifact per stage. Version::defaultStageStatus() 13 keys. GenerateStreamController validStages 13. Migrations/factories/seeders: enum `web|both`.
 - Frontend: mock.ts 13 StageKey, new/page.tsx colMap 13 stage + render + resume.
 - DB: truncated 5 pipeline tables, template "Mobile CRUD" target mobile→both.

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'project_id', 'version_no', 'stage_status', 'pertanyaan', 'answers', 'analysis', 'prd',
+    'project_id', 'version_no', 'stage_status', 'pertanyaan', 'answers', 'pertanyaan_mobile', 'mobile_answers', 'analysis', 'prd',
     'architecture', 'erd', 'api_contract', 'phases', 'master_prompt',
     'standards', 'agents', 'tracking_token',
     'mobile_phases', 'mobile_master_prompt', 'mobile_standards', 'mobile_agents',
@@ -23,6 +23,7 @@ class Version extends Model
         return [
             'stage_status' => 'array',
             'answers' => 'array',
+            'mobile_answers' => 'array',
             'erd' => 'array',
             'api_contract' => 'array',
             'phases' => 'array',
@@ -49,14 +50,15 @@ class Version extends Model
             'prd' => 'pending',
             'architecture' => 'pending',
             'erd' => 'pending',
-            'standards_web' => 'pending',
-            'agents_web' => 'pending',
+            'api_contract' => 'pending',
             'phases_web' => 'pending',
+            'standards_web' => 'pending',
             'master_web' => 'pending',
+            'pertanyaan_mobile' => 'pending',
             'phases_mobile' => 'pending',
             'standards_mobile' => 'pending',
-            'agents_mobile' => 'pending',
             'master_mobile' => 'pending',
+            'agents' => 'pending',
         ];
     }
 }

@@ -1,21 +1,22 @@
 export type Target = "web" | "both";
-export type StageKey = "pertanyaan" | "analisa" | "prd" | "architecture" | "erd" | "standards_web" | "agents_web" | "phases_web" | "master_web" | "phases_mobile" | "standards_mobile" | "agents_mobile" | "master_mobile";
+export type StageKey = "pertanyaan" | "analisa" | "prd" | "architecture" | "erd" | "api_contract" | "phases_web" | "standards_web" | "master_web" | "pertanyaan_mobile" | "phases_mobile" | "standards_mobile" | "master_mobile" | "agents";
 export type StageState = "pending" | "running" | "done" | "error";
 
 const ALL_STAGES: { key: StageKey; label: string; desc: string }[] = [
-  { key: "pertanyaan", label: "Klarifikasi", desc: "AI mengajukan pertanyaan klarifikasi tentang ide kamu." },
+  { key: "pertanyaan", label: "Klarifikasi", desc: "AI mengajukan pertanyaan klarifikasi (MCQ) tentang ide kamu." },
   { key: "analisa", label: "Analisa", desc: "AI menganalisa ide berdasarkan jawaban kamu." },
   { key: "prd", label: "PRD", desc: "Dokumen kebutuhan produk terstruktur." },
   { key: "architecture", label: "Arsitektur", desc: "Struktur folder & pilihan teknologi." },
   { key: "erd", label: "ERD", desc: "Skema data dalam bahasa sederhana." },
-  { key: "standards_web", label: "Web — Standards", desc: "STANDARDS.md untuk proyek web." },
-  { key: "agents_web", label: "Web — Agents", desc: "AGENTS.md untuk proyek web." },
+  { key: "api_contract", label: "API Contract", desc: "Daftar endpoint REST lengkap dengan parameter." },
   { key: "phases_web", label: "Web — Phases", desc: "Breakdown fase pembangunan web." },
+  { key: "standards_web", label: "Web — Standards", desc: "STANDARDS.md untuk proyek web." },
   { key: "master_web", label: "Web — Master Prompt", desc: "Master prompt self-contained untuk AI agent web." },
+  { key: "pertanyaan_mobile", label: "Mobile — Klarifikasi", desc: "AI mengajukan pertanyaan klarifikasi khusus mobile (MCQ)." },
   { key: "phases_mobile", label: "Mobile — Phases", desc: "Breakdown fase pembangunan mobile." },
   { key: "standards_mobile", label: "Mobile — Standards", desc: "STANDARDS.md untuk proyek mobile." },
-  { key: "agents_mobile", label: "Mobile — Agents", desc: "AGENTS.md untuk proyek mobile." },
   { key: "master_mobile", label: "Mobile — Master Prompt", desc: "Master prompt self-contained untuk AI agent mobile." },
+  { key: "agents", label: "Agents", desc: "AGENTS.md — spesifikasi AI agent." },
 ];
 
 export function getStages(target: Target): { key: StageKey; label: string; desc: string }[] {

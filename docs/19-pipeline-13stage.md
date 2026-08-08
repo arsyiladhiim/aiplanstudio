@@ -1,8 +1,7 @@
-# 19 — Pipeline 13-Stage Overhaul (Web + Mobile)
+# 19 — Pipeline 14-Stage Overhaul (Web + Mobile + MCQ Questions)
 
 > **Checkpoint dokumentasi untuk AI Agent.** Baca ini dulu sebelum mengubah kode pipeline.
-> Status: **[x] DONE** — semua checkpoint A–I selesai.
-> Jika sesi terputus, lanjut dari checkpoint terakhir di Bagian Z.
+> Status: **DEPRECATED** — lihat [docs/20-dynamic-mcq-questions.md](20-dynamic-mcq-questions.md) untuk versi terbaru (14 stage dengan MCQ).
 
 ---
 

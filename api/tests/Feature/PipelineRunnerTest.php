@@ -98,9 +98,11 @@ class PipelineRunnerTest extends TestCase
     {
         $default = Version::defaultStageStatus();
         $expected = [
-            'pertanyaan', 'analisa', 'prd', 'architecture', 'erd',
-            'standards_web', 'agents_web', 'phases_web', 'master_web',
-            'phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile',
+            'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
+            'phases_web', 'standards_web', 'master_web',
+            'pertanyaan_mobile',
+            'phases_mobile', 'standards_mobile', 'master_mobile',
+            'agents',
         ];
         foreach ($expected as $stage) {
             $this->assertArrayHasKey($stage, $default);
@@ -130,9 +132,11 @@ class PipelineRunnerTest extends TestCase
     public function test_all_stages_defined(): void
     {
         $expected = [
-            'pertanyaan', 'analisa', 'prd', 'architecture', 'erd',
-            'standards_web', 'agents_web', 'phases_web', 'master_web',
-            'phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile',
+            'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
+            'phases_web', 'standards_web', 'master_web',
+            'pertanyaan_mobile',
+            'phases_mobile', 'standards_mobile', 'master_mobile',
+            'agents',
         ];
         $const = (new \ReflectionClass(PipelineRunner::class))->getConstant('ALL_STAGES');
         $this->assertEquals($expected, $const);
@@ -194,9 +198,11 @@ class PipelineRunnerTest extends TestCase
         $ref->setAccessible(true);
 
         $stages = [
-            'pertanyaan', 'analisa', 'prd', 'architecture', 'erd',
-            'standards_web', 'agents_web', 'phases_web', 'master_web',
-            'phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile',
+            'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
+            'phases_web', 'standards_web', 'master_web',
+            'pertanyaan_mobile',
+            'phases_mobile', 'standards_mobile', 'master_mobile',
+            'agents',
         ];
         foreach ($stages as $stage) {
             $prompt = $ref->invoke($runner, $stage, 'web');

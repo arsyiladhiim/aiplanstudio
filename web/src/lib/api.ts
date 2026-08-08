@@ -328,6 +328,8 @@ export type Version = {
   stage_status: Record<string, string>;
   pertanyaan?: string;
   answers?: Record<string, string>;
+  pertanyaan_mobile?: string;
+  mobile_answers?: Record<string, string>;
   analysis?: string;
   prd?: string;
   architecture?: string;
@@ -344,6 +346,30 @@ export type Version = {
   mobile_agents?: string;
   project?: Project;
   phaseProgress?: Array<{ id?: number; phase_key: string; done: boolean }>;
+};
+
+export type McqOption = {
+  key: string;
+  text: string;
+  recommended: boolean;
+  custom?: string;
+};
+
+export type McqQuestion = {
+  id: string;
+  question: string;
+  options: McqOption[];
+  recommendation_reason?: string;
+};
+
+export type McqData = {
+  ambiguities: string[];
+  questions: McqQuestion[];
+};
+
+export type McqAnswer = {
+  selected: string;
+  custom_text?: string;
 };
 export type Activity = {
   id: number;

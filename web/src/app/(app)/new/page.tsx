@@ -5,7 +5,7 @@ import { Card, Badge, Textarea, Label, Markdown } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { ErdDiagram } from "@/components/wizard/ErdDiagram";
 import { getStages, type StageKey, type StageState, type Target } from "@/lib/mock";
-import { apiPost, apiGet, apiPatch, createSSEPost, type Project, type Template, type Version } from "@/lib/api";
+import { apiPost, apiGet, apiPatch, createSSEPost, type Project, type Template, type Version, type McqData, type McqQuestion, type McqAnswer } from "@/lib/api";
 import {
   Wand2, Globe, Layers, Loader2, Check, Copy, ArrowRight,
   RotateCcw, CircleDot, Sparkles, AlertCircle, Pencil,
@@ -44,6 +44,8 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [title, setTitle] = useState("");
   const [target, setTarget] = useState<Target>("web");
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [mcqAnswers, setMcqAnswers] = useState<Record<string, McqAnswer>>({});
+  const [mobileMcqAnswers, setMobileMcqAnswers] = useState<Record<string, McqAnswer>>({});
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [current, setCurrent] = useState(0);
@@ -77,21 +79,47 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const fallbackFetched = useRef(new Set<string>());
   const outputRef = useRef<HTMLDivElement>(null);
 
-  // Derive questions from artifacts.pertanyaan (instead of setQuestions in effect)
+  // Parse MCQ JSON from pertanyaan artifact; fallback to plain text
+  const mcqData = useMemo((): McqData | null => {
+    if (!artifacts.pertanyaan) return null;
+    try {
+      const raw = artifacts.pertanyaan.trim();
+      const first = raw.indexOf('{');
+      const last = raw.lastIndexOf('}');
+      if (first === -1 || last === -1) return null;
+      const json = raw.slice(first, last + 1);
+      const parsed = JSON.parse(json) as McqData;
+      if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) return parsed;
+      return null;
+    } catch { return null; }
+  }, [artifacts.pertanyaan]);
+
+  const mcqMobileData = useMemo((): McqData | null => {
+    if (!artifacts.pertanyaan_mobile) return null;
+    try {
+      const raw = artifacts.pertanyaan_mobile.trim();
+      const first = raw.indexOf('{');
+      const last = raw.lastIndexOf('}');
+      if (first === -1 || last === -1) return null;
+      const json = raw.slice(first, last + 1);
+      const parsed = JSON.parse(json) as McqData;
+      if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) return parsed;
+      return null;
+    } catch { return null; }
+  }, [artifacts.pertanyaan_mobile]);
+
+  // Legacy plain-text questions fallback
   const questions = useMemo(() => {
+    if (mcqData) return [] as string[];
     if (!artifacts.pertanyaan) return [] as string[];
     const lines = artifacts.pertanyaan.split('\n').filter((l: string) => l.trim());
     let parsed = lines
       .filter((l: string) => /^\d+[.)]\s/.test(l.trim()))
       .map((l: string) => l.replace(/^\d+[.)]\s*/, '').trim());
-    if (parsed.length === 0) {
-      parsed = lines.filter((l: string) => l.trim().endsWith('?'));
-    }
-    if (parsed.length === 0) {
-      parsed = ['Jelaskan lebih detail tentang aplikasi yang kamu inginkan?'];
-    }
+    if (parsed.length === 0) parsed = lines.filter((l: string) => l.trim().endsWith('?'));
+    if (parsed.length === 0) parsed = ['Jelaskan lebih detail tentang aplikasi yang kamu inginkan?'];
     return parsed;
-  }, [artifacts.pertanyaan]);
+  }, [artifacts.pertanyaan, mcqData]);
 
   // handleSSEEvent must be defined before startPipeline
   const handleSSEEvent = useCallback((event: string, rawData: unknown) => {
@@ -211,9 +239,12 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   useEffect(() => {
     if (!versionId) return;
     const colMap: Record<string, string> = {
+      pertanyaan: 'pertanyaan', pertanyaan_mobile: 'pertanyaan_mobile',
       analisa: 'analysis', prd: 'prd', architecture: 'architecture', erd: 'erd',
-      standards_web: 'standards', agents_web: 'agents', phases_web: 'phases', master_web: 'master_prompt',
-      phases_mobile: 'mobile_phases', standards_mobile: 'mobile_standards', agents_mobile: 'mobile_agents', master_mobile: 'mobile_master_prompt',
+      api_contract: 'api_contract',
+      phases_web: 'phases', standards_web: 'standards', master_web: 'master_prompt',
+      phases_mobile: 'mobile_phases', standards_mobile: 'mobile_standards', master_mobile: 'mobile_master_prompt',
+      agents: 'agents',
     };
     const missing = stages.filter(s =>
       status[s.key] === 'done' && !artifacts[s.key] && !fallbackFetched.current.has(s.key)
@@ -259,18 +290,19 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
       const colMap: Record<string, keyof Version> = {
         pertanyaan: 'pertanyaan',
+        pertanyaan_mobile: 'pertanyaan_mobile',
         analisa: 'analysis',
         prd: 'prd',
         architecture: 'architecture',
         erd: 'erd',
-        standards_web: 'standards',
-        agents_web: 'agents',
+        api_contract: 'api_contract',
         phases_web: 'phases',
+        standards_web: 'standards',
         master_web: 'master_prompt',
         phases_mobile: 'mobile_phases',
         standards_mobile: 'mobile_standards',
-        agents_mobile: 'mobile_agents',
         master_mobile: 'mobile_master_prompt',
+        agents: 'agents',
       };
       const loaded: Record<string, string> = {};
       stages.forEach(s => {
@@ -636,43 +668,215 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
               <>
                 {activeKey === "pertanyaan" && status.pertanyaan === "done" ? (
                   <div className="space-y-4">
-                    <h4 className="font-semibold">Jawab pertanyaan klarifikasi berikut:</h4>
-                    {questions.length === 0 && artifacts.pertanyaan && (
-                      <div className="text-sm text-[var(--color-fg-muted)]">Memproses pertanyaan...</div>
+                    {mcqData ? (
+                      <>
+                        {mcqData.ambiguities.length > 0 && (
+                          <div className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                            <p className="mb-1 text-xs font-semibold text-amber-600">Area yang perlu diperjelas:</p>
+                            <ul className="space-y-0.5">
+                              {mcqData.ambiguities.map((a, i) => (
+                                <li key={i} className="text-xs text-amber-700">• {a}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {mcqData.questions.map((q: McqQuestion, i: number) => (
+                          <div key={q.id || i} className="rounded-xl border border-[var(--color-border)] p-4">
+                            <p className="mb-3 font-medium">{i + 1}. {q.question}</p>
+                            <div className="space-y-2">
+                              {q.options.map((opt) => {
+                                const isSelected = mcqAnswers[q.id]?.selected === opt.key;
+                                return (
+                                  <button
+                                    key={opt.key}
+                                    onClick={() => setMcqAnswers(prev => ({
+                                      ...prev,
+                                      [q.id]: { selected: opt.key, custom_text: opt.custom }
+                                    }))}
+                                    className={`w-full rounded-lg border p-3 text-left text-sm transition ${
+                                      isSelected
+                                        ? "border-[var(--color-brand)] bg-[color-mix(in_oklab,var(--color-brand)_10%,transparent)]"
+                                        : "border-[var(--color-border)] hover:border-[var(--color-brand)]/50"
+                                    }`}
+                                  >
+                                    <span className="mr-2 font-mono text-xs font-bold">{opt.key}.</span>
+                                    {opt.text}
+                                    {opt.recommended && (
+                                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">(Rekomendasi AI)</span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                              {mcqAnswers[q.id]?.selected === "E" && (
+                                <textarea
+                                  rows={2}
+                                  value={mcqAnswers[q.id]?.custom_text || ""}
+                                  onChange={(e) => setMcqAnswers(prev => ({
+                                    ...prev,
+                                    [q.id]: { ...prev[q.id], custom_text: e.target.value }
+                                  }))}
+                                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm"
+                                  placeholder="Jelaskan pilihan Anda..."
+                                />
+                              )}
+                              {q.recommendation_reason && mcqAnswers[q.id] && (
+                                <p className="mt-1 rounded bg-[var(--color-surface-2)] p-2 text-xs text-[var(--color-fg-muted)] italic">
+                                  💡 {q.recommendation_reason}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        <Button
+                          onClick={async () => {
+                            if (!versionId) return;
+                            const formatted: Record<string, string> = {};
+                            Object.entries(mcqAnswers).forEach(([qId, ans]) => {
+                              const q = mcqData.questions.find((x) => x.id === qId);
+                              formatted[`${qId}: ${q?.question || ""}`] = ans.selected === "E"
+                                ? `E. Lainnya: ${ans.custom_text || ""}`
+                                : `${ans.selected}. ${q?.options.find(o => o.key === ans.selected)?.text || ""}`;
+                            });
+                            await apiPatch(`/versions/${versionId}/answers`, { answers: formatted });
+                            const nextStage = stages[current + 1]?.key;
+                            if (nextStage && versionId) {
+                              setStatus(s => ({ ...s, [nextStage]: 'running' }));
+                              setCurrent(current + 1);
+                              if (abortRef.current) abortRef.current.abort();
+                              createSSEPost(`/generate/stream`, { version: versionId, stage: nextStage }, handleSSEEvent,
+                                (err) => { console.error('SSE error:', err); setError('Koneksi SSE terputus'); }
+                              ).then(ctrl => { abortRef.current = ctrl; });
+                            }
+                          }}
+                          disabled={mcqData.questions.some((q: McqQuestion) => !mcqAnswers[q.id])}
+                        >
+                          <ArrowRight size={15} /> Kirim Jawaban & Lanjutkan
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <h4 className="font-semibold">Jawab pertanyaan klarifikasi berikut:</h4>
+                        {questions.length === 0 && artifacts.pertanyaan && (
+                          <div className="text-sm text-[var(--color-fg-muted)]">Memproses pertanyaan...</div>
+                        )}
+                        {questions.map((q: string, i: number) => (
+                          <div key={i}>
+                            <Label>{q}</Label>
+                            <textarea
+                              rows={2}
+                              value={answers[q] || ''}
+                              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setAnswers(prev => ({ ...prev, [q]: e.target.value }))}
+                              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm"
+                              placeholder="Tulis jawaban kamu..."
+                            />
+                          </div>
+                        ))}
+                        <Button
+                          onClick={async () => {
+                            if (!versionId) return;
+                            await apiPatch(`/versions/${versionId}/answers`, { answers });
+                            const nextStage = stages[current + 1]?.key;
+                            if (nextStage && versionId) {
+                              setStatus(s => ({ ...s, [nextStage]: 'running' }));
+                              setCurrent(current + 1);
+                              if (abortRef.current) abortRef.current.abort();
+                              createSSEPost(`/generate/stream`, { version: versionId, stage: nextStage }, handleSSEEvent,
+                                (err) => { console.error('SSE error:', err); setError('Koneksi SSE terputus'); }
+                              ).then(ctrl => { abortRef.current = ctrl; });
+                            }
+                          }}
+                          disabled={!Object.values(answers).some(a => a.trim())}
+                        >
+                          <ArrowRight size={15} /> Kirim Jawaban & Lanjutkan
+                        </Button>
+                      </>
                     )}
-                    {questions.map((q, i) => (
-                      <div key={i}>
-                        <Label>{q}</Label>
-                        <textarea
-                          rows={2}
-                          value={answers[q] || ''}
-                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setAnswers(prev => ({ ...prev, [q]: e.target.value }))}
-                          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm"
-                          placeholder="Tulis jawaban kamu..."
-                        />
-                      </div>
-                    ))}
-                    <Button
-                      onClick={async () => {
-                        if (!versionId) return;
-                        await apiPatch(`/versions/${versionId}/answers`, { answers });
-                        const nextStage = stages[current + 1]?.key;
-                        if (nextStage && versionId) {
-                          setStatus(s => ({ ...s, [nextStage]: 'running' }));
-                          setCurrent(current + 1);
-                          if (abortRef.current) abortRef.current.abort();
-                          createSSEPost(
-                            `/generate/stream`,
-                            { version: versionId, stage: nextStage },
-                            handleSSEEvent,
-                            (err) => { console.error('SSE error:', err); setError('Koneksi SSE terputus'); }
-                          ).then(ctrl => { abortRef.current = ctrl; });
-                        }
-                      }}
-                      disabled={!Object.values(answers).some(a => a.trim())}
-                    >
-                      <ArrowRight size={15} /> Kirim Jawaban & Lanjutkan
-                    </Button>
+                  </div>
+                ) : activeKey === "pertanyaan_mobile" && status.pertanyaan_mobile === "done" ? (
+                  <div className="space-y-4">
+                    {mcqMobileData ? (
+                      <>
+                        {mcqMobileData.ambiguities.length > 0 && (
+                          <div className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                            <p className="mb-1 text-xs font-semibold text-amber-600">Area mobile yang perlu diperjelas:</p>
+                            <ul className="space-y-0.5">
+                              {mcqMobileData.ambiguities.map((a, i) => (
+                                <li key={i} className="text-xs text-amber-700">• {a}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {mcqMobileData.questions.map((q: McqQuestion, i: number) => (
+                          <div key={q.id || i} className="rounded-xl border border-[var(--color-border)] p-4">
+                            <p className="mb-3 font-medium">{i + 1}. {q.question}</p>
+                            <div className="space-y-2">
+                              {q.options.map((opt) => {
+                                const isSelected = mobileMcqAnswers[q.id]?.selected === opt.key;
+                                return (
+                                  <button
+                                    key={opt.key}
+                                    onClick={() => setMobileMcqAnswers(prev => ({
+                                      ...prev,
+                                      [q.id]: { selected: opt.key, custom_text: opt.custom }
+                                    }))}
+                                    className={`w-full rounded-lg border p-3 text-left text-sm transition ${
+                                      isSelected
+                                        ? "border-[var(--color-brand)] bg-[color-mix(in_oklab,var(--color-brand)_10%,transparent)]"
+                                        : "border-[var(--color-border)] hover:border-[var(--color-brand)]/50"
+                                    }`}
+                                  >
+                                    <span className="mr-2 font-mono text-xs font-bold">{opt.key}.</span>
+                                    {opt.text}
+                                    {opt.recommended && (
+                                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">(Rekomendasi AI)</span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                              {mobileMcqAnswers[q.id]?.selected === "E" && (
+                                <textarea
+                                  rows={2}
+                                  value={mobileMcqAnswers[q.id]?.custom_text || ""}
+                                  onChange={(e) => setMobileMcqAnswers(prev => ({
+                                    ...prev,
+                                    [q.id]: { ...prev[q.id], custom_text: e.target.value }
+                                  }))}
+                                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm"
+                                  placeholder="Jelaskan pilihan Anda..."
+                                />
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        <Button
+                          onClick={async () => {
+                            if (!versionId) return;
+                            const formatted: Record<string, string> = {};
+                            Object.entries(mobileMcqAnswers).forEach(([qId, ans]) => {
+                              const q = mcqMobileData.questions.find((x) => x.id === qId);
+                              formatted[`${qId}: ${q?.question || ""}`] = ans.selected === "E"
+                                ? `E. Lainnya: ${ans.custom_text || ""}`
+                                : `${ans.selected}. ${q?.options.find(o => o.key === ans.selected)?.text || ""}`;
+                            });
+                            await apiPatch(`/versions/${versionId}/answers`, { answers: {}, mobile_answers: formatted });
+                            const nextStage = stages[current + 1]?.key;
+                            if (nextStage && versionId) {
+                              setStatus(s => ({ ...s, [nextStage]: 'running' }));
+                              setCurrent(current + 1);
+                              if (abortRef.current) abortRef.current.abort();
+                              createSSEPost(`/generate/stream`, { version: versionId, stage: nextStage }, handleSSEEvent,
+                                (err) => { console.error('SSE error:', err); setError('Koneksi SSE terputus'); }
+                              ).then(ctrl => { abortRef.current = ctrl; });
+                            }
+                          }}
+                          disabled={mcqMobileData.questions.some((q: McqQuestion) => !mobileMcqAnswers[q.id])}
+                        >
+                          <ArrowRight size={15} /> Kirim Jawaban Mobile & Lanjutkan
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="text-sm text-[var(--color-fg-muted)]">Memproses pertanyaan mobile...</div>
+                    )}
                   </div>
                 ) : (activeKey === "erd" && status.erd === "done") || (activeKey === "architecture" && status.architecture === "done") || (activeKey === "master_web" && status.master_web === "done") ? null : (
                   <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">

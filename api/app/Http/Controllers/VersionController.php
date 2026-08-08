@@ -189,7 +189,7 @@ class VersionController extends Controller
     public function updateArtifact(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'stage' => ['required', 'string', 'in:pertanyaan,analisa,prd,architecture,erd,master_web,master_mobile'],
+            'stage' => ['required', 'string', 'in:pertanyaan,pertanyaan_mobile,analisa,prd,architecture,erd,master_web,master_mobile'],
             'content' => ['required', 'string'],
         ]);
 
@@ -198,6 +198,7 @@ class VersionController extends Controller
 
         $colMap = [
             'pertanyaan' => 'pertanyaan',
+            'pertanyaan_mobile' => 'pertanyaan_mobile',
             'analisa' => 'analysis',
             'prd' => 'prd',
             'architecture' => 'architecture',
@@ -305,12 +306,19 @@ class VersionController extends Controller
         $data = $request->validate([
             'answers' => ['required', 'array'],
             'answers.*' => ['required', 'string'],
+            'mobile_answers' => ['sometimes', 'array'],
+            'mobile_answers.*' => ['required', 'string'],
         ]);
 
         $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->findOrFail($id);
 
-        $version->update(['answers' => $data['answers']]);
+        $updates = ['answers' => $data['answers']];
+        if (isset($data['mobile_answers'])) {
+            $updates['mobile_answers'] = $data['mobile_answers'];
+        }
+
+        $version->update($updates);
 
         return response()->json(['ok' => true, 'message' => 'Jawaban disimpan.']);
     }
