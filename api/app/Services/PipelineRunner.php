@@ -305,6 +305,17 @@ class PipelineRunner
             // parseArchText hanya opsional untuk validasi diagram; bila output
             // tidak berupa diagram, tetap simpan sebagai teks (jangan gagal).
             $this->emit('artifact', ['stage' => $key, 'content' => $content]);
+        } elseif ($key === 'pertanyaan' || $key === 'pertanyaan_mobile') {
+            // Simpan & emit sebagai JSON bersih bila output AI valid (hindari
+            // flash fallback di frontend akibat prose/fence/trailing comma).
+            $cleaned = $this->extractJson($content);
+            $decoded = $this->tryJsonDecode($cleaned);
+            if ($decoded !== null) {
+                $value = json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+                $this->emit('artifact', ['stage' => $key, 'content' => $value]);
+            } else {
+                $this->emit('artifact', ['stage' => $key, 'content' => $content]);
+            }
         } elseif ($key === 'erd') {
             $parsed = $this->parseErdText($content);
             if ($parsed !== null) {

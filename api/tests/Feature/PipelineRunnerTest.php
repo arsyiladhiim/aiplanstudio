@@ -444,4 +444,34 @@ class PipelineRunnerTest extends TestCase
 
         $this->assertSame(0, $ref->invoke($runner, $content));
     }
+
+    public function test_save_pertanyaan_stores_clean_json_when_valid(): void
+    {
+        $content = "Berikut pertanyaan:\n```json\n{\"ambiguities\":[\"a\"],\"questions\":[{\"id\":\"q1\",\"question\":\"Q?\",\"options\":[]}]}\n```";
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'pertanyaan', $content);
+        $this->version->refresh();
+
+        $decoded = json_decode($this->version->pertanyaan, true);
+        $this->assertIsArray($decoded);
+        $this->assertSame(1, count($decoded['questions'] ?? []));
+    }
+
+    public function test_save_pertanyaan_stores_raw_when_invalid(): void
+    {
+        $content = 'ini bukan json sama sekali';
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'pertanyaan', $content);
+        $this->version->refresh();
+
+        $this->assertSame('ini bukan json sama sekali', $this->version->pertanyaan);
+    }
 }

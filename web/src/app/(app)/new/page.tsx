@@ -80,34 +80,44 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const fallbackFetched = useRef(new Set<string>());
   const outputRef = useRef<HTMLDivElement>(null);
 
-  // Parse MCQ JSON from pertanyaan artifact; fallback to plain text
+  // Parse MCQ JSON toleran: strip fence, buang trailing comma, ambil blok {..} terluar valid.
+  const parseMcq = useCallback((raw: string): McqData | null => {
+    if (!raw) return null;
+    const attempt = (json: string): McqData | null => {
+      try {
+        const cleaned = json.replace(/,\s*([\]}])/g, "$1");
+        const parsed = JSON.parse(cleaned) as McqData;
+        if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+          return parsed;
+        }
+      } catch { /* fallthrough */ }
+      return null;
+    };
+
+    // Direct attempt
+    const direct = attempt(raw);
+    if (direct) return direct;
+
+    // Strip code fences, lalu ambil blok { } terluar
+    const unFenced = raw.replace(/```(?:json)?/gi, '').trim();
+    const first = unFenced.indexOf('{');
+    const last = unFenced.lastIndexOf('}');
+    if (first !== -1 && last !== -1 && last > first) {
+      const block = attempt(unFenced.slice(first, last + 1));
+      if (block) return block;
+    }
+    return null;
+  }, []);
+
   const mcqData = useMemo((): McqData | null => {
     if (!artifacts.pertanyaan) return null;
-    try {
-      const raw = artifacts.pertanyaan.trim();
-      const first = raw.indexOf('{');
-      const last = raw.lastIndexOf('}');
-      if (first === -1 || last === -1) return null;
-      const json = raw.slice(first, last + 1);
-      const parsed = JSON.parse(json) as McqData;
-      if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) return parsed;
-      return null;
-    } catch { return null; }
-  }, [artifacts.pertanyaan]);
+    return parseMcq(artifacts.pertanyaan);
+  }, [artifacts.pertanyaan, parseMcq]);
 
   const mcqMobileData = useMemo((): McqData | null => {
     if (!artifacts.pertanyaan_mobile) return null;
-    try {
-      const raw = artifacts.pertanyaan_mobile.trim();
-      const first = raw.indexOf('{');
-      const last = raw.lastIndexOf('}');
-      if (first === -1 || last === -1) return null;
-      const json = raw.slice(first, last + 1);
-      const parsed = JSON.parse(json) as McqData;
-      if (parsed.questions && Array.isArray(parsed.questions) && parsed.questions.length > 0) return parsed;
-      return null;
-    } catch { return null; }
-  }, [artifacts.pertanyaan_mobile]);
+    return parseMcq(artifacts.pertanyaan_mobile);
+  }, [artifacts.pertanyaan_mobile, parseMcq]);
 
   // Legacy plain-text questions fallback
   const questions = useMemo(() => {
@@ -149,7 +159,15 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       case 'status': {
         const stage = data.stage as string | undefined;
         if (stage) {
-          setStatus(s => ({ ...s, [stage]: data.state as StageState }));
+          const state = data.state as string;
+          if (state === 'retrying') {
+            // Retry: buat buffer baru agar attempt baru tidak menumpuk → JSON korup.
+            // Status tetap 'running' agar modal loading tampil (bukan flash teks parsial).
+            setArtifacts(prev => ({ ...prev, [stage as StageKey]: '' }));
+            setStatus(s => ({ ...s, [stage]: 'running' as StageState }));
+          } else {
+            setStatus(s => ({ ...s, [stage]: state as StageState }));
+          }
           if (data.state === 'running') {
             const idx = stages.findIndex(x => x.key === stage);
             if (idx >= 0) setCurrent(idx);
