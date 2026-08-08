@@ -74,6 +74,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [deleting, setDeleting] = useState(false);
   const [editingStage, setEditingStage] = useState<StageKey | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const cancelled = useRef(false);
@@ -162,8 +163,9 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           const state = data.state as string;
           if (state === 'retrying') {
             // Retry: buat buffer baru agar attempt baru tidak menumpuk → JSON korup.
-            // Status tetap 'running' agar modal loading tampil (bukan flash teks parsial).
+            // Status tetap 'running' agar modal loading tampil; retryInfo menampilkan percobaan.
             setArtifacts(prev => ({ ...prev, [stage as StageKey]: '' }));
+            setRetryInfo({ attempt: Number(data.attempt ?? 1), max: Number(data.max ?? 0) });
             setStatus(s => ({ ...s, [stage]: 'running' as StageState }));
           } else {
             setStatus(s => ({ ...s, [stage]: state as StageState }));
@@ -171,6 +173,9 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           if (data.state === 'running') {
             const idx = stages.findIndex(x => x.key === stage);
             if (idx >= 0) setCurrent(idx);
+          }
+          if (data.state === 'done') {
+            setRetryInfo(null);
           }
         }
         break;
@@ -1251,6 +1256,12 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                   Tahap {current + 1}/{stages.length}: {stages[current].label}
                 </div>
                 <div className="text-sm text-[var(--color-fg-muted)]">{stages[current].desc}</div>
+                {retryInfo && (
+                  <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600">
+                    <Loader2 size={12} className="animate-spin" />
+                    Percobaan ulang {retryInfo.attempt}{retryInfo.max ? `/${retryInfo.max}` : ""} — mencari minimal 5 pertanyaan
+                  </div>
+                )}
               </div>
             </div>
 

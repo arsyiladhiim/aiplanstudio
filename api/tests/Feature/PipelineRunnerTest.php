@@ -474,4 +474,11 @@ class PipelineRunnerTest extends TestCase
 
         $this->assertSame('ini bukan json sama sekali', $this->version->pertanyaan);
     }
+
+    public function test_mcq_retry_constants(): void
+    {
+        $this->assertGreaterThanOrEqual(60, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_RETRIES'));
+        $this->assertSame(5, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MIN_MCQ_QUESTIONS'));
+        $this->assertSame(10, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_QUESTIONS'));
+    }
 }

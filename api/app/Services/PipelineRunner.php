@@ -364,7 +364,9 @@ class PipelineRunner
 
     private const MIN_MCQ_QUESTIONS = 5;
 
-    private const MAX_MCQ_RETRIES = 4;
+    private const MAX_MCQ_QUESTIONS = 10;
+
+    private const MAX_MCQ_RETRIES = 180;
 
     private function retryPertanyaanForMinimum(string $content): string
     {
@@ -372,17 +374,34 @@ class PipelineRunner
             return $content;
         }
 
-        $prompt = $this->contextPrompt('pertanyaan', $this->version);
-        for ($i = 1; $i <= self::MAX_MCQ_RETRIES; $i++) {
-            $this->emit('status', ['stage' => 'pertanyaan', 'state' => 'retrying', 'attempt' => $i, 'message' => "Pertanyaan kurang dari ".self::MIN_MCQ_QUESTIONS.', generate ulang...']);
-            $content = $this->runStage('pertanyaan', null, 'Kamu sebelumnya mengeluarkan kurang dari '.self::MIN_MCQ_QUESTIONS.' pertanyaan. Output ulang SELURUH JSON dengan minimal '.self::MIN_MCQ_QUESTIONS.' pertanyaan (target 5-10) berdasarkan konteks ini: '.$prompt);
-            if ($this->mcqCount($content) >= self::MIN_MCQ_QUESTIONS) {
-                break;
+        // Instruksi retry singkat & keras: HANYA JSON, mulai langsung dengan {, tanpa prosa/fence.
+        $instruction = 'Output HANYA satu blok JSON valid dimulai langsung dengan "{". Tanpa prosa, tanpa markdown, tanpa ``` fence, tanpa komentar. WAJIB minimal '.self::MIN_MCQ_QUESTIONS.' pertanyaan (target '.self::MIN_MCQ_QUESTIONS.'-'.self::MAX_MCQ_QUESTIONS.').';
+
+        $best = $content;
+        $bestCount = $this->mcqCount($content);
+
+        for ($attempt = 1; $attempt <= self::MAX_MCQ_RETRIES; $attempt++) {
+            $this->emit('status', ['stage' => 'pertanyaan', 'state' => 'retrying', 'attempt' => $attempt, 'max' => self::MAX_MCQ_RETRIES, 'message' => "Pertanyaan kurang dari ".self::MIN_MCQ_QUESTIONS.', generate ulang percobaan ke-'.$attempt.'...']);
+            $content = $this->runStage('pertanyaan', null, $instruction);
+            $count = $this->mcqCount($content);
+
+            if ($count >= self::MIN_MCQ_QUESTIONS) {
+                $this->emit('status', ['stage' => 'pertanyaan', 'state' => 'running']);
+
+                return $content;
+            }
+
+            // Simpan hasil terbaik bila ada — biar ada data walau guard terlewati.
+            if ($count > $bestCount) {
+                $best = $content;
+                $bestCount = $count;
             }
         }
+
+        // Guard terlewati: return hasil terbaik (bukan null / bukan attempt terakhir yang cacat).
         $this->emit('status', ['stage' => 'pertanyaan', 'state' => 'running']);
 
-        return $content;
+        return $best;
     }
 
     private function mcqCount(string $content): int
