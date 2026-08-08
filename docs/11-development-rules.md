@@ -27,7 +27,7 @@
 ## D. AI Pipeline
 17. **Jangan percaya output AI mentah.** Stage yang menghasilkan JSON (`erd`, `phases`) wajib divalidasi (`json_decode` + cek struktur). Bila invalid → retry sekali atau tandai error, jangan simpan sampah.
 18. Prompt tiap **phase harus membawa konteks** phase sebelumnya (jaga benang merah).
-19. Prompt **target-aware** (Web/Mobile/Both) — jangan campur aduk output antar target.
+19. Prompt **target-aware** (Web/Both) — jangan campur aduk output antar target.
 20. SSE: pastikan buffering dimatikan di nginx & response Laravel (`X-Accel-Buffering: no`) agar realtime.
 
 ## E. Kualitas Kode

@@ -10,7 +10,7 @@
 - **TypeScript:** 0 errors ✅
 - **Build:** 17/17 pages ✅
 - **Auth:** Session-based (Sanctum SPA — HttpOnly cookie + CSRF) + User approval flow
-- **Pipeline:** 7 stages (pertanyaan→analisa→prd→architecture→erd→phased_master→phased_master_mobile)
+- **Pipeline:** 13 stages (pertanyaan→analisa→prd→architecture→erd→standards_web→agents_web→phases_web→master_web→phases_mobile→standards_mobile→agents_mobile→master_mobile)
 - **Testing:** Backend PHPUnit 131 pass ✅, Playwright E2E 10 test hijau ✅ (3 specs: auth, wizard, projects)
 - **Status:** Semua fase utama + next-progress P1-P14 selesai. Maintenance only (lihat [17-next-progress.md](17-next-progress.md) + [18-production-readiness.md](18-production-readiness.md))
 
@@ -56,9 +56,9 @@ Setiap fase baru boleh ditandai `[x]` bila:
 - [x] ProfileController: get/update user profile
 - [x] All admin-only routes protected by `role.admin` middleware
 
-### [x] F5 — Pipeline Backend (7 stages)
+### [x] F5 — Pipeline Backend (13 stages)
 - [x] `AiClient.php`: streaming OpenAI-compatible + Anthropic Claude
-- [x] `PipelineRunner.php`: 7 stages (pertanyaan→analisa→prd→architecture→erd→phased_master→phased_master_mobile)
+- [x] `PipelineRunner.php`: 13 stages (pertanyaan→analisa→prd→architecture→erd→standards_web→agents_web→phases_web→master_web→phases_mobile→standards_mobile→agents_mobile→master_mobile) + gate mobile
 - [x] SSE events: status, token, artifact, done, fail
 - [x] Auto-run & checkpoint modes
 - [x] JSON validation dengan multi-strategy retry

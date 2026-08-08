@@ -9,7 +9,7 @@ Semua fase utama (F0–F10, R1, P1–P14) **selesai**.
 **Tidak ada fase aktif.** Item di bawah ini adalah next steps terprioritas.
 
 **Yang sudah selesai:**
-- Backend Laravel (7-stage pipeline, auth, projects, versioning, activity log, API tokens)
+- Backend Laravel (13-stage pipeline, auth, projects, versioning, activity log, API tokens)
 - Frontend Next.js (17 pages, tsc 0 errors, lint 0 errors)
 - Full BFF pattern (nginx → Next.js → Laravel)
 - 3-schema PostgreSQL database
@@ -60,7 +60,7 @@ Semua fase utama (F0–F10, R1, P1–P14) **selesai**.
 
 **Cakupan spec aktual:**
 - `web/e2e/auth.spec.ts` — login, reject login salah, logout
-- `web/e2e/wizard.spec.ts` — wizard page, validasi, submit real AI pipeline (7-stage → phases persist)
+- `web/e2e/wizard.spec.ts` — wizard page, validasi, submit real AI pipeline (13-stage → phases persist)
 - `web/e2e/projects.spec.ts` — list, create, open detail, tabs, delete
 - `web/e2e/helpers.ts` — `ensureAuthed` (API login via global-setup) + `consoleErrorCollector`
 - `web/playwright.e2e.config.ts` — config E2E terpisah, 2x retry, screenshot/video retain-on-failure
@@ -89,13 +89,13 @@ docker run --rm --network host -v "$PWD/web":/work -w /work \
 
 **Result:** Pipeline penuh terverifikasi dengan AI provider nyata (`https://9r.arsyiladm.my.id/v1`, model `aiplanstudio`).
 
-Semua 6 stage (target web) berjalan end-to-end dan artifact persisted:
+Semua 9 stage (target web) berjalan end-to-end dan artifact persisted:
 - `pertanyaan` → text column ✅ (P1 fix diverifikasi di pipeline nyata)
 - `analisa` → analysis ✅
 - `prd` → prd ✅
 - `architecture` → architecture ✅ (raw text — fix parser terlalu strict)
 - `erd` → erd (JSON nodes/edges) + `api_contract` (6 endpoints) ✅
-- `phased_master` → phases + master_prompt + standards + agents ✅
+- `standards_web` → standards ✅, `agents_web` → agents ✅, `phases_web` → phases ✅, `master_web` → master_prompt ✅
 
 **Bug nyata ditemukan & diperbaiki saat P5:**
 1. **architecture stage selalu error** — `saveArtifact()` throw bila `parseArchText()` null, tapi prompt minta format bebas. Fix: architecture disimpan sebagai text mentah (sesuai docs), parse opsional.
@@ -219,6 +219,20 @@ Semua 6 stage (target web) berjalan end-to-end dan artifact persisted:
 - GlitchTip project frontend (JS, id=2) receives events ✅
 
 **Effort:** Medium (1-2 jam)
+
+### [x] [P15] Pipeline 13-Stage Overhaul ✅
+
+**Resolution:** Split `phased_master` dan `phased_master_mobile` menjadi 8 stage terpisah. Total 13 stage (both) / 9 stage (web). Hapus target `mobile` standalone. Gate: mobile track menunggu `master_web` done. Lihat [docs/19-pipeline-13stage.md](19-pipeline-13stage.md).
+
+- Backend: PipelineRunner ALL_STAGES 13, gate, systemPrompt/contextPrompt/saveArtifact per stage. Version::defaultStageStatus() 13 keys. GenerateStreamController validStages 13. Migrations/factories/seeders: enum `web|both`.
+- Frontend: mock.ts 13 StageKey, new/page.tsx colMap 13 stage + render + resume.
+- DB: truncated 5 pipeline tables, template "Mobile CRUD" target mobile→both.
+- Tests: 131 pass, tsc 0, lint 0.
+- Docs: 00-19 + web/AGENTS.md synced.
+
+**Files changed:** 21 files (commit `820f89a`) + 20 docs files (this commit).
+
+**Effort:** High (4-5 jam)
 
 ### [x] [P13] Dependency Security Audit Fix ✅
 

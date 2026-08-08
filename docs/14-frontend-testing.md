@@ -40,7 +40,7 @@ docker run --rm --network host -v "$PWD/web":/work -w /work \
 | Spec | Cakupan |
 |---|---|
 | `e2e/auth.spec.ts` | login sukses, login salah ditolak, logout |
-| `e2e/wizard.spec.ts` | render wizard, validasi input, submit → real AI pipeline (7-stage) → phases persist |
+| `e2e/wizard.spec.ts` | render wizard, validasi input, submit → real AI pipeline (13-stage) → phases persist |
 | `e2e/projects.spec.ts` | list project, create via API, open detail, tab navigasi, delete |
 
 Semua alur pakai real backend di Docker; test login tidak lewat UI throttle (`throttle:5,1`) — global-setup pakai API login sekali.

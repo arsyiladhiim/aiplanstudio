@@ -78,7 +78,7 @@ sessions, personal_access_tokens (Sanctum)
 |-------|------|---------|
 | id | bigint PK | |
 | name | string | mis. "SaaS Dashboard" |
-| target | enum `web`\|`mobile`\|`both` | |
+| target | enum `web`\|`both` | |
 | description | text nullable | |
 | seed | jsonb | nilai awal untuk mengisi wizard |
 | timestamps | | |
@@ -90,7 +90,7 @@ sessions, personal_access_tokens (Sanctum)
 | user_id | bigint FK → users | scoping kepemilikan |
 | title | string | |
 | idea | text | ide awal |
-| target | enum `web`\|`mobile`\|`both` | default `'web'`; menentukan output target-aware |
+| target | enum `web`\|`both` | default `'web'`; menentukan output target-aware |
 | stack | string nullable | preferensi stack (opsional) |
 | is_favorite | boolean default false | ditandai sebagai favorit |
 | timestamps | | |
@@ -101,9 +101,9 @@ sessions, personal_access_tokens (Sanctum)
 | id | bigint PK | |
 | project_id | bigint FK → projects | |
 | version_no | integer | 1, 2, 3 … ("update ke Versi 2") |
-| stage_status | jsonb | status 7 tahap: `{pertanyaan:'pending', analisa:'done', prd:'running', ...}` |
+| stage_status | jsonb | status 13 tahap (both) / 9 tahap (web): `{pertanyaan:'pending', analisa:'done', ...}` |
 
-Stage status keys: `pertanyaan`, `analisa`, `prd`, `architecture`, `erd`, `phased_master`, `phased_master_mobile`. Nilai: `pending` | `running` | `done` | `error`.
+Stage status keys: `pertanyaan`, `analisa`, `prd`, `architecture`, `erd`, `standards_web`, `agents_web`, `phases_web`, `master_web`, `phases_mobile`, `standards_mobile`, `agents_mobile`, `master_mobile`. Nilai: `pending` | `running` | `done` | `error`.
 
 | pertanyaan | text nullable | output tahap Pertanyaan Klarifikasi (migration 2026_08_06_000000) |
 | analysis | text nullable | hasil tahap Analisa |
@@ -112,7 +112,7 @@ Stage status keys: `pertanyaan`, `analisa`, `prd`, `architecture`, `erd`, `phase
 | erd | jsonb nullable | `{nodes:[], edges:[]}` untuk React Flow; `api_contract` juga disimpan di kolom terpisah |
 | api_contract | jsonb nullable | daftar endpoint terstruktur `{method,path,description,auth}`, diekstrak dari output ERD stage |
 | phases | jsonb nullable | `[{key,title,tasks,prompt}, ...]` — roadmap fase pembangunan |
-| master_prompt | text nullable | prompt utama gabungan (web/mobile tergantung target) |
+| master_prompt | text nullable | master prompt web self-contained (hasil stage master_web) |
 | timestamps | | created_at = timestamp versi |
 
 Unik: (`project_id`, `version_no`).
@@ -153,14 +153,14 @@ Unik: (`project_id`, `version_no`).
 |-------|------|---------|
 | answers | jsonb nullable | jawaban pertanyaan klarifikasi `{key: value}` (migration 2026_07_31_120000) |
 | tracking_token | string nullable | token untuk webhook phase tracking (migration 2026_07_31_120000) |
-| standards | text nullable | standar/target quality hasil dari phased_master (migration 2026_07_27_130000) |
-| agents | text nullable | daftar agen AI hasil dari phased_master (migration 2026_07_27_130000) |
+| standards | text nullable | STANDARDS.md web hasil dari stage `standards_web` (migration 2026_07_27_130000) |
+| agents | text nullable | AGENTS.md web hasil dari stage `agents_web` (migration 2026_07_27_130000) |
 | mobile_phases | jsonb nullable | phases untuk mobile (target='both' saja) |
 | mobile_master_prompt | text nullable | master prompt untuk mobile |
 | mobile_standards | text nullable | standards untuk mobile |
 | mobile_agents | text nullable | agents untuk mobile |
 
-> **Catatan:** Kolom `mobile_analysis`, `mobile_prd`, `mobile_architecture` **tidak ada** di schema. Output mobile menggunakan `architecture` dan `prd` yang sama; hanya phases dan master prompt yang memiliki versi mobile terpisah.
+> **Catatan:** Kolom `mobile_analysis`, `mobile_prd`, `mobile_architecture` **tidak ada** di schema. Output mobile menggunakan `architecture` dan `prd` yang sama; mobile mempunyai 4 field terpisah: `mobile_phases`, `mobile_standards`, `mobile_agents`, `mobile_master_prompt` (hasil mobile track stage 10-13).
 
 ### phase_progress — kolom tambahan
 | Kolom | Tipe | Catatan |
@@ -184,4 +184,4 @@ Unik: (`project_id`, `version_no`).
 ## Seeder Awal
 - 1 user admin default (kredensial ditaruh di `.env`, jangan hardcode di repo).
 - 1 baris `ai_providers` dengan default OpenAI (base_url=`https://api.openai.com/v1`, model=`gpt-4o`, api_key kosong — diisi admin lewat Settings).
-- 3 `templates` seed: "SaaS Dashboard" (web), "E-Commerce" (both), "Mobile CRUD" (mobile).
+- 3 `templates` seed: "SaaS Dashboard" (web), "E-Commerce" (both), "Mobile CRUD" (both).

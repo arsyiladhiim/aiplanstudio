@@ -13,7 +13,7 @@ Nilai utama: solo dev sering gagal saat memberi prompt manual ke AI karena konte
 - Ingin perencanaan cepat namun terstruktur tanpa menulis semua dokumen manual.
 
 ## Yang Dihasilkan (Output)
-Dari satu ide, app menghasilkan artefak berikut (target-aware — menyesuaikan Web/Mobile/Both):
+Dari satu ide, app menghasilkan artefak berikut (target-aware — menyesuaikan Web/Both):
 1. Analisa & klarifikasi kebutuhan
 2. PRD (Product Requirements Document)
 3. Arsitektur & tech stack
@@ -23,14 +23,14 @@ Dari satu ide, app menghasilkan artefak berikut (target-aware — menyesuaikan W
 
 ## Prinsip Kunci
 - **Bukan eksekutor kode.** App hanya menghasilkan dokumen & prompt. Eksekusi dilakukan AI agent eksternal.
-- **Target-aware.** Output menyesuaikan platform tujuan (stack, ERD, prompt berbeda untuk Web vs Mobile).
+- **Target-aware.** Output menyesuaikan platform tujuan (stack, ERD, prompt berbeda untuk Web vs Mobile dalam target both).
 - **Checkpoint-driven.** Wizard berhenti minta approve tiap tahap (bisa auto-run penuh bila diinginkan).
 - **Resumable & terdokumentasi.** Semua keputusan & progres tercatat agar bisa dilanjut kapan saja.
 
 ## Scope MVP
 - Auth multi-user (admin/member), User Management.
 - AI Provider global (OpenAI-compatible) yang diatur admin.
-- Wizard "Buat Plan" 7 tahap.
+- Wizard "Buat Plan": 13 tahap (target both) / 9 tahap (target web).
 - Projects: arsip + versioning (v1, v2, …) + timestamp + progress checklist + export (.md/.zip).
 - Templates: menu ada, seed preset minimal.
 - Landing page.

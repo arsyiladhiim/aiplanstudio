@@ -194,6 +194,34 @@ Setelah audit plan awal, ditemukan gap tambahan yang sudah difiks:
 
 ---
 
+## [x] 13-Stage Refactor Sync ✅
+
+> **Goal:** Sinkronisasi docs 00-18 + web/AGENTS.md setelah pipeline refactor 13-stage (D-028). Semua referensi `phased_master`, `phased_master_mobile`, `7 stage`, `target mobile` diperbarui.
+
+| # | Item | File Terkait | Status |
+|---|------|-------------|--------|
+| D-11a | 00-README: 7→13 stages | docs/00-README.md | ✅ |
+| D-11b | 01-overview: Web/Both, 13 tahap | docs/01-overview.md | ✅ |
+| D-11c | 02-architecture: pipeline 13, col mapping, gate | docs/02-architecture.md | ✅ |
+| D-11d | 03-database-schema: enum web\|both, 13 stage keys, template seed | docs/03-database-schema.md | ✅ |
+| D-11e | 04-api-contract: stage list, gate desc, diff fields | docs/04-api-contract.md | ✅ |
+| D-11f | 05-wizard-flow: 13 tahap, target, flow, gate | docs/05-wizard-flow.md | ✅ |
+| D-11g | 06-ai-pipeline: ALL_STAGES 13, stage table, parse | docs/06-ai-pipeline.md | ✅ |
+| D-11h | 08-frontend: 13 tahap, artifact tabs | docs/08-frontend.md | ✅ |
+| D-11i | 09-roadmap: 13 stages, F5 label | docs/09-roadmap.md | ✅ |
+| D-11j | 10-decision-log: D-028 entry + update stage refs | docs/10-decision-log.md | ✅ |
+| D-11k | 11-development-rules: Web/Both | docs/11-development-rules.md | ✅ |
+| D-11l | 13-backend-testing: 13 keys, parsePhasesText, stage list | docs/13-backend-testing.md | ✅ |
+| D-11m | 14-frontend-testing: 13-stage | docs/14-frontend-testing.md | ✅ |
+| D-11n | 15-dev-log: new entry | docs/15-dev-log.md | ✅ |
+| D-11o | 17-next-progress: 13-stage refs + P15 entry | docs/17-next-progress.md | ✅ |
+| D-11p | 18-production-readiness: pipeline diagram, target, gate, auto-run | docs/18-production-readiness.md | ✅ |
+| D-11q | web/AGENTS.md: 13-stage pipeline reference | web/AGENTS.md | ✅ |
+
+> File 15 (dev-log) dan 16 (audit-fix-plan) entri lama dibiarkan sebagai rekam historis.
+
+---
+
 ## Cara Pakai
 
 1. Saat memulai sesi, baca [09-roadmap.md](09-roadmap.md) untuk status fase.

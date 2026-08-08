@@ -23,7 +23,7 @@ web/
       (app)/
         layout.tsx                 # app shell (sidebar, header, nav)
         dashboard/page.tsx         # ringkasan + project terbaru
-        new/page.tsx               # WIZARD 7 tahap (inti)
+        new/page.tsx               # WIZARD 13 tahap (inti)
         projects/page.tsx          # daftar project
         projects/[id]/page.tsx     # detail: versi, artefak, progress, export
         templates/page.tsx         # galeri template
@@ -82,7 +82,7 @@ web/
 
 ## Projects
 - `/projects`: daftar project + buat baru.
-- `/projects/[id]`: versi selector, artifact tabs (analysis, PRD, architecture, ERD, phases, master), progress checklist, export.
+- `/projects/[id]`: versi selector, artifact tabs (analysis, PRD, architecture, ERD, standards, agents, phases, master prompt, mobile phases/standards/agents/master), progress checklist, export.
 - **Export** `.md`/`.zip` → BFF proxy → Laravel generate.
 
 ## Settings (admin)

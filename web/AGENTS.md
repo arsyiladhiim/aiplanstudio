@@ -18,6 +18,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Always call fetchCsrfCookie() before state-changing requests
 - Handle 401 → redirect to /login
 
-## Pipeline Stages (7 stages)
-Questions → Analysis → PRD → Architecture → ERD → Phased Master → Phased Master Mobile
-Keys: pertanyaan, analisa, prd, architecture, erd, phased_master, phased_master_mobile
+## Pipeline Stages (13 stages, target both / 9 stages, target web)
+Questions → Analysis → PRD → Architecture → ERD → Standards (web) → Agents (web) → Phases (web) → Master Prompt (web) → Phases (mobile) → Standards (mobile) → Agents (mobile) → Master Prompt (mobile)
+Keys: pertanyaan, analisa, prd, architecture, erd, standards_web, agents_web, phases_web, master_web, phases_mobile, standards_mobile, agents_mobile, master_mobile
+Gate: mobile track (10-13) waits for master_web done. Target web = 9 stages only.

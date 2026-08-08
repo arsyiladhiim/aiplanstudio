@@ -32,7 +32,7 @@ docker compose exec api php artisan test --filter=VersionTest
 | `tests/Feature/PasswordResetTest.php` | forgot/reset password | ✅ |
 | `tests/Unit/ModelTest.php` | isAdmin, isActive, isPending, maskedKey, nextVersionNo | ✅ |
 
-Total: **131 test functions** (terakhir diverifikasi 2026-08-06, 439 assertions).
+Total: **131 test functions** (terakhir diverifikasi 2026-08-08, 469 assertions).
 
 ## Cakupan per Feature
 
@@ -57,14 +57,15 @@ Total: **131 test functions** (terakhir diverifikasi 2026-08-06, 439 assertions)
 ### F5 — Pipeline
 - [x] `AiClient` mock → `PipelineRunner::run` menyimpan artefak ke kolom benar
 - [x] `stage_status` berubah `running`→`done`
-- [x] `Version::defaultStageStatus()` → 7 keys
+- [x] `Version::defaultStageStatus()` → 13 keys (both) / 9 keys (web)
 - [x] Validator ERD JSON: valid → tersimpan; invalid → retry → tetap gagal → error
-- [x] `parseErdText`, `parsePhasesText`, `parsePhasedMaster` — multi-strategy decode
+- [x] `parseErdText`, `parsePhasesText` — multi-strategy decode
 - [x] `parseArchText` — component/edge parsing
 - [x] Endpoint SSE mengembalikan `text/event-stream` + event berurutan
 - [x] `auto=1` menjalankan seluruh stage; `auto=0` berhenti setelah 1 stage
 - [x] Continuation: finish_reason=length → prompt lanjutan
-- [x] 7 stages: pertanyaan→analisa→prd→architecture→erd→phased_master→phased_master_mobile
+- [x] 13 stages: pertanyaan→analisa→prd→architecture→erd→standards_web→agents_web→phases_web→master_web→phases_mobile→standards_mobile→agents_mobile→master_mobile
+- [x] Gate: mobile track menunggu `master_web` done
 
 ### F7 — Projects, Versioning, Export
 - [x] `POST /projects/{id}/versions` → version_no bertambah

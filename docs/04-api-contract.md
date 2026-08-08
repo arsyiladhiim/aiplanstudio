@@ -69,7 +69,7 @@
 | DELETE | `/api/versions/{id}` | Session (owner) | — | `204` (tidak bisa hapus versi terakhir) |
 | PATCH | `/api/versions/{id}/artifacts` | Session (owner) | `{stage, content}` | inline edit artifact |
 | PATCH | `/api/versions/{id}/answers` | Session (owner) | `{answers: {key:value}}` | update jawaban pertanyaan |
-| GET | `/api/versions/{id}/diff` | Session (owner) | `?compare={otherId}` | structured diff semua artifact fields (incl. mobile: phases, standards, agents) |
+| GET | `/api/versions/{id}/diff` | Session (owner) | `?compare={otherId}` | structured diff semua artifact fields (incl. mobile: phases, standards, agents, master_prompt) |
 | PATCH | `/api/versions/{id}/phases/{phaseKey}` | Session (owner) | `{done:bool}` | toggle phase progress checklist |
 | GET | `/api/versions/{id}/export` | Session (owner) | `?format=md\|zip` | file unduhan — include mobile artifacts (phases, master prompt, standards, agents) jika ada; zip juga sertakan `erd.json` |
 
@@ -109,9 +109,9 @@ event: fail
 data: {"stage":"pertanyaan","message":"..."}
 ```
 
-- `stage` ∈ `pertanyaan|analisa|prd|architecture|erd|phased_master|phased_master_mobile` (lihat [05-wizard-flow](05-wizard-flow.md)).
+- `stage` ∈ `pertanyaan|analisa|prd|architecture|erd|standards_web|agents_web|phases_web|master_web|phases_mobile|standards_mobile|agents_mobile|master_mobile` (lihat [05-wizard-flow](05-wizard-flow.md)).
 - `auto=1` → jalankan seluruh stage berurutan tanpa henti; `auto=0` → hanya stage diminta lalu berhenti (checkpoint).
-- `phased_master_mobile` hanya aktif jika project target=`both`.
+- Mobile track stages (`phases_mobile`, `standards_mobile`, `agents_mobile`, `master_mobile`) hanya aktif jika project target=`both`, dan menunggu `master_web` done (gate).
 - Artefak disimpan ke `versions` oleh backend saat `artifact`/`done`.
 
 ## Webhook (Project API Token)

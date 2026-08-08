@@ -48,7 +48,7 @@ Legenda Auth: **Pub** = public · **Auth** = butuh login · **Admin** = admin on
 | `/projects` | Projects List | Sidebar | Auth | Search, filter favorit, grid kartu, progress bar, continue, hapus (dialog) |
 | `/projects/[id]` | Project Detail | Sidebar | Auth | Header (edit, favorit), pilih versi, diff mode, 8 tabs (Klarifikasi/Analisa/PRD/Arsitektur/ERD/Phases/Mobile/Aktivitas), API token, master prompt copy, Standards/Agents, checklist progres |
 | `/projects/[id]/diff` | Version Diff | — | Auth | Bandingkan 2 versi seluruh field |
-| `/new` | Buat Plan (Wizard) | Sidebar | Auth | Template, input ide/target/stack, 7-stage SSE, stage tracker, ERD diagram, API contract table, phases, master prompt, standards/agents, resumable |
+| `/new` | Buat Plan (Wizard) | Sidebar | Auth | Template, input ide/target/stack, 13-stage SSE, stage tracker, ERD diagram, API contract table, phases, master prompt, standards/agents, resumable |
 | `/templates` | Templates | Sidebar | Auth | Kartu template, badge target, "Gunakan Template" |
 | `/activities` | Aktivitas | Header/Footer | Auth | Feed aktivitas terpaginasi, badge aksi, link project |
 | `/help` | Bantuan | Header | Auth | How-it-works, FAQ accordion |
@@ -114,24 +114,30 @@ Logout
   → POST /api/logout → invalidate session cookie → /login
 ```
 
-### 6.2 Wizard "Buat Plan" — Pipeline 7 Stage (inti produk)
+### 6.2 Wizard "Buat Plan" — Pipeline 13 Stage (inti produk)
 ```
-/new   (input: ide, target=web|mobile|both, stack opsional, template)
-  1 pertanyaan          → pertanyaan (klarifikasi)         [SSE]
-     user jawab         → answers
-  2 analisa             → analysis
-  3 prd                 → prd
-  4 architecture        → architecture
-  5 erd                 → erd {nodes,edges,api_contract}
-  6 phased_master       → phases + master_prompt + standards + agents
-  7 phased_master_mobile→ mobile_phases + mobile_master_prompt + mobile_standards + mobile_agents
-                          (hanya jika target=both)
+/new   (input: ide, target=web|both, stack opsional, template)
+  1 pertanyaan           → pertanyaan (klarifikasi)         [SSE]
+     user jawab          → answers
+  2 analisa              → analysis
+  3 prd                  → prd
+  4 architecture         → architecture
+  5 erd                  → erd {nodes,edges,api_contract}
+  6 standards_web        → standards (STANDARDS.md web)
+  7 agents_web           → agents (AGENTS.md web)
+  8 phases_web           → phases (breakdown fase web)
+  9 master_web           → master_prompt (self-contained web)
+  10 phases_mobile       → mobile_phases                   (hanya both, gate: master_web done)
+  11 standards_mobile    → mobile_standards (STANDARDS.md mobile)
+  12 agents_mobile       → mobile_agents (AGENTS.md mobile)
+  13 master_mobile       → mobile_master_prompt (self-contained mobile)
 Garansi:
-  - mode auto-run: berjalan 1-7 tanpa berhenti
-  - mode checkpoint: approve tiap stage
-  - resumable: versi terakhir dilanjut
-  - stage_status: pending|running|done|error
-  - inline edit artifact: PATCH /versions/{id}/artifacts
+   - mode auto-run: berjalan 1-13 (both) / 1-9 (web) tanpa berhenti
+   - mode checkpoint: approve tiap stage
+   - resumable: versi terakhir dilanjut
+   - gate: mobile track menunggu master_web done
+   - stage_status: pending|running|done|error
+   - inline edit artifact: PATCH /versions/{id}/artifacts
 ```
 
 ### 6.3 Project, Versioning, Diff, Export
@@ -183,14 +189,14 @@ Webhook:
 
 ## Bagian D — Validasi Alur vs Tujuan Awal (Aplikasi)
 
-Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dokumentasi & prompt lengkap dari ide yang siap disuapkan ke AI coding agent"* + **bukan eksekutor kode** + **target-aware** (web/mobile/both).
+Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dokumentasi & prompt lengkap dari ide yang siap disuapkan ke AI coding agent"* + **bukan eksekutor kode** + **target-aware** (web/both).
 
 ### D1. Kesesuaian
 | Tujuan Awal | Implementasi | Status |
 |-------------|--------------|--------|
-| Ide → dokumentasi & prompt lengkap | 7-stage pipeline, tiap stage menyimpan replite: analisa, PRD, arsitektur, ERD, phases, master prompt | ✅ |
+| Ide → dokumentasi & prompt lengkap | 13-stage pipeline, tiap stage menyimpan artifact: analisa, PRD, arsitektur, ERD, standards, agents, phases, master prompt | ✅ |
 | Benang merah antar langkah | PipelineRunner menyimpan konteks stage sebelumnya ke stage berikutnya | ✅ |
-| Target-aware (web/mobile/both) | stage ke-7 khusus mobile; stack & prompt berbeda per target; diff field mobile | ✅ |
+| Target-aware (web/both) | mobile track (stage 10-13) khusus mobile; gate menunggu master_web; stack & prompt berbeda per target; 4 mobile fields | ✅ |
 | Bukan eksekutor kode | Tidak ada endpoint eksekusi; semuanya doku & prompt | ✅ |
 | Checkpoint / auto-run | Wizard toggle checkpoint vs auto-run | ✅ |
 | Resumable & terdokumentasi | Versioning, diff, progress checklist, export | ✅ |
@@ -200,7 +206,7 @@ Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dok
 ### Step2. Inkonsistensi Dokumentasi (untuk diperbaiki Task 4)
 | Isu | File | Catatan |
 |-----|------|---------|
-| "Wizard 6 tahap" vs aktual 7 | `docs/01-overview.md:33`, `:49` | Sebenarnya ada 7 阶段 (incl. phased_master_mobile) |
+| "Wizard 6 tahap" vs aktual 7 | `docs/01-overview.md:33`, `:49` | Sebenarnya ada 7 ( phased_master_mobile). **[SUPERSEDED]** Kini 13 tahap (D-028). |
 | Roadmap status belum catat P13/P14 | `docs/09-roadmap.md:15` | Tambah P13, P14 |
 | Security audit item belum centang | `docs/12-security-checklist.md:54` | `composer audit`/`npm audit` sudah 0 |
 
@@ -242,9 +248,8 @@ Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dok
 
 ### E6. Core Pipeline
 - [ ] AI provider aktif (settings/provider → active + DSN key)
-- [ ] Wizard `/new` → 7-stage berjalan (SSE) → artifact ter-save ke DB
-- [ ] target=both → stage 7 (mobile) berjalan; target=mobile/web → stage 7 dib
-yskip
+- [ ] Wizard `/new` → 13-stage berjalan (SSE) → artifact ter-save ke DB
+- [ ] target=both → mobile track (stage 10-13) berjalan setelah master_web done (gate); target=web → mobile track di-skip
 - [ ] Checkpoint mode & auto-run mode bekerja
 - [ ] Resume project→ versi terakhir
 

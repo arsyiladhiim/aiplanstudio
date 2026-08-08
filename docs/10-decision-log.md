@@ -2,6 +2,14 @@
 
 > Catatan keputusan penting + alasan. Tambah entri baru di atas (terbaru dulu). Format: tanggal · keputusan · alasan · alternatif ditolak.
 
+## 2026-08-08
+
+### D-028 · Pipeline 13-Stage Overhaul (split phased_master, hapus target mobile)
+- **Keputusan:** Split `phased_master` (1 stage → 4 artifact) menjadi 4 stage terpisah: `standards_web`, `agents_web`, `phases_web`, `master_web`. Begitu juga `phased_master_mobile` → `phases_mobile`, `standards_mobile`, `agents_mobile`, `master_mobile`. Total 13 stage (both) / 9 stage (web). Hapus target `mobile` standalone (mobile butuh API/web). Gate: mobile track menunggu `master_web` done.
+- **Alasan:** `phased_master` overload — 1 panggilan AI menghasilkan 4 artifact, token terbagi, hasil parsial. Master prompt web & mobile hampir sama. Mobile tidak menunggu web selesai.
+- **Ditolak:** Tetap 7 stage (token terbagi, hasil parsial); target `mobile` standalone (mobile butuh API backend web).
+- **Docs:** [docs/19-pipeline-13stage.md](19-pipeline-13stage.md)
+
 ## 2026-08-06
 
 ### D-025 · Sinkronisasi dokumentasi menyeluruh Phase 2
@@ -15,12 +23,12 @@
 - **Ditolak:** Keeping client-side aggregation.
 
 ### D-019 · Inline artifact editing: single PATCH endpoint for all stages
-- **Keputusan:** `PATCH /api/versions/{id}/artifacts` with `{stage, content}` body maps stage key (pertanyaan/analisa/prd/architecture/erd/phased_master) to the correct DB column. ERD content is JSON-decoded before storage.
+- **Keputusan:** `PATCH /api/versions/{id}/artifacts` with `{stage, content}` body maps stage key (standards_web/agents_web/phases_web/master_web/phases_mobile/standards_mobile/agents_mobile/master_mobile) to the correct DB column. ERD content is JSON-decoded before storage.
 - **Alasan:** One endpoint for all artifact types is simpler than separate endpoints.
 - **Ditolak:** Separate endpoints per stage type.
 
 ### D-020 · Version diff: GET endpoint with `?compare=` query param
-- **Keputusan:** `GET /api/versions/{id}/diff?compare={otherId}` returns a structured diff of all 6 artifact fields with `changed` boolean.
+- **Keputusan:** `GET /api/versions/{id}/diff?compare={otherId}` returns a structured diff of all 10+ artifact fields with `changed` boolean.
 - **Alasan:** Side-by-side comparison is the most intuitive way to review changes between versions.
 - **Ditolak:** JS-based diff on frontend (inconsistent with SSR); unified diff format (less readable).
 
