@@ -1050,6 +1050,48 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.phases_mobile}</Markdown>;
                   }
                 })()}
+                {activeKey === "api_contract" && artifacts.api_contract && (() => {
+                  try {
+                    const parsed = JSON.parse(artifacts.api_contract);
+                    const ac: ApiContractItem[] = Array.isArray(parsed) ? parsed : [];
+                    if (ac.length === 0) throw new Error("not array");
+                    return (
+                      <Card className="p-4">
+                        <h3 className="mb-4 font-semibold">API Contract ({ac.length} endpoint)</h3>
+                        <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-[var(--color-surface-2)]">
+                                <th className="px-3 py-2 text-left font-medium">Method</th>
+                                <th className="px-3 py-2 text-left font-medium">Endpoint</th>
+                                <th className="px-3 py-2 text-left font-medium">Deskripsi</th>
+                                <th className="px-3 py-2 text-left font-medium">Auth</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[var(--color-border)]">
+                              {ac.map((api: ApiContractItem, i: number) => (
+                                <tr key={i}>
+                                  <td className="px-3 py-2">
+                                    <Badge tone={
+                                      api.method === 'GET' ? 'success' :
+                                      api.method === 'POST' ? 'brand' :
+                                      api.method === 'PUT' || api.method === 'PATCH' ? 'warning' : 'danger'
+                                    }>{api.method}</Badge>
+                                  </td>
+                                  <td className="px-3 py-2 font-mono text-xs">{api.path}</td>
+                                  <td className="px-3 py-2 text-[var(--color-fg-muted)]">{api.description}</td>
+                                  <td className="px-3 py-2">{api.auth ? '✅ Ya' : '❌ Tidak'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    );
+                  } catch {
+                    return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.api_contract}</Markdown>;
+                  }
+                })()}
                 {activeKey === "master_web" && artifacts.master_web && (() => {
                   const masterPrompt = artifacts.master_web;
                   return (

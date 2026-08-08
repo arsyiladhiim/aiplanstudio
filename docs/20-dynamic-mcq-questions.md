@@ -111,3 +111,12 @@ Dokumen ini mencatat rancangan, spesifikasi, serta checkpoint implementasi untuk
 - [x] Run `php artisan test` — 131/131 PASS
 - [x] Update `web/AGENTS.md` (14 stages keys)
 - [x] Commit pending
+
+### [x] Checkpoint 7: Fix — "JSON tidak valid" pada stage api_contract
+- [x] **Akar masalah:** stage `api_contract` (baru) meminta format objek `{base_url, auth, endpoints, models, errors}` sedangkan ERD & frontend memakai array endpoint; parser `extractJson`/`tryJsonDecode` kaku (gagal pada prose/fence ganda/unquoted keys/single-quote).
+- [x] **Fix `extractJson()`:** strip semua code fence di mana saja (bukan hanya anchored `^...$`), pilih bracket pembuka terawal (`{` atau `[`), span-balancing dengan awareness string literal.
+- [x] **Fix `tryJsonDecode()`:** urutan strategi diperluas — kontrol-char strip, quote unquoted key, balance missing closer, trim trailing annotation (window 40), single-quote, dan kombinasi quote-key+value.
+- [x] **Normalisasi `saveArtifact('api_contract')`:** terima array endpoint langsung ATAU objek `{endpoints:[...]}` → simpan sebagai **array** (konsisten dengan ERD + frontend).
+- [x] **Rerender UI:** `new/page.tsx` + renderer tabel API Contract untuk stage `api_contract` (metode, path, deskripsi, auth) — sebelumnya hanya markdown mentah.
+- [x] **Prompt `api_contract.php`:** dipertegas output array endpoint murni, field wajib, tanpa prose/markdown/single-quote.
+- [x] **Tests:** +5 unit (`PipelineRunnerTest`) — plain array, wrapped `{endpoints}`, prose+fence wrap, unquoted+single-quote, invalid throw. 136/136 PASS.

@@ -321,7 +321,19 @@ class PipelineRunner
             $cleaned = $this->extractJson($content);
             $decoded = $this->tryJsonDecode($cleaned);
             if ($decoded !== null) {
-                $value = $decoded;
+                // Normalisasi ke bentuk ARRAY endpoint — konsisten dengan
+                // api_contract hasil stage ERD & renderer frontend.
+                // Dukungan dua format:
+                //   1) [ {method,path,description,auth}, ... ]   (langsung)
+                //   2) { endpoints: [...], base_url, auth, ... } (objek pembungkus)
+                if (isset($decoded['endpoints']) && is_array($decoded['endpoints']) && $this->isListKey($decoded, 'endpoints')) {
+                    $value = $decoded['endpoints'];
+                } elseif ($this->isEndpointList($decoded)) {
+                    $value = $decoded;
+                } else {
+                    throw new \RuntimeException("API Contract: struktur tidak dikenali. Stage ditandai error.");
+                }
+                $this->emit('artifact', ['stage' => $key, 'content' => json_encode($value, JSON_PRETTY_PRINT)]);
             } else {
                 throw new \RuntimeException("JSON tidak valid untuk stage {$key}. Stage ditandai error.");
             }
@@ -330,6 +342,28 @@ class PipelineRunner
         }
 
         $this->version->update([$col => $value]);
+    }
+
+    private function isListKey(array $arr, string $key): bool
+    {
+        return array_is_list($arr[$key]);
+    }
+
+    private function isEndpointList(array $arr): bool
+    {
+        if (! array_is_list($arr)) {
+            return false;
+        }
+        foreach ($arr as $item) {
+            if (! is_array($item)) {
+                return false;
+            }
+            if (! isset($item['method'], $item['path'])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function parseErdText(string $content): ?array
@@ -487,20 +521,75 @@ class PipelineRunner
 
     private function extractJson(string $content): string
     {
-        // Strip markdown code blocks: ```json ... ``` or ``` ... ```
-        $content = preg_replace('/^```(?:json)?\s*\n?(.*?)\n?```$/s', '$1', $content);
-        // Trim whitespace
-        $content = trim($content);
-        // Extract from first { to last }
-        $first = strpos($content, '{');
-        $last = strrpos($content, '}');
-        if ($first !== false && $last !== false && $last > $first) {
-            $content = substr($content, $first, $last - $first + 1);
+        // BOM & whitespace
+        $content = trim(preg_replace('/^\xEF\xBB\xBF/', '', $content) ?? '');
+        if ($content === '') {
+            return '';
         }
-        // Remove trailing commas before ] or }
-        $content = preg_replace('/,\s*([\]}])/', '$1', $content);
 
-        return $content;
+        // Strip ALL fenced code blocks (```json ... ```, ``` ... ```, ```JSON ... ```),
+        // regardless of surrounding prose or how many blocks.
+        $content = (string) preg_replace('/```(?:json)?\s*\n?(.*?)```/si', '$1', $content);
+        $content = trim($content);
+
+        $openBrace = strpos($content, '{');
+        $openBracket = strpos($content, '[');
+        if ($openBrace === false && $openBracket === false) {
+            return '';
+        }
+        // Pilih bracket yang muncul paling awal — menangkap struktur atas (object ATAU array).
+        $open = ($openBrace !== false && ($openBracket === false || $openBrace < $openBracket))
+            ? $openBrace
+            : $openBracket;
+
+        // Extract from first { or [ to its matching closing bracket,
+        // skipping string literals so nested } ] inside strings are safe.
+        $closer = $content[$open] === '{' ? '}' : ']';
+        $depth = 0;
+        $inString = false;
+        $escaped = false;
+        $length = strlen($content);
+        $end = -1;
+
+        for ($i = $open; $i < $length; $i++) {
+            $ch = $content[$i];
+            if ($inString) {
+                if ($escaped) {
+                    $escaped = false;
+                } elseif ($ch === '\\') {
+                    $escaped = true;
+                } elseif ($ch === '"') {
+                    $inString = false;
+                }
+                continue;
+            }
+            if ($ch === '"') {
+                $inString = true;
+                continue;
+            }
+            if ($ch === '{' || $ch === '[') {
+                $depth++;
+            } elseif ($ch === '}' || $ch === ']') {
+                $depth--;
+                if ($depth === 0) {
+                    $end = $i;
+                    break;
+                }
+            }
+        }
+
+        if ($end === -1) {
+            $end = strrpos($content, $closer);
+            if ($end === false || $end <= $open) {
+                return '';
+            }
+        }
+
+        $sub = substr($content, $open, $end - $open + 1);
+        // Remove trailing commas before ] or }
+        $sub = (string) preg_replace('/,\s*([\]}])/', '$1', $sub);
+
+        return trim($sub);
     }
 
     private function tryJsonDecode(string $content): ?array
@@ -512,14 +601,38 @@ class PipelineRunner
         }
 
         // Strategy 2: Strip control characters
-        $stripped = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $content);
+        $stripped = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $content);
         $decoded = json_decode($stripped, true);
         if (json_last_error() === JSON_ERROR_NONE) {
             return $decoded;
         }
 
-        // Strategy 3: Balance braces - try removing last chars one by one
-        for ($i = 0; $i < 10; $i++) {
+        // Strategy 3: Quote unquoted object keys (common LLM flaw)
+        $quotedKeys = (string) preg_replace(
+            '/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)/',
+            '$1"$2"$3',
+            $stripped
+        );
+        $decoded = json_decode($quotedKeys, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $decoded;
+        }
+
+        // Strategy 4: Balance brackets — append missing closers progressively
+        foreach (['[', '{'] as $open) {
+            $close = $open === '[' ? ']' : '}';
+            $missing = substr_count($stripped, $open) - substr_count($stripped, $close);
+            if ($missing > 0 && $missing < 30) {
+                $candidate = $stripped.str_repeat($close, $missing);
+                $decoded = json_decode($candidate, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $decoded;
+                }
+            }
+        }
+
+        // Strategy 5: Trim trailing annotations progressively (larger window)
+        for ($i = 0; $i < 40; $i++) {
             $trimmed = substr($stripped, 0, -1 - $i);
             $decoded = json_decode($trimmed, true);
             if (json_last_error() === JSON_ERROR_NONE) {
@@ -527,29 +640,20 @@ class PipelineRunner
             }
         }
 
-        // Strategy 4: Fix missing [ after known keys + balance brackets
-        $fixed = preg_replace('/"(nodes|edges|api_contract)":\s*(?!\[)/', '"$1": [', $stripped);
-        $open = substr_count($fixed, '[');
-        $close = substr_count($fixed, ']');
-        while ($close < $open) {
-            $fixed .= ']';
-            $close++;
-        }
-        $decoded = json_decode($fixed, true);
+        // Strategy 6a: single-quoted values + quoted keys combined
+        $singleQuoted = (string) preg_replace("/'([^']+)'/", '"$1"', $stripped);
+        $combo = (string) preg_replace(
+            '/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)/',
+            '$1"$2"$3',
+            $singleQuoted
+        );
+        $decoded = json_decode($combo, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
         if (json_last_error() === JSON_ERROR_NONE) {
             return $decoded;
         }
 
-        // Strategy 5: Single quotes fix + brackets balanced
-        $fixed = preg_replace("/'([^']+)'/", '"$1"', $stripped);
-        $fixed = preg_replace('/"(nodes|edges|api_contract)":\s*(?!\[)/', '"$1": [', $fixed);
-        $open = substr_count($fixed, '[');
-        $close = substr_count($fixed, ']');
-        while ($close < $open) {
-            $fixed .= ']';
-            $close++;
-        }
-        $decoded = json_decode($fixed, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
+        // Strategy 7: single-quoted JSON (fallback, can corrupt real apostrophes)
+        $decoded = json_decode($singleQuoted, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
         if (json_last_error() === JSON_ERROR_NONE) {
             return $decoded;
         }

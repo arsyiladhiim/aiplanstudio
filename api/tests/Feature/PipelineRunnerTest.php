@@ -338,4 +338,78 @@ class PipelineRunnerTest extends TestCase
         $prompt = $ref->invoke($runner, 'analisa', $this->version);
         $this->assertStringContainsString('Laravel + React', $prompt);
     }
+
+    public function test_api_contract_save_accepts_plain_array(): void
+    {
+        $content = '[{"method":"GET","path":"/users","description":"List user","auth":true}]';
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'api_contract', $content);
+        $this->version->refresh();
+
+        $this->assertIsArray($this->version->api_contract);
+        $this->assertSame('GET', $this->version->api_contract[0]['method']);
+        $this->assertSame('/users', $this->version->api_contract[0]['path']);
+    }
+
+    public function test_api_contract_save_accepts_wrapped_object_endpoints(): void
+    {
+        $content = '{"base_url":"/api","endpoints":[{"method":"POST","path":"/auth/login","description":"login","auth":false}]}';
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'api_contract', $content);
+        $this->version->refresh();
+
+        $this->assertIsArray($this->version->api_contract);
+        $this->assertSame('POST', $this->version->api_contract[0]['method']);
+    }
+
+    public function test_api_contract_save_handles_prose_and_fence_wrap(): void
+    {
+        $content = "Berikut adalah contract:\n```json\n[{\"method\":\"GET\",\"path\":\"/ping\",\"description\":\"ping\",\"auth\":false}]\n```\nSemoga membantu.";
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'api_contract', $content);
+        $this->version->refresh();
+
+        $this->assertIsArray($this->version->api_contract);
+        $this->assertSame('GET', $this->version->api_contract[0]['method']);
+    }
+
+    public function test_api_contract_save_handles_unquoted_and_single_quotes(): void
+    {
+        $content = "[{method:'GET',path:'/healthz',description:'health',auth:false}]";
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'api_contract', $content);
+        $this->version->refresh();
+
+        $this->assertIsArray($this->version->api_contract);
+        $this->assertSame('GET', $this->version->api_contract[0]['method']);
+    }
+
+    public function test_api_contract_save_throws_when_invalid_json(): void
+    {
+        $content = 'ini bukan json sama sekali';
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('JSON tidak valid');
+        $ref->invoke($runner, 'api_contract', $content);
+    }
 }
