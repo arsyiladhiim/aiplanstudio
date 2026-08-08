@@ -2,7 +2,7 @@
 // Sanctum SPA auth via cookies. BFF forwards cookies transparently.
 // No Bearer tokens, no sessionStorage.
 
-const LARAVEL_URL = process.env.LARAVEL_URL ?? 'http://api:8000';
+const LARAVEL_URL = process.env.LARAVEL_URL ?? 'http://aiplanstudionginx_api:8000';
 
 /** Forward cookies + Origin/Referer from incoming request to upstream Laravel */
 export function cookieHeaders(request: Request): Record<string, string> {

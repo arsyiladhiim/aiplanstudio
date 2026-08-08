@@ -7,27 +7,27 @@
 - **Frontend:** Next.js (App Router, SPA client).
 - **DB:** PostgreSQL dengan 3 schema (`aiplanstudio_master`, `aiplanstudio_project`, `aiplanstudio_settings`).
 - **Reverse proxy:** Nginx — satu-satunya service yang expose port ke host.
-- **BFF Pattern:** Semua traffic masuk via nginx → Next.js. Next.js proxy `/api/*` ke Laravel internal (`http://api:8000`). Tidak ada route langsung nginx ke Laravel.
+- **BFF Pattern:** Semua traffic masuk via nginx → Next.js. Next.js proxy `/api/*` ke Laravel internal (`http://aiplanstudionginx_api:8000`). Tidak ada route langsung nginx ke Laravel.
 
 ## Topologi (BFF Pattern)
 ```
                     host :4197
                        │
-                   ┌───▼────┐
-                   │ nginx  │   (satu-satunya port: 4197:80)
-                   └──┬───┬──┘
-           location /  │   │  location /api, /sanctum (ke web:3000)
+                   ┌───▼────────┐
+                   │ aiplanstudionginx_web │   (satu-satunya port: 4197:80)
+                   └──┬─────────┘
+          location /  │   ke aiplanstudio_web:3000
                        │
-               ┌───────▼┐
-               │  web   │   Next.js BFF (port 3000 internal, standalone)
+               ┌───────▼──────────┐
+               │ aiplanstudio_web │   Next.js BFF (port 3000 internal, standalone)
                └────┬───┘
-                    │ proxy /api/* → http://api:8000
-                ┌────▼─────────┐
-                │     api      │   nginx front (port 8000 internal) → php-fpm
+                    │ proxy /api/* → http://aiplanstudionginx_api:8000
+                ┌────▼────────────┐
+                │aiplanstudionginx_api │   nginx front (port 8000 internal) → php-fpm
                 └──┬────┬──────┘
-             ┌─────▼┐ ┌─▼──────┐
-             │  db  │ │ redis  │
-             │  pg  │ └────────┘
+             ┌─────▼─────────┐ ┌─▼────────────┐
+             │ aiplanstudio_db │ │ aiplanstudio_redis │
+             │  pg             │ └────────┘
              └──────┘
                    (tanpa ports host)
 ```
@@ -35,41 +35,41 @@
 ## Routing Nginx
 | Path | Tujuan |
 |------|--------|
-| `/` | `web:3000` (Next.js) |
-| `/_next/*` | `web:3000` (static assets) |
-| `/*` (semua) | `web:3000` (BFF handles routing) |
+| `/` | `aiplanstudio_web:3000` (Next.js) |
+| `/_next/*` | `aiplanstudio_web:3000` (static assets) |
+| `/*` (semua) | `aiplanstudio_web:3000` (BFF handles routing) |
 
 Semua `/api/*`, `/sanctum/*` masuk ke Next.js → Next.js proxy ke Laravel internal.
 
 ## Service
 | Service | Image/Base | Expose | Publish ke host |
 |---------|-----------|--------|-----------------|
-| `nginx` | nginx:alpine | 80 | **4197:80 (satu-satunya)** |
-| `web` | node:20-alpine (Next.js) | 3000 (internal) | tidak |
-| `api` | nginx:alpine (front Laravel) | 8000 (internal) | tidak |
-| `api-fpm` | php:8.3-fpm-alpine (`php-fpm -F`) | 9000 (internal) | tidak |
-| `db` | postgres:16-alpine | 5432 (internal) | **tidak** |
-| `redis` | redis:alpine | 6379 (internal) | tidak |
+| `aiplanstudionginx_web` | nginx:alpine | 80 | **4197:80 (satu-satunya)** |
+| `aiplanstudio_web` | node:20-alpine (Next.js) | 3000 (internal) | tidak |
+| `aiplanstudionginx_api` | nginx:alpine (front Laravel) | 8000 (internal) | tidak |
+| `aiplanstudio_apifpm` | php:8.3-fpm-alpine (`php-fpm -F`) | 9000 (internal) | tidak |
+| `aiplanstudio_db` | postgres:16-alpine | 5432 (internal) | **tidak** |
+| `aiplanstudio_redis` | redis:alpine | 6379 (internal) | tidak |
 | `migrate` | one-shot (sama image dengan api-fpm) | — | tidak |
 | `glitchtip` | glitchtip/glitchtip:6 — **DISABLED** (service di-comment) | 8000 (internal) | tidak |
 
-> **Catatan serve:** API berjalan di **php-fpm (production-ready)** — `api-fpm` (`php:8.3-fpm-alpine`, `CMD ["php-fpm","-F"]`, expose 9000) di-fronting nginx service `api` (listen 8000 → `fastcgi_pass api-fpm:9000`). Bukan lagi `php artisan serve` (RS-9 ✅).
+> **Catatan serve:** API berjalan di **php-fpm (production-ready)** — `aiplanstudio_apifpm` (`php:8.3-fpm-alpine`, `CMD ["php-fpm","-F"]`, expose 9000) di-fronting nginx service `aiplanstudionginx_api` (listen 8000 → `fastcgi_pass api-fpm:9000`). Bukan lagi `php artisan serve` (RS-9 ✅).
 
 > **Error monitoring:** GlitchTip (Sentry-compatible) — **DISABLED saat ini** (service di-comment, DSN dikosongkan, route nginx di-comment). SDK `sentry/sentry-laravel` (backend) + `@sentry/nextjs` (frontend) dipertahankan sebagai no-op; aktifkan kembali bila dibutuhkan.
 
 ## Jaringan
 - Satu Docker network internal (`aistack`).
-- Referensi antar-service pakai hostname = nama service: `db`, `api`, `web`, `redis`.
-- Contoh Laravel `.env`: `DB_HOST=db`, `REDIS_HOST=redis`.
+- Referensi antar-service pakai hostname = nama service: `aiplanstudio_db`, `aiplanstudionginx_api`, `aiplanstudio_web`, `aiplanstudio_redis`.
+- Contoh Laravel `.env`: `BOOT_HOST=aiplanstudio_db`, `REDIS_HOST=aiplanstudio_redis`.
 - Contoh nginx: `proxy_pass http://web:3000;` (BFF — semua melalui Next.js).
 
 ## Aliran Request Utama (BFF)
-1. Browser → `http://localhost:4197/` → nginx → `web` (render UI).
-2. Frontend fetch `http://localhost:4197/api/...` (dengan cookie session + CSRF header) → nginx → `web` (BFF) → `api:8000` (Laravel).
+1. Browser → `http://localhost:4197/` → nginx → `aiplanstudio_web` (render UI).
+2. Frontend fetch `http://localhost:4197/api/...` (dengan cookie session + CSRF header) → nginx → `aiplanstudio_web` (BFF) → `api:8000` (Laravel).
 3. Pipeline AI: frontend POST ke BFF `/api/generate/stream` → Next.js proxy GET ke Laravel → AI Provider streaming → relay token & status per stage ke frontend realtime via SSE.
 
 ## Pipeline AI (13 Stages)
-Pipeline `PipelineRunner` menjalankan 13 stage (target `both`) / 9 stage (target `web`) secara berurutan:
+Pipeline `PipelineRunner` menjalankan 13 stage (target `both`) / 9 stage (target `aiplanstudio_web`) secara berurutan:
 
 ```
 INTI (1-5): pertanyaan → analisa → prd → architecture → erd
@@ -90,7 +90,7 @@ MOBILE TRACK (10-13, hanya both): phases_mobile → standards_mobile → agents_
 - `agents_mobile` → `mobile_agents` (AGENTS.md mobile)
 - `master_mobile` → `mobile_master_prompt` (master prompt self-contained mobile)
 
-**Gate:** Mobile track (stage 10-13) hanya berjalan jika `master_web` done. Target `web` → stage 1-9.
+**Gate:** Mobile track (stage 10-13) hanya berjalan jika `master_web` done. Target `aiplanstudio_web` → stage 1-9.
 
 Setiap stage streaming via SSE. Stage berikutnya mendapat konteks dari output stage sebelumnya. Lihat [05-wizard-flow](05-wizard-flow.md) dan [06-ai-pipeline](06-ai-pipeline.md).
 

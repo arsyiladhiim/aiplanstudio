@@ -5,8 +5,8 @@
 
 ## A. Infrastruktur & Docker
 - [x] Hanya `nginx` yang publish port ke host (`docker compose ps` → nginx:80 saja).
-- [x] `db`, `api`, `web`, `redis` **tanpa** `ports:` (host `:5432`/`:3000`/`:8000` tertutup).
-- [x] Antar-service via nama container (`db`, `api`, `web`, `redis`), bukan IP/localhost.
+- [x] `aiplanstudio_db`, `aiplanstudionginx_api`, `aiplanstudio_web`, `aiplanstudio_redis` **tanpa** `ports:` (host `:5432`/`:3000`/`:8000` tertutup).
+- [x] Antar-service via nama container (`aiplanstudio_db`, `aiplanstudionginx_api`, `aiplanstudio_web`, `aiplanstudio_redis`), bukan IP/localhost.
 - [x] Volume DB baru (fresh `aistack_db` volume).
 - [x] `.env` tidak di-commit; hanya `.env.example` (tanpa rahasia).
 - [x] Image dasar versi terkunci (`postgres:16-alpine`, `nginx:alpine`, `node:22-alpine`).
@@ -57,14 +57,14 @@
 
 ## H. Network Level (Laravel hanya accessible dari BFF)
 - [x] Laravel expose port 8000 **internal** (tidak ada `ports:` di docker-compose).
-- [x] Docker network `aistack`: hanya service `web` dan `nginx` yang resolve ke `api`.
+- [x] Docker network `aistack`: hanya service `aiplanstudio_web` dan `nginx` yang resolve ke `aiplanstudionginx_api`.
 - [x] Dari host, `curl localhost:8000` → **connection refused** (tidak ada port mapping).
 - [x] Dari host ke Laravel harus lewat nginx → Next.js (BFF) → Laravel.
 
 ## I. Error Monitoring (GlitchTip self-hosted) — **DISABLED**
 > Service GlitchTip di-comment di docker-compose.yml; `.env` DSN di-comment; route nginx `/glitchtip` di-comment. SDK (`sentry/sentry-laravel`, `@sentry/nextjs`) dipertahankan — DSN kosong → no-op. Aktifkan kembali dengan uncomment service + env + route nginx, lalu `docker compose build web`.
 - [x] GlitchTip service internal-only (`glitchtip:8000`, tidak di-expose ke host).
-- [x] Reuse existing `db` (PostgreSQL DB `glitchtip`) + `redis` (DB index 2) — no extra containers.
+- [x] Reuse existing `aiplanstudio_db` (PostgreSQL DB `glitchtip`) + `aiplanstudio_redis` (DB index 2) — no extra containers.
 - [x] `GLITCHTIP_SECRET_KEY` di root `.env` (tidak di-commit).
 - [x] DSN backend (Laravel) via env `SENTRY_LARAVEL_DSN` — internal Docker DNS `glitchtip:8000`.
 - [x] DSN frontend server-side (Next.js SSR) via env `SENTRY_DSN` — internal Docker DNS.

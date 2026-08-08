@@ -110,7 +110,7 @@ class AiClient
                 return null;
             }
         }
-        $allowedInternalHosts = ['api', 'web', 'db', 'redis', 'nginx', 'localhost', '127.0.0.1'];
+        $allowedInternalHosts = ['api', 'web', 'db', 'redis', 'nginx', 'localhost', '127.0.0.1', 'aiplanstudionginx_web', 'aiplanstudio_web', 'aiplanstudionginx_api', 'aiplanstudio_apifpm', 'aiplanstudio_db', 'aiplanstudio_redis'];
         if (in_array(strtolower($host), $allowedInternalHosts, true)) {
             return null;
         }

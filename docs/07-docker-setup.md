@@ -101,7 +101,7 @@ networks: { aiplanstudio: { driver: bridge } }
 - `try_files $uri $uri/ /index.php?$query_string`; blok `.php$`; deny dotfiles.
 
 ## Env
-- **`api/.env`** (Laravel, dibaca langsung oleh `api-fpm` — **tanpa** `env_file`, agar PHPUnit bisa meng-override `DB_*` untuk test DB): `APP_KEY` (wajib `php artisan key:generate`), `DB_HOST=db`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST=redis`, `REDIS_PASSWORD`, `SESSION_DRIVER=database`, `SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`, `APP_URL`, `FRONTEND_URL`, blok `MAIL_*`.
+- **`api/.env`** (Laravel, dibaca langsung oleh `aiplanstudio_apifpm` — **tanpa** `env_file`, agar PHPUnit bisa meng-override `DB_*` untuk test DB): `APP_KEY` (wajib `php artisan key:generate`), `DB_HOST=db`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST=redis`, `REDIS_PASSWORD`, `SESSION_DRIVER=database`, `SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`, `APP_URL`, `FRONTEND_URL`, blok `MAIL_*`.
 - **`api/.env.example`**: template env (dokumentasi) — salin jadi `.env`, lalu isi. Catatan produksi: `APP_ENV=production`, `APP_URL`/`FRONTEND_URL` https publik, `SANCTUM_STATEFUL_DOMAINS` + `SESSION_DOMAIN` domain produksi, `SESSION_SECURE_COOKIE=true`, `SESSION_HTTP_ONLY=true`, `GOOGLE_REDIRECT_URI`, SMTP (`MAIL_MAILER=smtp`, `MAIL_HOST/PORT/USERNAME/PASSWORD/ENCRYPTION/FROM`).
 - **`web/.env`** (Next.js): `LARAVEL_URL=http://api:8000` di Docker; `http://localhost:8000` saat dev tanpa Docker.
 - **`.env` root compose**: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`.
@@ -133,10 +133,10 @@ docker compose exec web wget -qO- http://api:8000/api/health  # internal OK
 ```
 
 ## Checklist Keamanan Infra
-- [x] Hanya `nginx` punya `ports:` (host `:5432`/`:8000`/`:3000`/`:9000` tertutup).
-- [x] `db`, `api`, `api-fpm`, `web`, `redis` tanpa `ports:` (glitchtip DISABLED — service di-comment).
-- [x] `migrate` one-shot (`restart: "no"`), depend `api-fpm` menunggu `service_completed_successfully`.
-- [x] Healthcheck di `db` (`pg_isready`) & `api` (wget `/api/health`).
+- [x] Hanya `aiplanstudionginx_web` punya `ports:` (host `:5432`/`:8000`/`:3000`/`:9000` tertutup).
+- [x] `aiplanstudio_db`, `aiplanstudionginx_api`, `aiplanstudio_apifpm`, `aiplanstudio_web`, `aiplanstudio_redis` tanpa `ports:` (glitchtip DISABLED — service di-comment).
+- [x] `migrate` one-shot (`restart: "no"`), depend `aiplanstudio_apifpm` menunggu `service_completed_successfully`.
+- [x] Healthcheck di `aiplanstudio_db` (`pg_isready`) & `aiplanstudionginx_api` (wget `/api/health`).
 - [x] `mem_limit` di semua service; `restart: unless-stopped` untuk daemon.
 - [x] Rahasia via env (`.env`/`.env.production`), tidak di-commit; `REDIS_PASSWORD` via compose.
 - [x] BFF: semua request masuk via nginx → Next.js, tidak ada route langsung ke Laravel.
