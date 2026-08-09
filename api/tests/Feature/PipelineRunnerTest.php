@@ -481,4 +481,23 @@ class PipelineRunnerTest extends TestCase
         $this->assertSame(5, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MIN_MCQ_QUESTIONS'));
         $this->assertSame(10, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_QUESTIONS'));
     }
+
+    public function test_master_web_tracking_block_injects_token(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'contextPrompt');
+        $ref->setAccessible(true);
+
+        $prompt = $ref->invoke($runner, 'master_web', $this->version);
+
+        $this->assertStringContainsString('WEBHOOK TRACKING', $prompt);
+        $this->assertStringContainsString('Authorization: Bearer ', $prompt);
+        $this->assertStringContainsString('phase-complete', $prompt);
+        // token plain tersimpan di versions.tracking_token
+        $this->version->refresh();
+        $this->assertNotEmpty($this->version->tracking_token);
+        // tergenerate di project_api_tokens
+        $this->assertSame(1, $this->project->apiTokens()->count());
+    }
 }

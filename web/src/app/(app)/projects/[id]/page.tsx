@@ -7,6 +7,7 @@ import { Card, Badge, Markdown } from "@/components/ui";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { TargetBadge } from "@/components/common";
 import { ErdDiagram } from "@/components/wizard/ErdDiagram";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { getStages, type Target } from "@/lib/mock";
 import { apiGet, apiPost, apiDelete, apiPatch, type Project, type Version, type Activity } from "@/lib/api";
 import {
@@ -202,7 +203,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
   const mobileProgress = mobilePhases.length > 0 ? Math.round((mobileDoneCount / mobilePhases.length) * 100) : 0;
 
   return (
-    <>
+    <ErrorBoundary>
       <ButtonLink href="/projects" variant="ghost" size="sm" className="mb-4"><ArrowLeft size={16} /> Projects</ButtonLink>
 
       {/* Header */}
@@ -797,7 +798,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
           </div>
         </div>
       )}
-    </>
+    </ErrorBoundary>
   );
 }
 

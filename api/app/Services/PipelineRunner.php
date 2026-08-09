@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Version;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Throwable;
 
 class PipelineRunner
@@ -257,22 +258,49 @@ class PipelineRunner
 
             'standards_web' => $ctx."\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT),
 
-            'phases_web' => $ctx."\n\n### Standars\n{$v->standards}\n\n### AGENTS\n{$v->agents}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+            'phases_web' => $ctx."\n\n### Standars\n{$v->standards}\n\n### AGENTS\n{$v->agents}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT).$this->trackingBlock($v),
 
-            'master_web' => $ctx."\n\n### Standars (web)\n{$v->standards}\n\n### AGENTS (web)\n{$v->agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+            'master_web' => $ctx."\n\n### Standars (web)\n{$v->standards}\n\n### AGENTS (web)\n{$v->agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT).$this->trackingBlock($v),
 
             'pertanyaan_mobile' => $ctx."\n\n### Master Prompt Web (SUDAH SELESAI)\n{$v->master_prompt}\n\n### API Contract\n".json_encode($v->erd ? ($v->erd['api_contract'] ?? []) : [], JSON_PRETTY_PRINT)."\n\n### ERD\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[]], JSON_PRETTY_PRINT),
 
-            'phases_mobile' => $ctx."\n\n### Mobile Answers (klarifikasi mobile)\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### Dokumen PRD (web)\n{$v->prd}\n\n### Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH SELESAI — referensi lengkap web)\n{$v->master_prompt}\n\n### Version ID\n{$v->id}\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+            'phases_mobile' => $ctx."\n\n### Mobile Answers (klarifikasi mobile)\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### Dokumen PRD (web)\n{$v->prd}\n\n### Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH SELESAI — referensi lengkap web)\n{$v->master_prompt}".$this->trackingBlock($v),
 
             'standards_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Web (SUDAH SELESAI)\n{$v->master_prompt}",
 
-            'master_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### AGENTS Mobile\n{$v->mobile_agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH 100% — referensi lengkap web)\n{$v->master_prompt}\n\n### Webhook URL (untuk tracking phase)\n".config('app.url').'/api/webhooks/phase-complete',
+            'master_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### AGENTS Mobile\n{$v->mobile_agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH 100% — referensi lengkap web)\n{$v->master_prompt}".$this->trackingBlock($v),
 
             'agents' => $ctx."\n\n### Master Prompt Web (WAJIB — base untuk semua agent)\n{$v->master_prompt}\n\n### Master Prompt Mobile (jika target=both, SUDAH SELESAI)\n".(($target === 'both' && ! empty($v->mobile_master_prompt)) ? $v->mobile_master_prompt : '_Belum ada (target=web)_'),
 
             default => $idea,
         };
+    }
+
+    /** Auto-generate tracking token + blok webhook lengkap untuk disuntikkan ke prompt master. */
+    private function trackingBlock(Version $v): string
+    {
+        $project = $v->project;
+
+        // Pakai token plain yang sudah ada (versions.tracking_token), atau buat baru.
+        $plain = $v->tracking_token;
+        if (! $plain || $plain === '') {
+            $existing = $project->apiTokens()->where('name', 'auto-tracking')->first();
+            if (! $existing) {
+                $plain = \App\Models\ProjectApiToken::generate($project, 'auto-tracking')['token'];
+                $v->forceFill(['tracking_token' => $plain])->save();
+            } else {
+                // Token lama sudah di-hash di DB — buat token generasi baru yang dicek plain.
+                $plain = \App\Models\ProjectApiToken::generate($project, 'auto-tracking-'.Str::random(4))['token'];
+                $v->forceFill(['tracking_token' => $plain])->save();
+            }
+        }
+
+        return "\n\n### Version ID\n{$v->id}\n".
+            "### WEBHOOK TRACKING (wajib setelah tiap fase selesai)\n".
+            "POST ".config('app.url')."/api/webhooks/phase-complete\n".
+            "Authorization: Bearer {$plain}\n".
+            "Body: {\"version_id\": {$v->id}, \"phase_key\": \"{key}\", \"status\": \"done\", \"output\": \"...\"}\n".
+            "Status didukung: running | done | error. Kirim setelah tiap FASE (key dari daftar FASE di atas).";
     }
 
     private function saveArtifact(string $key, string $content): void

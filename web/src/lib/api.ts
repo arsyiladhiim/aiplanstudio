@@ -345,7 +345,15 @@ export type Version = {
   mobile_standards?: string;
   mobile_agents?: string;
   project?: Project;
-  phaseProgress?: Array<{ id?: number; phase_key: string; done: boolean }>;
+  phaseProgress?: Array<{
+    id?: number;
+    phase_key: string;
+    done: boolean;
+    status?: "pending" | "running" | "done" | "error";
+    output?: string | null;
+    started_at?: string | null;
+    finished_at?: string | null;
+  }>;
 };
 
 export type McqOption = {

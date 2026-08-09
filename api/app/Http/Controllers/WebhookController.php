@@ -14,7 +14,7 @@ class WebhookController extends Controller
             'version_id' => ['required', 'integer'],
             'phase_key' => ['required', 'string'],
             'output' => ['nullable', 'string'],
-            'status' => ['nullable', 'string', 'in:done,error'],
+            'status' => ['nullable', 'string', 'in:running,done,error,pending'],
         ]);
 
         $version = Version::whereHas('project', fn($q) => $q->where('id', $request->project_id))
@@ -31,14 +31,21 @@ class WebhookController extends Controller
             return response()->json(['message' => 'Phase key tidak valid.'], 422);
         }
 
-        $version->phaseProgress()->updateOrCreate(
-            ['phase_key' => $data['phase_key']],
-            [
-                'done' => ($data['status'] ?? 'done') === 'done',
-                'output' => $data['output'] ?? null,
-            ]
-        );
+        $status = $data['status'] ?? 'done';
+        $now = now();
 
-        return response()->json(['ok' => true, 'phase_key' => $data['phase_key'], 'status' => $data['status'] ?? 'done']);
+        $progress = $version->phaseProgress()->firstOrNew(['phase_key' => $data['phase_key']]);
+        if ($status === 'running' && ! $progress->started_at) {
+            $progress->started_at = $now;
+        }
+        $progress->done = $status === 'done';
+        $progress->status = $status;
+        $progress->output = $data['output'] ?? $progress->output;
+        if ($status === 'done' || $status === 'error') {
+            $progress->finished_at = $now;
+        }
+        $progress->save();
+
+        return response()->json(['ok' => true, 'phase_key' => $data['phase_key'], 'status' => $status]);
     }
 }

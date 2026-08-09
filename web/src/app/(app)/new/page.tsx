@@ -75,6 +75,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [editingStage, setEditingStage] = useState<StageKey | null>(null);
   const [editContent, setEditContent] = useState("");
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
+  const [phaseProg, setPhaseProg] = useState<Version["phaseProgress"]>([]);
 
   const abortRef = useRef<AbortController | null>(null);
   const cancelled = useRef(false);
@@ -276,6 +277,23 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       }
     };
   }, []);
+
+  // Tracking fase real-time — polling saat berada di stage master.
+  useEffect(() => {
+    if (!versionId) return;
+    const isMaster = activeKey === "master_web" || activeKey === "master_mobile";
+    if (!isMaster) return;
+
+    const poll = async () => {
+      try {
+        const v = await apiGet<Version>(`/versions/${versionId}`);
+        if (v.phaseProgress) setPhaseProg(v.phaseProgress);
+      } catch { /* silent */ }
+    };
+    poll();
+    const timer = setInterval(poll, 5000);
+    return () => clearInterval(timer);
+  }, [versionId, activeKey]);
 
   // Fallback: fetch artifact from DB when SSE artifact event was lost
   useEffect(() => {
@@ -1158,6 +1176,10 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 })()}
                 {activeKey === "master_web" && artifacts.master_web && (() => {
                   const masterPrompt = artifacts.master_web;
+                  const phases: PhaseItem[] = (() => {
+                    try { const p = JSON.parse(artifacts.phases_web || '[]'); return Array.isArray(p) ? p : []; } catch { return []; }
+                  })();
+                  const progMap = Object.fromEntries((phaseProg ?? []).map((p) => [p.phase_key, p]));
                   return (
                     <Card className="p-4">
                       <div className="mb-3 flex items-center justify-between">
@@ -1166,12 +1188,17 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                           <Copy size={13} /> Salin Master Prompt
                         </Button>
                       </div>
+                      <TrackingPhases phases={phases} progMap={progMap} />
                       <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</Markdown>
                     </Card>
                   );
                 })()}
                 {activeKey === "master_mobile" && artifacts.master_mobile && (() => {
                   const masterPrompt = artifacts.master_mobile;
+                  const phases: PhaseItem[] = (() => {
+                    try { const p = JSON.parse(artifacts.phases_mobile || '[]'); return Array.isArray(p) ? p : []; } catch { return []; }
+                  })();
+                  const progMap = Object.fromEntries((phaseProg ?? []).map((p) => [p.phase_key, p]));
                   return (
                     <Card className="p-4">
                       <div className="mb-3 flex items-center justify-between">
@@ -1180,6 +1207,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                           <Copy size={13} /> Salin Master Prompt
                         </Button>
                       </div>
+                      <TrackingPhases phases={phases} progMap={progMap} />
                       <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</Markdown>
                     </Card>
                   );
@@ -1299,6 +1327,62 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+type ProgressItem = {
+  phase_key: string;
+  done: boolean;
+  status?: "pending" | "running" | "done" | "error";
+  output?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+};
+
+function TrackingPhases({ phases, progMap }: { phases: PhaseItem[]; progMap: Record<string, ProgressItem> }) {
+  const badge = (p?: ProgressItem) => {
+    const st = p?.status ?? "pending";
+    if (st === "running") return <Badge tone="brand"><Loader2 size={11} className="animate-spin" /> Running</Badge>;
+    if (st === "done") return <Badge tone="success">Selesai</Badge>;
+    if (st === "error") return <Badge tone="danger">Error</Badge>;
+    return <Badge tone="muted">Menunggu</Badge>;
+  };
+
+  return (
+    <div className="mb-4 overflow-hidden rounded-xl border border-[var(--color-border)]">
+      <div className="flex items-center justify-between bg-[var(--color-surface-2)] px-4 py-2">
+        <h4 className="text-sm font-semibold">Tracking Fase</h4>
+        <span className="text-xs text-[var(--color-fg-muted)]">
+          {phases.filter((p) => progMap[p.key ?? ""]?.status === "done").length}/{phases.length} selesai
+        </span>
+      </div>
+      <div className="divide-y divide-[var(--color-border)]">
+        {phases.length === 0 && (
+          <div className="px-4 py-3 text-xs text-[var(--color-fg-muted)]">Belum ada fase. Jalankan agent dengan master prompt untuk mulai tracking.</div>
+        )}
+        {phases.map((p) => {
+          const prog = progMap[p.key ?? ""];
+          return (
+            <div key={p.key} className="flex items-center justify-between gap-2 px-4 py-2">
+              <div className="min-w-0">
+                <div className="truncate text-sm">{p.title}</div>
+                {prog?.output ? (
+                  <div className="mt-0.5 truncate text-xs text-[var(--color-fg-muted)]">{prog.output}</div>
+                ) : prog?.started_at || prog?.finished_at ? (
+                  <div className="mt-0.5 text-xs text-[var(--color-fg-subtle)]">
+                    {prog.finished_at ? new Date(prog.finished_at).toLocaleString("id-ID") : prog.started_at ? new Date(prog.started_at).toLocaleString("id-ID") : ""}
+                  </div>
+                ) : null}
+              </div>
+              {badge(prog)}
+            </div>
+          );
+        })}
+      </div>
+      <p className="px-4 py-2 text-[10px] text-[var(--color-fg-subtle)]">
+        Status diperbarui real-time oleh AI agent via webhook (Authorization Bearer).
+      </p>
     </div>
   );
 }
