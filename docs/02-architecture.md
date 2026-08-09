@@ -68,29 +68,31 @@ Semua `/api/*`, `/sanctum/*` masuk ke Next.js → Next.js proxy ke Laravel inter
 2. Frontend fetch `http://localhost:4197/api/...` (dengan cookie session + CSRF header) → nginx → `aiplanstudio_web` (BFF) → `api:8000` (Laravel).
 3. Pipeline AI: frontend POST ke BFF `/api/generate/stream` → Next.js proxy GET ke Laravel → AI Provider streaming → relay token & status per stage ke frontend realtime via SSE.
 
-## Pipeline AI (13 Stages)
-Pipeline `PipelineRunner` menjalankan 13 stage (target `both`) / 9 stage (target `aiplanstudio_web`) secara berurutan:
+## Pipeline AI (14 Stages)
+Pipeline `PipelineRunner` menjalankan 14 stage (target `both`) / 10 stage (target `web`) secara berurutan:
 
 ```
-INTI (1-5): pertanyaan → analisa → prd → architecture → erd
-WEB TRACK (6-9): standards_web → agents_web → phases_web → master_web
-MOBILE TRACK (10-13, hanya both): phases_mobile → standards_mobile → agents_mobile → master_mobile
+INTI (1-6): pertanyaan → analisa → prd → architecture → erd → api_contract
+WEB TRACK (7-9): phases_web → standards_web → master_web
+MOBILE TRACK (10-13, hanya both): pertanyaan_mobile → phases_mobile → standards_mobile → master_mobile
+AGENTS (14): agents
 ```
-- `pertanyaan`: generate pertanyaan klarifikasi (output disimpan ke `pertanyaan`, jawaban ke `answers`)
+- `pertanyaan`: MCQ klarifikasi (output → `pertanyaan`, jawaban → `answers`)
 - `analisa`: analisa kebutuhan dari ide + jawaban
 - `prd`: Product Requirements Document
 - `architecture`: arsitektur & tech stack (target-aware)
-- `erd`: ERD diagram + API contract (JSON, `parseErdText()` mengekstrak `api_contract`)
-- `standards_web` → `standards` (STANDARDS.md web)
-- `agents_web` → `agents` (AGENTS.md web)
+- `erd`: ERD diagram (JSON, `parseErdText()` mengekstrak `api_contract`)
+- `api_contract`: API contract JSON (array endpoint)
 - `phases_web` → `phases` (jsonb, breakdown fase web)
-- `master_web` → `master_prompt` (master prompt self-contained web)
-- `phases_mobile` → `mobile_phases` (jsonb, breakdown fase mobile)
+- `standards_web` → `standards` (STANDARDS.md web)
+- `master_web` → `master_prompt` (master prompt self-contained web + auto token tracking)
+- `pertanyaan_mobile` → `pertanyaan_mobile` + `mobile_answers` (MCQ mobile)
+- `phases_mobile` → `mobile_phases` (jsonb)
 - `standards_mobile` → `mobile_standards` (STANDARDS.md mobile)
-- `agents_mobile` → `mobile_agents` (AGENTS.md mobile)
-- `master_mobile` → `mobile_master_prompt` (master prompt self-contained mobile)
+- `master_mobile` → `mobile_master_prompt`
+- `agents` → `agents` (AGENTS.md, setelah semua track selesai)
 
-**Gate:** Mobile track (stage 10-13) hanya berjalan jika `master_web` done. Target `aiplanstudio_web` → stage 1-9.
+**Gate:** Mobile track (stage 10-13) hanya berjalan jika `master_web` done. Target `web` → stage 1-10. Setelah stage besar selesai, wizard meminta **konfirmasi** bila tracking fase web belum selesai.
 
 Setiap stage streaming via SSE. Stage berikutnya mendapat konteks dari output stage sebelumnya. Lihat [05-wizard-flow](05-wizard-flow.md) dan [06-ai-pipeline](06-ai-pipeline.md).
 
@@ -108,7 +110,7 @@ Setiap stage streaming via SSE. Stage berikutnya mendapat konteks dari output st
 
 ### Inline Artifact Editing (`PATCH /api/versions/{id}/artifacts`)
 - Wizard page allows editing any completed artifact inline via textarea.
-- Stage key → DB column mapping: `analisa`→analysis, `prd`→prd, `architecture`→architecture, `erd`→erd, `standards_web`→standards, `agents_web`→agents, `phases_web`→phases, `master_web`→master_prompt, `phases_mobile`→mobile_phases, `standards_mobile`→mobile_standards, `agents_mobile`→mobile_agents, `master_mobile`→mobile_master_prompt.
+- Stage key → DB column mapping: `analisa`→analysis, `prd`→prd, `architecture`→architecture, `erd`→erd, `api_contract`→api_contract, `standards_web`→standards, `phases_web`→phases, `master_web`→master_prompt, `pertanyaan_mobile`→pertanyaan_mobile, `phases_mobile`→mobile_phases, `standards_mobile`→mobile_standards, `master_mobile`→mobile_master_prompt, `agents`→agents.
 - ERD content JSON-decoded before storage.
 
 ### Version Diff (`GET /api/versions/{id}/diff?compare={otherId}`)

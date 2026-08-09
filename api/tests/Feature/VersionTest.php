@@ -42,6 +42,52 @@ class VersionTest extends TestCase
             ]);
     }
 
+    public function test_create_version_clones_baseline_from_last_by_default(): void
+    {
+        $v1 = $this->project->versions()->create([
+            'version_no' => 1,
+            'stage_status' => array_merge(Version::defaultStageStatus(), ['pertanyaan' => 'done', 'analisa' => 'done']),
+            'analysis' => 'Analisa v1',
+            'prd' => 'PRD v1',
+            'answers' => ['q1' => 'A'],
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/projects/{$this->project->id}/versions");
+
+        $response->assertStatus(201)
+            ->assertJson([
+                'version_no' => 2,
+                'source_version_id' => $v1->id,
+                'analysis' => 'Analisa v1',
+                'prd' => 'PRD v1',
+            ]);
+
+        $v2 = Version::find($response->json('id'));
+        $this->assertEquals(['q1' => 'A'], $v2->answers);
+        $this->assertEquals('done', $v2->stage_status['pertanyaan']);
+        $this->assertEquals('done', $v2->stage_status['analisa']);
+    }
+
+    public function test_create_version_blank_strategy_does_not_clone(): void
+    {
+        $this->project->versions()->create([
+            'version_no' => 1,
+            'stage_status' => Version::defaultStageStatus(),
+            'analysis' => 'Analisa v1',
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/projects/{$this->project->id}/versions", ['strategy' => 'blank']);
+
+        $response->assertStatus(201)
+            ->assertJson([
+                'version_no' => 2,
+                'analysis' => null,
+                'source_version_id' => null,
+            ]);
+    }
+
     public function test_show_version_with_relations(): void
     {
         $version = Version::factory()->create([

@@ -120,3 +120,10 @@ Dokumen ini mencatat rancangan, spesifikasi, serta checkpoint implementasi untuk
 - [x] **Rerender UI:** `new/page.tsx` + renderer tabel API Contract untuk stage `api_contract` (metode, path, deskripsi, auth) — sebelumnya hanya markdown mentah.
 - [x] **Prompt `api_contract.php`:** dipertegas output array endpoint murni, field wajib, tanpa prose/markdown/single-quote.
 - [x] **Tests:** +5 unit (`PipelineRunnerTest`) — plain array, wrapped `{endpoints}`, prose+fence wrap, unquoted+single-quote, invalid throw. 136/136 PASS.
+
+### [x] Checkpoint 8: Versi Baru Clone Baseline (R1)
+- [x] `POST /api/projects/{id}/versions` → default **`from_last`**: salin artefak + jawaban + `stage_status` dari versi terakhir (revisi lanjut), opsi `blank`.
+- [x] Kolom `source_version_id` + `baseline_notes` + relasi `Version::source()`.
+- [x] Dialog "Buat Versi Baru" (strategi + catatan revisi) di `projects/[id]`.
+- [x] `dashboardStats.active_projects` = projekt dengan ≥1 stage `done`.
+- [x] Docs: 14/10 stage, `agents`, no-auto-run align; 150/150 PASS untuk pipeline.

@@ -11,7 +11,7 @@
 - **Build:** 17/17 pages ✅
 - **Auth:** Session-based (Sanctum SPA — HttpOnly cookie + CSRF) + User approval flow
 - **Pipeline:** 14 stages (pertanyaan-MCQ → analisa → prd → architecture → erd → api_contract → phases_web → standards_web → master_web → pertanyaan_mobile-MCQ → phases_mobile → standards_mobile → master_mobile → agents)
-- **Testing:** Backend PHPUnit 131 pass ✅, Playwright E2E 10 test hijau ✅ (3 specs: auth, wizard, projects)
+- **Testing:** Backend PHPUnit 150 pass ✅, Playwright E2E 10 test hijau ✅ (3 specs: auth, wizard, projects)
 - **Status:** Semua fase utama + next-progress P1-P16 selesai. Maintenance only (lihat [17-next-progress.md](17-next-progress.md) + [18-production-readiness.md](18-production-readiness.md))
 
 ## Aturan Lintas-Fase (wajib tiap fase)
@@ -56,9 +56,9 @@ Setiap fase baru boleh ditandai `[x]` bila:
 - [x] ProfileController: get/update user profile
 - [x] All admin-only routes protected by `role.admin` middleware
 
-### [x] F5 — Pipeline Backend (13 stages)
+### [x] F5 — Pipeline Backend (14 stages)
 - [x] `AiClient.php`: streaming OpenAI-compatible + Anthropic Claude
-- [x] `PipelineRunner.php`: 13 stages (pertanyaan→analisa→prd→architecture→erd→standards_web→agents_web→phases_web→master_web→phases_mobile→standards_mobile→agents_mobile→master_mobile) + gate mobile
+- [x] `PipelineRunner.php`: 14 stages (pertanyaan→analisa→prd→architecture→erd→api_contract→phases_web→standards_web→master_web→pertanyaan_mobile→phases_mobile→standards_mobile→master_mobile→agents) + gate mobile
 - [x] SSE events: status, token, artifact, done, fail
 - [x] Auto-run & checkpoint modes
 - [x] JSON validation dengan multi-strategy retry

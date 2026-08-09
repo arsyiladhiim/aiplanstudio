@@ -19,21 +19,54 @@ class VersionController extends Controller
 {
     public function store(Request $request, int $projectId): JsonResponse
     {
+        $data = $request->validate([
+            'strategy' => ['sometimes', 'string', 'in:blank,from_last'],
+            'baseline_notes' => ['sometimes', 'nullable', 'string', 'max:500'],
+        ]);
+
         $project = Project::where('user_id', $request->user()->id)->findOrFail($projectId);
 
-        $version = DB::transaction(function () use ($project) {
+        $version = DB::transaction(function () use ($project, $data) {
             $locked = Project::where('id', $project->id)->lockForUpdate()->firstOrFail();
             $next = ($locked->versions()->max('version_no') ?? 0) + 1;
 
-            return $locked->versions()->create([
+            $strategy = $data['strategy'] ?? 'from_last';
+            $source = $strategy === 'from_last'
+                ? $locked->versions()->latest('version_no')->first()
+                : null;
+
+            $attrs = [
                 'version_no' => $next,
                 'stage_status' => Version::defaultStageStatus(),
-            ]);
+            ];
+
+            if ($source) {
+                // Clone baseline: semua artefak + jawaban + fase dari versi terakhir.
+                // Status stage yang sudah done ikut disalin agar pengembangan berlanjut,
+                // bukan mulai dari nol.
+                $cloneFields = [
+                    'pertanyaan', 'answers', 'pertanyaan_mobile', 'mobile_answers',
+                    'analysis', 'prd', 'architecture', 'erd', 'api_contract',
+                    'phases', 'master_prompt', 'standards', 'agents',
+                    'mobile_phases', 'mobile_master_prompt', 'mobile_standards', 'mobile_agents',
+                ];
+                foreach ($cloneFields as $f) {
+                    $attrs[$f] = $source->{$f};
+                }
+                $attrs['stage_status'] = $source->stage_status;
+                $attrs['source_version_id'] = $source->id;
+                $attrs['baseline_notes'] = $data['baseline_notes'] ?? "Dibuat dari v{$source->version_no} (baseline pengembangan)";
+            }
+
+            return $locked->versions()->create($attrs);
         });
 
-        $project->logActivity(Activity::ACTION_CREATED_VERSION, "Membuat versi v{$version->version_no}", $version->id);
+        $action = $version->source_version_id
+            ? "Membuat versi v{$version->version_no} (baseline dari v{$version->source?->version_no})"
+            : "Membuat versi v{$version->version_no}";
+        $project->logActivity(Activity::ACTION_CREATED_VERSION, $action, $version->id);
 
-        return response()->json($version, 201);
+        return response()->json($version->fresh(['project']), 201);
     }
 
     public function show(Request $request, int $id): JsonResponse

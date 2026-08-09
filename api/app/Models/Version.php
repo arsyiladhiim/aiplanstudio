@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'architecture', 'erd', 'api_contract', 'phases', 'master_prompt',
     'standards', 'agents', 'tracking_token',
     'mobile_phases', 'mobile_master_prompt', 'mobile_standards', 'mobile_agents',
+    'source_version_id', 'baseline_notes',
 ])]
 class Version extends Model
 {
@@ -34,6 +35,11 @@ class Version extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function source(): BelongsTo
+    {
+        return $this->belongsTo(Version::class, 'source_version_id');
     }
 
     public function phaseProgress(): HasMany

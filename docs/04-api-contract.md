@@ -64,7 +64,7 @@
 ## Versions
 | Method | Path | Auth | Body / Query | Response |
 |--------|------|------|--------------|----------|
-| POST | `/api/projects/{id}/versions` | Session (owner) | — | buat versi baru (version_no+1), status awal |
+| POST | `/api/projects/{id}/versions` | Session (owner) | `{strategy?: "from_last"\|"blank", baseline_notes?: string}` | buat versi baru (version_no+1). Default `from_last` = clone baseline artefak+jawaban+status dari versi terakhir; `blank` = start kosong |
 | GET | `/api/versions/{id}` | Session (owner) | — | artefak lengkap versi (all columns) |
 | DELETE | `/api/versions/{id}` | Session (owner) | — | `204` (tidak bisa hapus versi terakhir) |
 | PATCH | `/api/versions/{id}/artifacts` | Session (owner) | `{stage, content}` | inline edit artifact |
@@ -109,15 +109,15 @@ event: fail
 data: {"stage":"pertanyaan","message":"..."}
 ```
 
-- `stage` ∈ `pertanyaan|analisa|prd|architecture|erd|standards_web|agents_web|phases_web|master_web|phases_mobile|standards_mobile|agents_mobile|master_mobile` (lihat [05-wizard-flow](05-wizard-flow.md)).
-- `auto=1` → jalankan seluruh stage berurutan tanpa henti; `auto=0` → hanya stage diminta lalu berhenti (checkpoint).
-- Mobile track stages (`phases_mobile`, `standards_mobile`, `agents_mobile`, `master_mobile`) hanya aktif jika project target=`both`, dan menunggu `master_web` done (gate).
+- `stage` ∈ `pertanyaan|analisa|prd|architecture|erd|api_contract|phases_web|standards_web|master_web|pertanyaan_mobile|phases_mobile|standards_mobile|master_mobile|agents` (lihat [05-wizard-flow](05-wizard-flow.md)).
+- `auto=1` → jalankan seluruh stage berurutan tanpa henti (setara resume auto-start); `auto=0` → hanya stage diminta lalu berhenti (per-stage manual — perilaku default wizard).
+- Mobile track stages (`pertanyaan_mobile`, `phases_mobile`, `standards_mobile`, `master_mobile`) hanya aktif jika project target=`both`, dan menunggu `master_web` done (gate). Stage `agents` di akhir.
 - Artefak disimpan ke `versions` oleh backend saat `artifact`/`done`.
 
 ## Webhook (Project API Token)
 | Method | Path | Auth | Body | Response |
 |--------|------|------|------|----------|
-| POST | `/api/webhooks/phase-complete` | Project Token (header) | `{project_id, version_id, phase_key, status}` | `200` `{ok:true}` |
+| POST | `/api/webhooks/phase-complete` | Project Token (header) | `{project_id, version_id, phase_key, status, output}` | `200` `{ok:true, phase_key, status}` |
 
 Auth via `Authorization: Bearer {token}` header, di mana token = project API token (bukan session). Middleware `auth.project-token`.
 

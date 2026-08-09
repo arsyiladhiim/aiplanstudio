@@ -1,7 +1,7 @@
 # 19 — Pipeline 14-Stage Overhaul (Web + Mobile + MCQ Questions)
 
-> **Checkpoint dokumentasi untuk AI Agent.** Baca ini dulu sebelum mengubah kode pipeline.
-> Status: **DEPRECATED** — lihat [docs/20-dynamic-mcq-questions.md](20-dynamic-mcq-questions.md) untuk versi terbaru (14 stage dengan MCQ).
+> **DEPRECATED** — dokumen historis pipeline 13-stage (D-028). Versi aktif saat ini **14 stage** (both) / **10 stage** (web) dengan MCQ + `api_contract` + `pertanyaan_mobile` + `agents`. Lihat **[docs/20-dynamic-mcq-questions.md](20-dynamic-mcq-questions.md)** & [docs/05-wizard-flow.md](05-wizard-flow.md).
+> Konten di bawah disimpan sebagai catatan keputusan D-028.
 
 ---
 

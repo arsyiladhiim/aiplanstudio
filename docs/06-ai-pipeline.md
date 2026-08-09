@@ -6,7 +6,7 @@
 ## Komponen
 ```
 app/Services/AiClient.php        # low-level: panggil provider OpenAI-compatible (streaming)
-app/Services/PipelineRunner.php  # orkestrasi 13 stage (both) / 9 stage (web), simpan artefak, emit SSE
+app/Services/PipelineRunner.php  # orkestrasi 14 stage (both) / 10 stage (web), simpan artefak, emit SSE
 app/Prompts/*.php                # template prompt per stage (target-aware)
 ```
 
@@ -20,8 +20,8 @@ app/Prompts/*.php                # template prompt per stage (target-aware)
 
 ## PipelineRunner
 - Method utama: `run(string|null $stage, bool $auto)`.
-- `ALL_STAGES` constant: `['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'standards_web', 'agents_web', 'phases_web', 'master_web', 'phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile']`
-- `MOBILE_STAGES`: `['phases_mobile', 'standards_mobile', 'agents_mobile', 'master_mobile']` — hanya untuk target `both`, gate menunggu `master_web` done.
+- `ALL_STAGES` constant: `['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract', 'phases_web', 'standards_web', 'master_web', 'pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile', 'agents']`
+- `MOBILE_STAGES`: `['pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile']` — hanya untuk target `both`, gate menunggu `master_web` done.
 - Susun `messages`:
   - `system` = template prompt stage (dari `app/Prompts`, dipilih berdasar `stage` + `target`).
   - `user` = konteks: ide + target + stack + jawaban + artefak stage-stage sebelumnya.
@@ -35,34 +35,33 @@ app/Prompts/*.php                # template prompt per stage (target-aware)
 
 | Stage | Konteks masuk | Simpan ke |
 |-------|---------------|-----------|
-| `pertanyaan` | idea, target, stack | → `pertanyaan` (text) — disimpan ke DB |
+| `pertanyaan` | idea, target, stack | → `pertanyaan` (text JSON MCQ) — disimpan ke DB; jawaban → `answers` |
 | `analisa` | idea, target, stack, jawaban pertanyaan | `analysis` |
 | `prd` | idea, target, stack, jawaban, analysis | `prd` |
 | `architecture` | PRD, target, stack | `architecture` |
-| `erd` | PRD, arsitektur | `erd` (jsonb) + `api_contract` (jsonb, extracted from AI text output; fallback JSON block) |
-| `standards_web` | PRD, arsitektur, ERD | `standards` (STANDARDS.md web) |
-| `agents_web` | standards, PRD, arsitektur | `agents` (AGENTS.md web) |
+| `erd` | PRD, arsitektur | `erd` (jsonb) + seed `api_contract` |
+| `api_contract` | PRD, arsitektur, ERD | `api_contract` (jsonb, array endpoint) |
 | `phases_web` | standards, agents, PRD, arsitektur, ERD | `phases` (jsonb) — breakdown fase web |
-| `master_web` | standards, agents, analisa, PRD, arsitektur, ERD | `master_prompt` (self-contained master prompt web) |
-| `phases_mobile` | mobile_standards, PRD, arsitektur, ERD, master_web | `mobile_phases` (jsonb) — breakdown fase mobile |
-| `standards_mobile` | PRD, arsitektur, ERD, master_web | `mobile_standards` (STANDARDS.md mobile) |
-| `agents_mobile` | mobile_standards, master_web | `mobile_agents` (AGENTS.md mobile) |
-| `master_mobile` | mobile_standards, mobile_agents, analisa, PRD, arsitektur, ERD, master_web | `mobile_master_prompt` (self-contained master prompt mobile) |
+| `standards_web` | PRD, arsitektur, ERD | `standards` (STANDARDS.md web) |
+| `master_web` | standards, agents, analisa, PRD, arsitektur, ERD | `master_prompt` (self-contained + auto token tracking) |
+| `pertanyaan_mobile` | master_web, api_contract, erd | `pertanyaan_mobile` (JSON MCQ) + `mobile_answers` |
+| `phases_mobile` | mobile_answers, mobile_standards, master_web, PRD, arsitektur, ERD | `mobile_phases` (jsonb) |
+| `standards_mobile` | mobile_answers, PRD, arsitektur, ERD, master_web | `mobile_standards` (STANDARDS.md mobile) |
+| `master_mobile` | mobile_answers, mobile_standards, mobile_agents, analisa, PRD, arsitektur, ERD, master_web | `mobile_master_prompt` |
+| `agents` | master_web (+ master_mobile jika both) | `agents` (AGENTS.md) |
 
 > Mobile track (stage 10-13) hanya dijalankan jika `project.target === 'both'` **dan** `master_web` sudah done (gate). Untuk target `web`, mobile track di-skip dan langsung ditandai `done`.
 
 ## Output Terstruktur (JSON stage)
-- Stage `erd`, `phases_web`, dan `phases_mobile` **wajib JSON valid**.
-  - ERD: `{ "nodes": [{id,label,fields:[...]}], "edges": [{from,to,relation}] }`.
-  - Phases (`phases_web`/`phases_mobile`): parsed dari format teks `FASE:`, `TASK:`, `PROMPT:` → jsonb array.
-- Stage `standards_web`, `agents_web`, `standards_mobile`, `agents_mobile`, `master_web`, `master_mobile` menghasilkan teks/markdown langsung (tanpa parsing JSON).
+- Stage `pertanyaan`, `pertanyaan_mobile`, `api_contract`, `erd` **wajib JSON valid**.
+  - `pertanyaan`/`pertanyaan_mobile`: `{ambiguities, questions:[{id, question, options:[{key,text,recommended,custom}], recommendation_reason}]}`
+  - `api_contract`: array `[{method,path,description,auth}]` (normalisasi: terima objek `{endpoints}` juga).
+  - ERD: `{ nodes:[{id,label,fields:[...]}], edges:[{from,to,relation}] }`.
+  - Phases (`phases_web`/`phases_mobile`): parsed dari format teks `FASE:`/`TASK:`/`PROMPT:` → jsonb array.
+- Stage `standards_web`, `master_web`, `standards_mobile`, `master_mobile`, `agents` menghasilkan teks/markdown langsung (tanpa parsing JSON).
 - Backend **validasi** JSON via multi-strategy decoder:
-  1. Direct `json_decode`
-  2. Strip control characters
-  3. Balance braces
-  4. Fix missing `[` after known keys
-  5. Single-quote → double-quote fix
-- Jika gagal parse → retry **sekali** dengan instruksi perbaikan format, baru throw error jika gagal lagi.
+  1. Direct `json_decode` · 2. strip control chars · 3. quote unquoted keys · 4. balance missing closers · 5. trim trailing annotation · 6. single-quote → double-quote
+- Jika gagal parse → error stage (bukan disimpan mentah). MCQ `pertanyaan`: auto-retry sampai ≥5 pertanyaan (guard 180, hasil terbaik disimpan).
 - **Jangan** percaya output AI mentah — selalu validasi sebelum simpan/render. Lihat [11-development-rules](11-development-rules.md).
 
 ## Prompt Template (`app/Prompts`)

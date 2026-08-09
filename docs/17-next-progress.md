@@ -9,12 +9,12 @@ Semua fase utama (F0–F10, R1, P1–P14) **selesai**.
 **Tidak ada fase aktif.** Item di bawah ini adalah next steps terprioritas.
 
 **Yang sudah selesai:**
-- Backend Laravel (13-stage pipeline, auth, projects, versioning, activity log, API tokens)
+- Backend Laravel (14-stage pipeline, auth, projects, versioning, activity log, API tokens)
 - Frontend Next.js (17 pages, tsc 0 errors, lint 0 errors)
 - Full BFF pattern (nginx → Next.js → Laravel)
 - 3-schema PostgreSQL database
 - Auth: Sanctum SPA + User approval flow
-- Docker Compose (7 services)
+- Docker Compose (6 services)
 
 ---
 
@@ -89,13 +89,14 @@ docker run --rm --network host -v "$PWD/web":/work -w /work \
 
 **Result:** Pipeline penuh terverifikasi dengan AI provider nyata (`https://9r.arsyiladm.my.id/v1`, model `aiplanstudio`).
 
-Semua 9 stage (target web) berjalan end-to-end dan artifact persisted:
+Semua 10 stage (target web) berjalan end-to-end dan artifact persisted:
 - `pertanyaan` → text column ✅ (P1 fix diverifikasi di pipeline nyata)
 - `analisa` → analysis ✅
 - `prd` → prd ✅
 - `architecture` → architecture ✅ (raw text — fix parser terlalu strict)
-- `erd` → erd (JSON nodes/edges) + `api_contract` (6 endpoints) ✅
-- `standards_web` → standards ✅, `agents_web` → agents ✅, `phases_web` → phases ✅, `master_web` → master_prompt ✅
+- `erd` → erd (JSON nodes/edges) + `api_contract` ✅
+- `api_contract` → api_contract (array endpoint) ✅
+- `phases_web` → phases ✅, `standards_web` → standards ✅, `master_web` → master_prompt ✅, `agents` → agents ✅
 
 **Bug nyata ditemukan & diperbaiki saat P5:**
 1. **architecture stage selalu error** — `saveArtifact()` throw bila `parseArchText()` null, tapi prompt minta format bebas. Fix: architecture disimpan sebagai text mentah (sesuai docs), parse opsional.

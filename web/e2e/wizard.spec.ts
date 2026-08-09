@@ -40,5 +40,8 @@ test.describe("Wizard (Buat Plan)", () => {
     await expect(page.locator('[data-testid^="stage-"]').first()).toBeVisible({
       timeout: 20000,
     });
+    // Target web → 10 stage, both → 14 stage
+    const stageCount = await page.locator('[data-testid^="stage-"]').count();
+    expect([10, 14]).toContain(stageCount);
   });
 });

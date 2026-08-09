@@ -4,6 +4,11 @@
 
 ## 2026-08-08
 
+### D-029 · Versi Baru Clone Baseline (pengembangan lanjutan, bukan mulai nol)
+- **Keputusan:** `POST /projects/{id}/versions` default `strategy=from_last` — menyalin artefak, jawaban (`answers`/`mobile_answers`) & `stage_status` dari versi terakhir; kolom `source_version_id` + `baseline_notes` mencatat asal. Opsi `blank` utk rencana baru murni.
+- **Alasan:** Sebelumnya versi baru selalu kosong → user harus jalankan ulang seluruh pipeline untuk "revisi/update". Clone baseline membuat diff antar versi bermakna dan pengembangan berlanjut.
+- **Ditolak:** Tetap versi kosong (revisi tidak praktis); sinkronisasi otomatis kode dari CLI (di luar tujuan planning-tool).
+
 ### D-028 · Pipeline 13-Stage Overhaul (split phased_master, hapus target mobile)
 - **Keputusan:** Split `phased_master` (1 stage → 4 artifact) menjadi 4 stage terpisah: `standards_web`, `agents_web`, `phases_web`, `master_web`. Begitu juga `phased_master_mobile` → `phases_mobile`, `standards_mobile`, `agents_mobile`, `master_mobile`. Total 13 stage (both) / 9 stage (web). Hapus target `mobile` standalone (mobile butuh API/web). Gate: mobile track menunggu `master_web` done.
 - **Alasan:** `phased_master` overload — 1 panggilan AI menghasilkan 4 artifact, token terbagi, hasil parsial. Master prompt web & mobile hampir sama. Mobile tidak menunggu web selesai.

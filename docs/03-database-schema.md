@@ -101,9 +101,11 @@ sessions, personal_access_tokens (Sanctum)
 | id | bigint PK | |
 | project_id | bigint FK → projects | |
 | version_no | integer | 1, 2, 3 … ("update ke Versi 2") |
-| stage_status | jsonb | status 13 tahap (both) / 9 tahap (web): `{pertanyaan:'pending', analisa:'done', ...}` |
+| source_version_id | bigint FK → versions (nullOnDelete) | versi asal utk baseline clone (R1) |
+| baseline_notes | string(500) nullable | catatan revisi saat clone from_last |
+| stage_status | jsonb | status 14 tahap (both) / 10 tahap (web): `{pertanyaan:'pending', analisa:'done', ...}` |
 
-Stage status keys: `pertanyaan`, `analisa`, `prd`, `architecture`, `erd`, `standards_web`, `agents_web`, `phases_web`, `master_web`, `phases_mobile`, `standards_mobile`, `agents_mobile`, `master_mobile`. Nilai: `pending` | `running` | `done` | `error`.
+Stage status keys: `pertanyaan`, `analisa`, `prd`, `architecture`, `erd`, `api_contract`, `phases_web`, `standards_web`, `master_web`, `pertanyaan_mobile`, `phases_mobile`, `standards_mobile`, `master_mobile`, `agents`. Nilai: `pending` | `running` | `done` | `error`.
 
 | pertanyaan | text nullable | output tahap Pertanyaan Klarifikasi (migration 2026_08_06_000000) |
 | analysis | text nullable | hasil tahap Analisa |
@@ -154,7 +156,7 @@ Unik: (`project_id`, `version_no`).
 | answers | jsonb nullable | jawaban pertanyaan klarifikasi `{key: value}` (migration 2026_07_31_120000) |
 | tracking_token | string nullable | token untuk webhook phase tracking (migration 2026_07_31_120000) |
 | standards | text nullable | STANDARDS.md web hasil dari stage `standards_web` (migration 2026_07_27_130000) |
-| agents | text nullable | AGENTS.md web hasil dari stage `agents_web` (migration 2026_07_27_130000) |
+| agents | text nullable | AGENTS.md — hasil dari stage `agents` (migration 2026_07_27_130000) |
 | mobile_phases | jsonb nullable | phases untuk mobile (target='both' saja) |
 | mobile_master_prompt | text nullable | master prompt untuk mobile |
 | mobile_standards | text nullable | standards untuk mobile |

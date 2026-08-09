@@ -23,7 +23,7 @@ web/
       (app)/
         layout.tsx                 # app shell (sidebar, header, nav)
         dashboard/page.tsx         # ringkasan + project terbaru
-        new/page.tsx               # WIZARD 13 tahap (inti)
+        new/page.tsx               # WIZARD 14/10 tahap (inti)
         projects/page.tsx          # daftar project
         projects/[id]/page.tsx     # detail: versi, artefak, progress, export
         templates/page.tsx         # galeri template

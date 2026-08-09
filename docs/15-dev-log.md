@@ -3,6 +3,11 @@
 > **Catat setiap proses development di sini** (aturan wajib [11-development-rules](11-development-rules.md)). Entri terbaru di atas.
  > Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
 
+### 2026-08-08 · R1 — Versi Baru clone baseline + docs sync + Q2/Q3 (ops)
+- Dikerjakan: (1) **Versi Baru `from_last`**: `VersionController::store({strategy})` — default salin artefak (`pertanyaan`, `analysis`, `prd`, `architecture`, `erd`, `api_contract`, `phases`, `standards`, `agents`, `master_prompt`, `mobile_*`, `answers`, `mobile_answers`) + `stage_status` dari versi terakhir; opsi `blank`. Kolom baru `source_version_id` + `baseline_notes` (migration `2026_08_08_130000`). Relasi `Version::source()`. UI dialog "Buat Versi Baru" (pilih strategi + catatan). (2) `dashboardStats.active_projects` = proyek dgn ≥1 stage `done` (sebelumnya asal punya version). (3) Docs: pivot pipeline 14/10 stage, `agents` (bukan agents_web/mobile), `api_contract` stage, no-auto-run align.
+- Perintah/hasil: `php artisan migrate --force` OK. `php artisan test` → 150 passed. `tsc` 0. `lint` 0 (5 warning pre-existing).
+- Status: [x] Selesai.
+
 ### 2026-08-08 · Pipeline 14-Stage + Dynamic MCQ (P16)
 - Dikerjakan: (1) Stage 1 `pertanyaan` → JSON MCQ 5-10 pertanyaan (A-D + E custom) + detection area samar + rekomendasi AI badge. (2) Stage baru `pertanyaan_mobile` (stage 10, hanya target `both`, setelah `master_web` done) — MCQ khusus mobile (hardware/offline/push notif/UX). (3) Kolom baru `pertanyaan_mobile` (text) + `mobile_answers` (jsonb) di versions. (4) Stage baru `api_contract` (JSON) setelah `erd`. Stage `agents` di akhir. Total **14 stage** (both) / 10 stage (web). (5) PipelineRunner: ALL_STAGES 14, pertanyaan_mobile gate, mobile_answers di context mobile. (6) Frontend: MCQ JSON parser + interactive card UI (A-D button + E textarea + rekomendasi badge) untuk web & mobile.
 - Perintah/hasil: `php artisan test` → 131 passed (474 assertions). `tsc --noEmit` → 0 errors. `eslint` → 0 errors (5 warning). Docker build web + api → OK.

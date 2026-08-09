@@ -37,6 +37,9 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
   const [error, setError] = useState("");
   const [tab, setTab] = useState<TabKey>("prd");
   const [creatingVersion, setCreatingVersion] = useState(false);
+  const [showVersionDialog, setShowVersionDialog] = useState(false);
+  const [versionStrategy, setVersionStrategy] = useState<"from_last" | "blank">("from_last");
+  const [baselineNotes, setBaselineNotes] = useState("");
   const [diffMode, setDiffMode] = useState(false);
   const [diffVersionId, setDiffVersionId] = useState<number | null>(null);
   const [editingProject, setEditingProject] = useState(false);
@@ -115,13 +118,19 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
   }
 
   async function handleCreateVersion() {
-    if (!project || creatingVersion) return;
+    if (!project || creatingVersion || !showVersionDialog) return;
     setCreatingVersion(true);
     try {
-      const newVersion = await apiPost<Version>(`/projects/${project.id}/versions`);
+      const body: Record<string, unknown> = { strategy: versionStrategy };
+      if (versionStrategy === "from_last" && baselineNotes.trim()) {
+        body.baseline_notes = baselineNotes.trim();
+      }
+      const newVersion = await apiPost<Version>(`/projects/${project.id}/versions`, body);
       // Refresh project to get updated versions list
       const updated = await apiGet<Project & { versions: Version[] }>(`/projects/${id}`);
       setProject(updated);
+      setShowVersionDialog(false);
+      setBaselineNotes("");
       fetchVersion(newVersion.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal membuat version baru");
@@ -244,7 +253,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
           <Button variant="secondary" size="sm" onClick={() => handleExport('md')} disabled={!selectedVersion}>
             <Download size={15} /> Export
           </Button>
-          <Button size="sm" onClick={handleCreateVersion} disabled={creatingVersion}>
+          <Button size="sm" onClick={() => setShowVersionDialog(true)}>
             {creatingVersion ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Versi Baru
           </Button>
           <Button variant="secondary" size="sm" onClick={handleDelete}>
@@ -734,6 +743,59 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
           </div>
         </div>
       )}
+      {/* Versi Baru Modal */}
+      {showVersionDialog && project && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Buat Versi Baru</h3>
+              <button onClick={() => setShowVersionDialog(false)} className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="mb-1 text-sm font-medium">Strategi</p>
+                <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-[var(--color-border)] p-3">
+                  <input type="radio" name="ver" checked={versionStrategy === "from_last"} onChange={() => setVersionStrategy("from_last")} />
+                  <div>
+                    <span className="text-sm font-medium">Lanjutkan dari versi terakhir (baseline)</span>
+                    <p className="text-xs text-[var(--color-fg-muted)]">
+                      Salin artefak, jawaban &amp; status fase dari v{project.versions?.[0]?.version_no ?? "—"} — untuk revisi/pengembangan lanjutan.
+                    </p>
+                  </div>
+                </label>
+                <label className="mt-2 flex cursor-pointer items-start gap-2 rounded-lg border border-[var(--color-border)] p-3">
+                  <input type="radio" name="versionStrategy" checked={versionStrategy === "blank"} onChange={() => setVersionStrategy("blank")} />
+                  <div>
+                    <span className="text-sm font-medium">Mulai dari kosong</span>
+                    <p className="text-xs text-[var(--color-fg-muted)]">Buat rencana baru tanpa salin versi sebelumnya.</p>
+                  </div>
+                </label>
+              </div>
+              {versionStrategy === "from_last" && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Catatan revisi (opsional)</label>
+                  <input
+                    type="text"
+                    value={baselineNotes}
+                    onChange={(e) => setBaselineNotes(e.target.value)}
+                    placeholder="Contoh: tambah fitur laporan, perbaiki auth..."
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" size="sm" onClick={() => setShowVersionDialog(false)}>Batal</Button>
+                <Button size="sm" onClick={handleCreateVersion} disabled={creatingVersion}>
+                  {creatingVersion ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Buat Versi
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Project Modal */}
       {editingProject && project && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">

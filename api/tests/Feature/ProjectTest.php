@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Project;
 use App\Models\User;
+use App\Models\Version;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -125,5 +126,34 @@ class ProjectTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['target']);
+    }
+
+    public function test_dashboard_active_projects_counts_projects_with_done_stage(): void
+    {
+        // Project A: punya 1 stage done → aktif
+        $active = Project::factory()->create(['user_id' => $this->user->id]);
+        $active->versions()->create([
+            'version_no' => 1,
+            'stage_status' => array_merge(Version::defaultStageStatus(), ['pertanyaan' => 'done']),
+        ]);
+
+        // Project B: semua pending → tidak aktif
+        $idle = Project::factory()->create(['user_id' => $this->user->id]);
+        $idle->versions()->create([
+            'version_no' => 1,
+            'stage_status' => Version::defaultStageStatus(),
+        ]);
+
+        // Project C: tidak punya versi → tidak aktif
+        Project::factory()->create(['user_id' => $this->user->id]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->getJson('/api/dashboard/stats');
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'active_projects' => 1,
+                'total_projects' => 3,
+            ]);
     }
 }

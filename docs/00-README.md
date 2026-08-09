@@ -17,10 +17,10 @@ Saat memulai/melanjutkan sesi development, baca urut:
 | File | Isi |
 |------|-----|
 | [01-overview.md](01-overview.md) | Tujuan produk, target user, scope, non-scope |
-| [02-architecture.md](02-architecture.md) | Topologi Docker, service, jaringan, BFF, pipeline 13 stages |
+| [02-architecture.md](02-architecture.md) | Topologi Docker, service, jaringan, BFF, pipeline 14 stages |
 | [03-database-schema.md](03-database-schema.md) | Tabel, kolom, relasi, versioning, 3 schemas |
 | [04-api-contract.md](04-api-contract.md) | Endpoint, payload, response, SSE, webhook |
-| [05-wizard-flow.md](05-wizard-flow.md) | Alur wizard 13 tahap (both) / 9 tahap (web) + checkpoint + target-aware |
+| [05-wizard-flow.md](05-wizard-flow.md) | Alur wizard 14 tahap (both) / 10 tahap (web) + per-stage manual |
 | [06-ai-pipeline.md](06-ai-pipeline.md) | AiClient, PipelineRunner, prompt template, SSE |
 | [07-docker-setup.md](07-docker-setup.md) | Compose, env, perintah build/migrate |
 | [08-frontend.md](08-frontend.md) | Struktur Next.js, halaman, auth flow, BFF |
@@ -38,11 +38,11 @@ Saat memulai/melanjutkan sesi development, baca urut:
 
 ## Status ringkas
 - **Semua F0–F9, F10, R1, Phase 4 selesai** ✅
-- **Backend:** Laravel 100% ✅ (~131 test functions)
+- **Backend:** Laravel 100% ✅ (~150 test functions)
 - **Frontend:** Next.js UI 100% ✅ (17/17 pages, tsc 0 errors, lint 0 errors)
 - **BFF Pattern:** nginx → Next.js → Laravel ✅
-- **Docker:** 7 services (nginx, web, api, migrate, db, redis)
-- **Pipeline:** 13 stages aktif ✅ (target both; 9 untuk web)
+- **Docker:** 6 services (nginx, web, api, api-fpm, db, redis)
+- **Pipeline:** 14 stages aktif ✅ (target both; 10 untuk web)
 - **Audit findings:** 73 items R1 selesai (termasuk RS-9 FPM). 0 pending.
 - Next progress: lihat **[17-next-progress.md](17-next-progress.md)**
 

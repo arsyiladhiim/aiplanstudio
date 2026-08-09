@@ -325,6 +325,8 @@ export interface PhaseData {
 export type Version = {
   id: number;
   version_no: number;
+  source_version_id?: number | null;
+  baseline_notes?: string | null;
   stage_status: Record<string, string>;
   pertanyaan?: string;
   answers?: Record<string, string>;

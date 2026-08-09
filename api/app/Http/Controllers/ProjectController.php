@@ -96,7 +96,11 @@ class ProjectController extends Controller
         $user = $request->user();
         $totalProjects = $user->projects()->count();
         $totalVersions = Version::whereHas('project', fn($q) => $q->where('user_id', $user->id))->count();
-        $activeProjects = $user->projects()->whereHas('versions')->count();
+        $activeProjects = $user->projects()
+            ->whereHas('versions', function ($q) {
+                $q->whereRaw("EXISTS (SELECT 1 FROM jsonb_each_text(stage_status) kv WHERE kv.value = 'done')");
+            })
+            ->count();
 
         $today = now()->startOfDay();
         $projectsThisWeek = $user->projects()->where('created_at', '>=', $today->copy()->subDays(7))->count();
