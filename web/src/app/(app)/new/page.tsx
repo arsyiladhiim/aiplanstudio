@@ -337,15 +337,21 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       setVersionId(v.id);
       setTitle(v.project?.title ?? '');
       setIdea(v.project?.idea ?? '');
-      setTarget(v.project?.target ?? 'web');
+      const projectTarget = v.project?.target ?? 'web';
+      setTarget(projectTarget);
       if (v.answers) setAnswers(v.answers);
       setStarted(true);
 
-      const firstIdx = stages.findIndex(s => (v.stage_status as Record<string, string>)?.[s.key] !== 'done');
-      setCurrent(Math.max(0, firstIdx));
+      // Hitung stage berdasarkan target project (bukan `stages` memo yang masih
+      // stale ke target default 'web' saat effect jalan) — agar resume lanjut ke
+      // stage sebenarnya (mis. pertanyaan_mobile utk target both).
+      const resumeStages = getStages(projectTarget);
+      const firstIdx = resumeStages.findIndex(s => (v.stage_status as Record<string, string>)?.[s.key] !== 'done');
+      const idx = firstIdx >= 0 ? firstIdx : resumeStages.length - 1; // semua done → stage terakhir
+      setCurrent(idx);
 
-      const loadedStatus = Object.fromEntries(stages.map(s => [s.key, (v.stage_status as Record<string, string>)?.[s.key] || 'pending'])) as Record<StageKey, StageState>;
-      stages.forEach(s => { if (loadedStatus[s.key] === 'error') loadedStatus[s.key] = 'pending'; });
+      const loadedStatus = Object.fromEntries(resumeStages.map(s => [s.key, (v.stage_status as Record<string, string>)?.[s.key] || 'pending'])) as Record<StageKey, StageState>;
+      resumeStages.forEach(s => { if (loadedStatus[s.key] === 'error') loadedStatus[s.key] = 'pending'; });
       setStatus(loadedStatus);
 
       const colMap: Record<string, keyof Version> = {
@@ -365,7 +371,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         agents: 'agents',
       };
       const loaded: Record<string, string> = {};
-      stages.forEach(s => {
+      resumeStages.forEach(s => {
         const col = colMap[s.key];
         if (!col) return;
         const val = v[col];
@@ -373,9 +379,9 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       });
       setArtifacts(loaded as Record<StageKey, string>);
 
-      if (firstIdx >= 0) startPipeline(v.id, stages[firstIdx].key);
+      if (firstIdx >= 0) startPipeline(v.id, resumeStages[firstIdx].key);
     }).catch(err => setError(err instanceof Error ? err.message : 'Gagal memuat data project'));
-  }, [isResume, resumeVersionId, started, stages, startPipeline]);
+  }, [isResume, resumeVersionId, started, startPipeline]);
 
   // Auto-scroll modal output
   const activeArtifact = artifacts[activeKey];
