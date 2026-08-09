@@ -76,6 +76,24 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [editContent, setEditContent] = useState("");
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
   const [phaseProg, setPhaseProg] = useState<Version["phase_progress"]>([]);
+  const [pendingConfirmMaster, setPendingConfirmMaster] = useState(false);
+
+  // Fase web (phases) + status tracking — untuk gate: web belum selesai bangun
+  // bila ada fase `phases_web` dengan phase_progress belum semua done.
+  const webPhases = useMemo(() => {
+    try {
+      const p = JSON.parse(artifacts.phases_web || "[]");
+      return Array.isArray(p) ? (p as PhaseItem[]) : [];
+    } catch {
+      return [];
+    }
+  }, [artifacts.phases_web]);
+  const webTrackingDone = useMemo(() => {
+    if (webPhases.length === 0) return true;
+    const keySet = new Set(webPhases.map((p) => p.key ?? ""));
+    const doneCount = (phaseProg ?? []).filter((pp) => keySet.has(pp.phase_key) && pp.done).length;
+    return doneCount >= webPhases.length;
+  }, [webPhases, phaseProg]);
 
   const abortRef = useRef<AbortController | null>(null);
   const cancelled = useRef(false);
@@ -346,8 +364,8 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       // stale ke target default 'web' saat effect jalan) — agar resume lanjut ke
       // stage sebenarnya (mis. pertanyaan_mobile utk target both).
       const resumeStages = getStages(projectTarget);
-      const firstIdx = resumeStages.findIndex(s => (v.stage_status as Record<string, string>)?.[s.key] !== 'done');
-      const idx = firstIdx >= 0 ? firstIdx : resumeStages.length - 1; // semua done → stage terakhir
+      let firstIdx = resumeStages.findIndex(s => (v.stage_status as Record<string, string>)?.[s.key] !== 'done');
+      let idx = firstIdx >= 0 ? firstIdx : resumeStages.length - 1; // semua done → stage terakhir
       setCurrent(idx);
 
       const loadedStatus = Object.fromEntries(resumeStages.map(s => [s.key, (v.stage_status as Record<string, string>)?.[s.key] || 'pending'])) as Record<StageKey, StageState>;
@@ -378,6 +396,27 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         if (val) loaded[s.key] = typeof val === 'object' ? JSON.stringify(val) : String(val);
       });
       setArtifacts(loaded as Record<StageKey, string>);
+
+      // Gate tracking: muat phase_progress; bila ada fase web belum selesai dan firstIdx
+      // sudah melampaui master_web (ke mobile), jangan auto-lanjut — tahan di master_web.
+      const prog = v.phase_progress ?? [];
+      setPhaseProg(prog);
+      let resumeWebPhases: PhaseItem[] = [];
+      try { const p = JSON.parse(String(loaded.phases_web || '[]')); resumeWebPhases = Array.isArray(p) ? (p as PhaseItem[]) : []; } catch { resumeWebPhases = []; }
+      const webKeySet = new Set(resumeWebPhases.map(ph => ph.key ?? ''));
+      const webDoneCount = webKeySet.size > 0
+        ? prog.filter(pp => webKeySet.has(pp.phase_key) && pp.done).length
+        : 0;
+      const resumeWebTrackingDone = webKeySet.size === 0 || webDoneCount >= webKeySet.size;
+
+      const masterWebIdx = resumeStages.findIndex(s => s.key === 'master_web');
+      if (!resumeWebTrackingDone && masterWebIdx >= 0 && idx > masterWebIdx) {
+        idx = masterWebIdx;
+        firstIdx = -1; // jangan auto-start pipeline; biarkan user konfirmasi
+        setCurrent(idx);
+        setStatus(s => ({ ...s, master_web: 'running' as StageState }));
+        setError('Tracking fase web belum selesai. Lanjutkan hanya setelah kamu yakin web sudah jadi.');
+      }
 
       if (firstIdx >= 0) startPipeline(v.id, resumeStages[firstIdx].key);
     }).catch(err => setError(err instanceof Error ? err.message : 'Gagal memuat data project'));
@@ -430,12 +469,38 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     if (!versionId || current + 1 >= stages.length) return;
     if (stages[current].key === 'pertanyaan') return;
 
+    const currentKey = stages[current].key;
+    // Gate: bila current = master_web (akhir track web) & tracking fase belum selesai,
+    // jangan langsung lanjut — minta konfirmasi user (web kemungkinan belum selesai dibangun).
+    if (currentKey === 'master_web' && !webTrackingDone) {
+      setPendingConfirmMaster(true);
+      return;
+    }
+
     const nextStage = stages[current + 1].key;
 
     if (abortRef.current) {
       abortRef.current.abort();
     }
 
+    createSSEPost(
+      `/generate/stream`,
+      { version: versionId, stage: nextStage },
+      handleSSEEvent,
+      (err) => {
+        console.error('SSE error:', err);
+        setError('Koneksi SSE terputus');
+      }
+    ).then(ctrl => { abortRef.current = ctrl; });
+  }
+
+  function proceedAfterMasterConfirm() {
+    setPendingConfirmMaster(false);
+    if (!versionId || current + 1 >= stages.length) return;
+    const nextStage = stages[current + 1].key;
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
     createSSEPost(
       `/generate/stream`,
       { version: versionId, stage: nextStage },
@@ -1329,6 +1394,23 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
               <Button variant="secondary" size="sm" onClick={cancelGeneration}>
                 <AlertCircle size={15} /> Batalkan
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Konfirmasi lanjut setelah master_web — tracking fase web belum selesai */}
+      {pendingConfirmMaster && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold">Tracking fase web belum selesai</h3>
+            <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
+              Ada fase web yang masih berjalan / belum ditandai selesai. Web kemungkinan belum selesai dibangun.
+              Yakin melanjutkan ke tahap berikutnya?
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setPendingConfirmMaster(false)}>Batal</Button>
+              <Button size="sm" onClick={proceedAfterMasterConfirm}>Tetap Lanjut <ArrowRight size={15} /></Button>
             </div>
           </div>
         </div>
