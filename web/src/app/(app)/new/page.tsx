@@ -75,7 +75,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [editingStage, setEditingStage] = useState<StageKey | null>(null);
   const [editContent, setEditContent] = useState("");
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
-  const [phaseProg, setPhaseProg] = useState<Version["phaseProgress"]>([]);
+  const [phaseProg, setPhaseProg] = useState<Version["phase_progress"]>([]);
 
   const abortRef = useRef<AbortController | null>(null);
   const cancelled = useRef(false);
@@ -287,7 +287,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     const poll = async () => {
       try {
         const v = await apiGet<Version>(`/versions/${versionId}`);
-        if (v.phaseProgress) setPhaseProg(v.phaseProgress);
+        if (v.phase_progress) setPhaseProg(v.phase_progress);
       } catch { /* silent */ }
     };
     poll();

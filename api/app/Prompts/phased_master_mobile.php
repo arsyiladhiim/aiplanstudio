@@ -27,7 +27,7 @@ Format output teks (JANGAN JSON). MASTER PROMPT ini SATU dokumen self-contained 
 5. OUTPUT PER FASE: file + AC.
 6. COMMIT: `feat(m_{key}): {ringkasan}` tiap fase.
 7. STATE & ROLLBACK: jangan hapus file tanpa izin; git = snapshot.
-8. WEBHOOK: setelah tiap fase kirim POST ke Webhook URL (Bearer token). Body: {"version_id":..., "phase_key":"{key}","status":"done","output":"..."}.
+8. WEBHOOK: setelah tiap fase kirim POST ke Webhook URL (Bearer token). Body: {"version_id":..., "phase_key":"{key}","status":"done","output":"..."}. PENTING: `phase_key` = key persis dari daftar FASE (misal m_setup), bukan "phase-1".
 
 ## STANDARS MOBILE (ringkas)
 {ringkasan Flutter/Dart, MD3, Riverpod, GoRouter, nullable safety, struktur lib/features}

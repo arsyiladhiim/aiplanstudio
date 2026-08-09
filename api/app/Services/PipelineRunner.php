@@ -300,7 +300,8 @@ class PipelineRunner
             "POST ".config('app.url')."/api/webhooks/phase-complete\n".
             "Authorization: Bearer {$plain}\n".
             "Body: {\"version_id\": {$v->id}, \"phase_key\": \"{key}\", \"status\": \"done\", \"output\": \"...\"}\n".
-            "Status didukung: running | done | error. Kirim setelah tiap FASE (key dari daftar FASE di atas).";
+            "PENTING: `phase_key` HARUS memakai `key` persis dari daftar FASE di atas (misal fase1_setup). Boleh juga phase-1/phase-2 dst sesuai urutan fase — tapi yang paling akurat adalah key asli.\n".
+            "Status didukung: running | done | error. Kirim `running` saat mulai, `done` saat selesai.";
     }
 
     private function saveArtifact(string $key, string $content): void
@@ -360,9 +361,10 @@ class PipelineRunner
             if ($phases === null) {
                 throw new \RuntimeException('Phases: Gagal parse output AI. Stage ditandai error.');
             }
-            $this->version->update([$col => $phases]);
-            $value = $content;
-            $this->emit('artifact', ['stage' => $key, 'content' => $content]);
+            // Simpan array (bukan teks mentah) — wajib agar webhook phase_key valid
+            // dan frontend bisa merender list fase. Emit JSON utk wizard.
+            $value = $phases;
+            $this->emit('artifact', ['stage' => $key, 'content' => json_encode($phases, JSON_PRETTY_PRINT)]);
         } elseif ($key === 'api_contract') {
             $cleaned = $this->extractJson($content);
             $decoded = $this->tryJsonDecode($cleaned);

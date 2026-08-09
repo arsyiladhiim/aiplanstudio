@@ -345,7 +345,7 @@ export type Version = {
   mobile_standards?: string;
   mobile_agents?: string;
   project?: Project;
-  phaseProgress?: Array<{
+  phase_progress?: Array<{
     id?: number;
     phase_key: string;
     done: boolean;

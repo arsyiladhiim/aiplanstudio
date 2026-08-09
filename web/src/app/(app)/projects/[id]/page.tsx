@@ -195,7 +195,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
   const versions = project.versions || [];
   const phases = selectedVersion?.phases as Array<{ key: string; title: string; tasks?: string[]; prompt?: string }> || [];
   const mobilePhases = selectedVersion?.mobile_phases as Array<{ key: string; title: string; tasks?: string[]; prompt?: string }> || [];
-  const phaseProgress = selectedVersion?.phaseProgress as Array<{ phase_key: string; done: boolean }> || [];
+  const phaseProgress = selectedVersion?.phase_progress as Array<{ phase_key: string; done: boolean }> || [];
   const doneMap = Object.fromEntries(phaseProgress.map(p => [p.phase_key, p.done]));
   const doneCount = phaseProgress.filter(p => p.done).length;
   const progress = phases.length > 0 ? Math.round((doneCount / phases.length) * 100) : 0;

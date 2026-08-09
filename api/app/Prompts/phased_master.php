@@ -27,7 +27,7 @@ Format yang diminta:
 6. COMMIT: commit git tiap fase dengan format `feat(fase-key): {ringkasan}`.
 7. STATE & ROLLBACK: jangan hapus/rename file tanpa instruksi; git commit = snapshot state; jika gagal, kembali ke commit terakhir (jangan mulai ulang dari nol).
 8. STANDARS & AGENTS: patuhi standar & agent rules yang TUJU di bawah ini (sudah termasuk ke konteks).
-9. WEBHOOK: setelah tiap fase selesai kirim POST ke Webhook URL (Authorization Bearer token). Head Request body: {"version_id": ..., "phase_key": "{key}", "status":"done", "output":"..."}.
+9. WEBHOOK: setelah tiap fase selesai kirim POST ke Webhook URL (Authorization Bearer token) dengan body {"version_id": ..., "phase_key": "{key}", "status":"done", "output":"..."}. PENTING: `phase_key` = key persis dari daftar FASE (misal fase1_setup), bukan "phase-1".
 
 ## STANDARS (ringkas, bersumber dari STANDARDS.md)
 {ringkasan coding conventions: bahasa, framework, naming, struktur, DB, commit}
