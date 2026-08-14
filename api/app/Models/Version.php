@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'project_id', 'version_no', 'stage_status', 'pertanyaan', 'answers', 'pertanyaan_mobile', 'mobile_answers', 'analysis', 'prd',
+    'project_id', 'version_no', 'stage_status', 'stage_tokens', 'pertanyaan', 'answers', 'pertanyaan_mobile', 'mobile_answers', 'analysis', 'prd',
     'architecture', 'erd', 'api_contract', 'phases', 'master_prompt',
     'standards', 'agents', 'tracking_token',
     'mobile_phases', 'mobile_master_prompt', 'mobile_standards', 'mobile_agents',
@@ -31,6 +31,7 @@ class Version extends Model
     {
         return [
             'stage_status' => 'array',
+            'stage_tokens' => 'array',
             'answers' => 'array',
             'mobile_answers' => 'array',
             'erd' => 'array',
@@ -79,7 +80,10 @@ class Version extends Model
     /** Count of completed stages. */
     public function progressCount(): int
     {
-        if (! $this->stage_status) return 0;
+        if (! $this->stage_status) {
+            return 0;
+        }
+
         return collect($this->stage_status)->filter(fn ($s) => $s === 'done')->count();
     }
 }

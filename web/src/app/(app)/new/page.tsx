@@ -10,6 +10,9 @@ import { PhaseBreakdownCard, type PhaseItem } from "@/components/wizard/PhaseBre
 import type { ProgressItem } from "@/components/wizard/TrackingPhases";
 import { TrackingPanel } from "@/components/wizard/TrackingPanel";
 import { McqForm } from "@/components/wizard/McqForm";
+import { StreamingMarkdown } from "@/components/wizard/StreamingMarkdown";
+import { StageThroughputBar } from "@/components/wizard/StageThroughputBar";
+import { BuildWall } from "@/components/wizard/BuildWall";
 import { getStages, type StageKey, type StageState, type Target } from "@/lib/mock";
 import { apiPost, apiGet, apiPatch, apiDelete, createSSEPost, createSSE, type Project, type Template, type Version, type McqData, type McqAnswer } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -83,6 +86,11 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [savingArtifact, setSavingArtifact] = useState(false);
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
   const [phaseProg, setPhaseProg] = useState<Version["phase_progress"]>([]);
+  const [stageTokens, setStageTokens] = useState<Record<string, number>>({});
+  const [providerRate] = useState<number | null>(null);
+  // startedAt: updated by SSE event handler (bukan useEffect) untuk hindari
+  // React Compiler 'set-state-in-effect' rule.
+  const [startedAt, setStartedAt] = useState<number | null>(null);
   const [pendingConfirmMaster, setPendingConfirmMaster] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
@@ -232,6 +240,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           if (data.state === 'running') {
             const idx = stages.findIndex(x => x.key === stage);
             if (idx >= 0) setCurrent(idx);
+            setStartedAt(prev => prev ?? Date.now());
           }
           if (data.state === 'done') {
             setRetryInfo(null);
@@ -256,6 +265,15 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         const stage = data.stage as string | undefined;
         if (stage) {
           setArtifacts(prev => ({ ...prev, [stage as StageKey]: String(data.content ?? '') }));
+        }
+        break;
+      }
+
+      case 'stage_tokens': {
+        const stage = data.stage as string | undefined;
+        const tokens = Number(data.tokens ?? 0);
+        if (stage && Number.isFinite(tokens) && tokens > 0) {
+          setStageTokens(prev => ({ ...prev, [stage]: tokens }));
         }
         break;
       }
@@ -378,6 +396,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     // Initial fetch for immediate render
     apiGet<Version>(`/versions/${versionId}`).then(v => {
       if (v.phase_progress) setPhaseProg(v.phase_progress);
+      if (v.stage_tokens) setStageTokens(v.stage_tokens);
     }).catch(() => {});
 
     const es = createSSE(
@@ -784,6 +803,25 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       <div className={`grid gap-6 ${showTrackingPanel ? "lg:grid-cols-[260px_1fr_340px]" : "lg:grid-cols-[280px_1fr]"}`}>
         {/* Stage tracker */}
         <div className="space-y-2">
+          {(() => {
+            const totalTokens = Object.values(stageTokens ?? {}).reduce<number>(
+              (sum, n) => sum + (typeof n === "number" ? n : 0),
+              0,
+            );
+            const cost = (totalTokens * (providerRate ?? 0)).toFixed(4);
+            return (
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[11px] text-[var(--color-fg-muted)]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                <div className="flex items-center justify-between">
+                  <span>Total token</span>
+                  <span className="font-mono text-[var(--color-fg)]">{totalTokens.toLocaleString("id-ID")}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between">
+                  <span>Estimasi biaya</span>
+                  <span className="font-mono text-[var(--color-fg)]">~${cost}</span>
+                </div>
+              </div>
+            );
+          })()}
           {stages.map((s, i) => {
             const st = status[s.key];
             // CP-3: key mencakup status agar CSS animation re-trigger saat transisi ke 'done'.
@@ -1205,11 +1243,41 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         )}
       </div>
 
-      {/* Loading modal overlay */}
+      {/* Full-screen Build Wall untuk master_* + agents */}
+      <BuildWall
+        open={status[activeKey] === "running" && ["master_web", "master_mobile", "agents"].includes(activeKey)}
+        stageLabel={`Tahap ${current + 1}/${stages.length}: ${stages[current]?.label ?? ""}`}
+        content={artifacts[activeKey] ?? ""}
+        isRunning={status[activeKey] === "running"}
+        onClose={() => { if (status[activeKey] !== "running") setCurrent(Math.min(current + 1, stages.length - 1)); }}
+        throughput={{
+          startedAt: status[activeKey] === "running" ? startedAt : null,
+          bytes: artifacts[activeKey]?.length ?? 0,
+        }}
+        sidebar={
+          <div className="space-y-3 text-xs">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--color-fg-subtle)]">Deskripsi</div>
+              <div className="mt-1 text-[var(--color-fg)]">{stages[current]?.desc}</div>
+            </div>
+            {retryInfo && (
+              <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1 font-medium text-amber-600">
+                <Loader2 size={12} className="animate-spin" />
+                Percobaan {retryInfo.attempt}/{retryInfo.max}
+              </div>
+            )}
+            <Button variant="secondary" size="sm" onClick={() => setShowCancelConfirm(true)}>
+              <AlertCircle size={14} /> Batalkan
+            </Button>
+          </div>
+        }
+      />
+
+      {/* Loading modal untuk stage biasa (non-master) */}
       <Modal
-        open={status[activeKey] === "running"}
+        open={status[activeKey] === "running" && !["master_web", "master_mobile", "agents"].includes(activeKey)}
         onClose={() => {}}
-        title={`Tahap ${current + 1}/${stages.length}: ${stages[current].label}`}
+        title={`Tahap ${current + 1}/${stages.length}: ${stages[current]?.label ?? ""}`}
         size="lg"
         closeOnBackdrop={false}
       >
@@ -1217,7 +1285,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         <div className="mb-4 flex items-center gap-3">
           <Loader2 size={24} className="animate-spin text-[var(--color-brand)]" />
           <div className="flex-1">
-            <div className="text-sm text-[var(--color-fg-muted)]">{stages[current].desc}</div>
+            <div className="text-sm text-[var(--color-fg-muted)]">{stages[current]?.desc ?? ""}</div>
             {retryInfo && (
               <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600">
                 <Loader2 size={12} className="animate-spin" />
@@ -1228,14 +1296,18 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         </div>
 
         {/* Live output */}
-        <div
-          ref={outputRef}
-          className="max-h-80 min-h-[80px] overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] p-4"
-        >
-          <pre className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--color-fg)]">
-            {artifacts[activeKey] || "Menunggu hasil AI..."}
-            <span className="inline-block h-4 w-0.5 animate-pulse bg-[var(--color-brand)]" />
-          </pre>
+        <div className="space-y-2">
+          <StageThroughputBar
+            startedAt={status[activeKey] === "running" ? startedAt : null}
+            bytes={artifacts[activeKey]?.length ?? 0}
+          />
+          <div ref={outputRef} className="max-h-80 min-h-[80px] overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)]">
+            <StreamingMarkdown
+              content={artifacts[activeKey] || "Menunggu hasil AI..."}
+              live={status[activeKey] === "running"}
+              className="border-0 bg-transparent"
+            />
+          </div>
         </div>
 
         {/* Progress */}

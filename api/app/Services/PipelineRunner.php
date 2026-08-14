@@ -91,6 +91,7 @@ class PipelineRunner
                     $content = $this->retryPertanyaanForMinimum($content);
                 }
                 $this->saveArtifact($key, $content);
+                $this->recordStageTokens($key, strlen($content));
 
                 $this->sse->emit('done', ['stage' => $key]);
                 $this->sse->emit('status', ['stage' => $key, 'state' => 'done']);
@@ -185,13 +186,13 @@ class PipelineRunner
                     $delta = mb_substr($delta, 0, $maxBufferBytes - strlen($buffer));
                     $buffer .= $delta;
                     $emitDelta = $shouldRedactStream ? $this->stripTrackingToken($delta) : $delta;
-                    $this->sse->emit('token', ['stage' => $key, 'delta' => $emitDelta]);
+                    $this->sse->emit('token', ['stage' => $key, 'delta' => $emitDelta, 'bytes_so_far' => strlen($buffer)]);
 
                     return;
                 }
                 $buffer .= $delta;
                 $emitDelta = $shouldRedactStream ? $this->stripTrackingToken($delta) : $delta;
-                $this->sse->emit('token', ['stage' => $key, 'delta' => $emitDelta]);
+                $this->sse->emit('token', ['stage' => $key, 'delta' => $emitDelta, 'bytes_so_far' => strlen($buffer)]);
             });
 
             $added = strlen($buffer) - $prevLen;
@@ -351,6 +352,26 @@ class PipelineRunner
         if ($this->pendingTrackingToken !== null) {
             $this->version->update(['tracking_token' => $this->pendingTrackingToken]);
             $this->pendingTrackingToken = null;
+        }
+    }
+
+    /**
+     * CP-4 (C-1c): catat estimasi token per-stage ke kolom JSONB stage_tokens.
+     * Heuristic: bytes / 4 ≈ tokens (English). Akurasi cukup untuk UI throughput.
+     */
+    private function recordStageTokens(string $stage, int $bytes): void
+    {
+        try {
+            $existing = $this->version->stage_tokens ?? [];
+            $existing[$stage] = max(1, intdiv($bytes, 4));
+            $this->version->update(['stage_tokens' => $existing]);
+            $this->sse->emit('stage_tokens', [
+                'stage' => $stage,
+                'bytes' => $bytes,
+                'tokens' => $existing[$stage],
+            ]);
+        } catch (Throwable $e) {
+            report($e);
         }
     }
 

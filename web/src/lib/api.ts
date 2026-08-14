@@ -426,6 +426,7 @@ export type Version = {
   source_version_id?: number | null;
   baseline_notes?: string | null;
   stage_status: Record<string, string>;
+  stage_tokens?: Record<string, number>;
   pertanyaan?: string;
   answers?: Record<string, string>;
   pertanyaan_mobile?: string;
