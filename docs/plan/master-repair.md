@@ -13,7 +13,7 @@
 |---|---|---|---|---|---|
 | CP-1 Critical Security | 3 | ✅ done | `f5a7c9e` | 2026-08-14 | 2026-08-14 |
 | CP-2 High Flow Bugs | 9 | ✅ done | `89e26d7` | 2026-08-14 | 2026-08-14 |
-| CP-3 UX Quick Wins | 4 | 🚧 in-progress | _tbd_ | 2026-08-14 | _—_ |
+| CP-3 UX Quick Wins | 4 | ✅ done | `24e92bd` | 2026-08-14 | 2026-08-14 |
 | CP-4 UX Heavy Lifts | 9 | ⏳ pending | _tbd_ | _—_ | _—_ |
 | CP-5 Polish + Hardening | 16 | ⏳ pending | _tbd_ | _—_ | _—_ |
 
@@ -206,7 +206,7 @@ Before marking a checkpoint ✅:
 - [x] `php artisan test` 70 pass (no regression)
 - [x] Commit created on `devel`
 - **Date completed:** 2026-08-14
-- **Commit SHA:** _filled after commit_
+- **Commit SHA:** `24e92bd`
 - **Notes:** CSS-only UX wins. WebAudio tanpa bundle baru. Stage transitions now feel alive.
 
 ---
@@ -404,6 +404,12 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - Items: N/N done
 - Notes: ...
 -->
+
+### CP-3 — 2026-08-14
+- Status: ✅ done
+- Items: 4/4 done (C-2a, C-2b, C-4, C-7)
+- Lint/tsc: clean
+- Notes: row-key trick untuk CSS animation re-trigger. WebAudio tanpa bundle baru.
 
 ### CP-2 — 2026-08-14
 - Status: ✅ done
