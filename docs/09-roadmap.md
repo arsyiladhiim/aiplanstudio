@@ -12,7 +12,7 @@
 - **Auth:** Session-based (Sanctum SPA — HttpOnly cookie + CSRF) + User approval flow
 - **Pipeline:** 14 stages (pertanyaan-MCQ → analisa → prd → architecture → erd → api_contract → phases_web → standards_web → master_web → pertanyaan_mobile-MCQ → phases_mobile → standards_mobile → master_mobile → agents)
 - **Testing:** Backend PHPUnit 150 pass ✅, Playwright E2E 10 test hijau ✅ (3 specs: auth, wizard, projects)
-- **Status:** Semua fase utama + next-progress P1-P16 selesai. Maintenance only (lihat [17-next-progress.md](17-next-progress.md) + [18-production-readiness.md](18-production-readiness.md))
+- **Status:** Semua fase utama + next-progress P1-P16 selesai. **Deep audit Buat Plan + Projects: 41 item / 5 checkpoint repair plan → [plan/master-repair.md](plan/master-repair.md)**. CP-1 ⏳ pending.
 
 ## Aturan Lintas-Fase (wajib tiap fase)
 Setiap fase baru boleh ditandai `[x]` bila:
