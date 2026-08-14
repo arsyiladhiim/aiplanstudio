@@ -218,7 +218,12 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
             // Retry: buat buffer baru agar attempt baru tidak menumpuk → JSON korup.
             // Status tetap 'running' agar modal loading tampil; retryInfo menampilkan percobaan.
             setArtifacts(prev => ({ ...prev, [stage as StageKey]: '' }));
-            setRetryInfo({ attempt: Number(data.attempt ?? 1), max: Number(data.max ?? 0) });
+            const attemptRaw = Number(data.attempt ?? 1);
+            const maxRaw = Number(data.max ?? 0);
+            setRetryInfo({
+              attempt: Number.isFinite(attemptRaw) ? attemptRaw : 1,
+              max: Number.isFinite(maxRaw) ? maxRaw : 0,
+            });
             setStatus(s => ({ ...s, [stage]: 'running' as StageState }));
           } else {
             setStatus(s => ({ ...s, [stage]: state as StageState }));
@@ -361,6 +366,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   }, []);
 
   // Tracking fase real-time — SSE via EventSource saat berada di stage master.
+  // Effect hanya depend on versionId agar tidak re-subscribe tiap advance stage.
   useEffect(() => {
     if (!versionId) return;
     const showTracking = activeKey === "master_web" || activeKey === "master_mobile"
@@ -390,7 +396,8 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       },
     );
     return () => es.close();
-  }, [versionId, activeKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [versionId]);
 
   // Fallback: fetch artifact from DB when SSE artifact event was lost
   useEffect(() => {
@@ -428,6 +435,10 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   // Resume mode: load existing version data
   useEffect(() => {
     if (!isResume || !resumeVersionId || started) return;
+
+    // Reset fallback cache agar resume bisa re-fetch artifact dari DB bila SSE
+    // 'artifact' event hilang saat restart.
+    fallbackFetched.current.clear();
 
     apiGet<Version>(`/versions/${resumeVersionId}`).then(v => {
       setProjectId(v.project?.id ?? null);

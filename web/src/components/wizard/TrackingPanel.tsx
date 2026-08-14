@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui";
 import { ChevronDown, ChevronRight, Loader2, Check, Clock, AlertCircle, CircleDot, FileText, Menu, Settings, GitBranch, Link } from "lucide-react";
 import type { PhaseItem, SubItem } from "./PhaseBreakdownCard";
@@ -75,13 +75,28 @@ export function TrackingPanel({
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggleExpand = (key: string) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const doneCount = phases.filter((p) => progMap[p.key ?? ""]?.status === "done").length;
   const total = phases.length;
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
+  // Auto-scroll fase running ke tengah viewport.
+  useEffect(() => {
+    const runningKey = phases.find((p) => progMap[p.key ?? ""]?.status === "running")?.key;
+    if (!runningKey) return;
+    const el = itemRefs.current[runningKey];
+    const container = scrollRef.current;
+    if (!el || !container) return;
+    const elTop = el.offsetTop;
+    const containerH = container.clientHeight;
+    const target = elTop - containerH / 2 + el.clientHeight / 2;
+    container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+  }, [phases, progMap]);
+
   return (
-    <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+    <div ref={scrollRef} className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
       <div className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Tracking Build</h3>
@@ -119,7 +134,11 @@ export function TrackingPanel({
           }
 
           return (
-            <div key={p.key ?? i} className="px-4 py-3">
+            <div
+              key={p.key ?? i}
+              ref={(el) => { itemRefs.current[p.key ?? `f${i}`] = el; }}
+              className={`px-4 py-3 transition-colors ${st === "running" ? "running-glow" : ""}`}
+            >
               <button
                 className="flex w-full items-start gap-2.5 text-left"
                 onClick={() => subCount > 0 && toggleExpand(p.key ?? `f${i}`)}

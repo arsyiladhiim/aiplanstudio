@@ -118,3 +118,23 @@ body {
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 99px; border: 2px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-surface-2); background-clip: content-box; }
+
+/* CP-3: stage-pulse animation untuk transition 'done'. */
+@keyframes stage-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-success) 40%, transparent); }
+  100% { box-shadow: 0 0 0 12px transparent; }
+}
+.done-flash { animation: stage-pulse .8s ease-out; }
+@keyframes check-draw { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+.check-draw { stroke-dasharray: 24; animation: check-draw .4s ease-out forwards; }
+
+/* CP-3/F5: running-glow untuk fase yang sedang berjalan di TrackingPanel. */
+.running-glow {
+  background: color-mix(in oklab, var(--color-brand) 8%, transparent);
+  border-left: 3px solid var(--color-brand);
+  animation: running-pulse 2s ease-in-out infinite;
+}
+@keyframes running-pulse {
+  0%, 100% { background: color-mix(in oklab, var(--color-brand) 6%, transparent); }
+  50% { background: color-mix(in oklab, var(--color-brand) 14%, transparent); }
+}

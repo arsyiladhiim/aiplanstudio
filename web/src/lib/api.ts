@@ -40,17 +40,30 @@ function csrfHeaders(method: string): HeadersInit {
   return h;
 }
 
-let _reqCounter = 0;
 function generateRequestId(): string {
-  _reqCounter = (_reqCounter + 1) % 0xffff;
-  return `${Date.now().toString(36)}-${_reqCounter.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
+    // Simpan context penting agar /login?resume=1 bisa melanjutkan tanpa state hilang.
+    try {
+      const url = new URL(window.location.href);
+      const m = url.pathname.match(/^\/projects\/(\d+)/);
+      if (m) {
+        sessionStorage.setItem("wizard:lostProject", m[1]);
+      }
+      const verFromQuery = url.searchParams.get("version");
+      if (verFromQuery) {
+        sessionStorage.setItem("wizard:lostVersion", verFromQuery);
+      }
+    } catch {}
     // Forced logout from module-level fetcher: full reload to clear any cached client state.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    if (typeof window !== "undefined") window.location.href = "/login";
+    if (typeof window !== "undefined") window.location.href = "/login?resume=1";
     throw new Error("Sesi telah berakhir. Silakan login ulang.");
   }
   if (res.status === 419) {
@@ -154,6 +167,7 @@ export function createSSE(
   const es = new EventSource(url);
   let receivedAnyEvent = false;
   let finished = false;
+  let closed = false;
 
   es.onopen = () => {
     console.log("SSE connection opened:", url);
@@ -199,7 +213,7 @@ export function createSSE(
   });
 
   es.onerror = () => {
-    if (finished) return;
+    if (finished || closed) return;
     if (!receivedAnyEvent) {
       console.error("SSE connection error. readyState:", es.readyState);
       onError?.(new Event("error"));
@@ -207,6 +221,7 @@ export function createSSE(
     if (es.readyState === EventSource.CLOSED) {
       console.error("SSE connection closed permanently. Attempting manual reconnect...");
       es.close();
+      closed = true;
       setTimeout(() => {
         if (finished) return;
         const es2 = createSSE(path, onEvent, onError);
@@ -214,6 +229,13 @@ export function createSSE(
         es2.addEventListener("fail", () => { es2.close(); });
       }, 3000);
     }
+  };
+
+  // Patch close: set closed=true agar onerror tidak reconnect setelah manual close.
+  const origClose = es.close.bind(es);
+  es.close = () => {
+    closed = true;
+    origClose();
   };
 
   return es;
@@ -231,13 +253,39 @@ export async function createSSEPost(
 
   await ensureCsrf();
 
-  const res = await fetch(`${BASE}/api${path}`, {
-    method: "POST",
-    headers: csrfHeaders("POST"),
-    credentials: "include",
-    body: JSON.stringify(body),
-    signal: controller.signal,
-  });
+  // Retry-once untuk transient network error (TypeError fetch) sebelum menyerah.
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api${path}`, {
+      method: "POST",
+      headers: csrfHeaders("POST"),
+      credentials: "include",
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof TypeError && !controller.signal.aborted) {
+      try {
+        res = await fetch(`${BASE}/api${path}`, {
+          method: "POST",
+          headers: csrfHeaders("POST"),
+          credentials: "include",
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } catch (err2) {
+        const e = err2 instanceof Error ? err2 : new Error(String(err2));
+        onError?.(e);
+        return controller;
+      }
+    } else if (controller.signal.aborted) {
+      return controller;
+    } else {
+      const e = err instanceof Error ? err : new Error(String(err));
+      onError?.(e);
+      return controller;
+    }
+  }
 
   if (!res.ok) {
     let msg = "Stream gagal.";
