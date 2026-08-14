@@ -83,7 +83,7 @@ Before marking a checkpoint ✅:
 - [x] `php artisan pint --test` pass (after auto-fix)
 - [x] Commit created on `devel`
 - **Date completed:** 2026-08-14
-- **Commit SHA:** _filled after commit_
+- **Commit SHA:** `f5a7c9e`
 - **Notes:** B-S1 + new test `test_webhook_rejects_missing_token_secret_header` added. B-S2 streaming redaction added. B-S3 audit-verified no-op.
 
 ---
