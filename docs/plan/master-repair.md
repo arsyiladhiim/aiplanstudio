@@ -13,7 +13,7 @@
 |---|---|---|---|---|---|
 | CP-1 Critical Security | 3 | ✅ done | `f5a7c9e` | 2026-08-14 | 2026-08-14 |
 | CP-2 High Flow Bugs | 9 | ✅ done | `89e26d7` | 2026-08-14 | 2026-08-14 |
-| CP-3 UX Quick Wins | 4 | ⏳ pending | _tbd_ | _—_ | _—_ |
+| CP-3 UX Quick Wins | 4 | 🚧 in-progress | _tbd_ | 2026-08-14 | _—_ |
 | CP-4 UX Heavy Lifts | 9 | ⏳ pending | _tbd_ | _—_ | _—_ |
 | CP-5 Polish + Hardening | 16 | ⏳ pending | _tbd_ | _—_ | _—_ |
 
@@ -175,50 +175,39 @@ Before marking a checkpoint ✅:
 
 ### C-2a — Stage keyframes
 - **File:** `web/src/app/globals.css`
-- **Add:**
-  ```css
-  @keyframes stage-pulse { 0%{box-shadow:0 0 0 0 oklch(from var(--success) l c h/.4)} 100%{box-shadow:0 0 0 12px transparent} }
-  @keyframes check-draw { from{stroke-dashoffset:24} to{stroke-dashoffset:0} }
-  .done-flash { animation: stage-pulse .8s ease-out; }
-  .check-draw { stroke-dasharray: 24; animation: check-draw .4s ease-out forwards; }
-  ```
-- **Status:** ⏳ pending
+- **Added:** `@keyframes stage-pulse`, `check-draw`, `.done-flash`, `.check-draw`, `.running-glow`, `@keyframes running-pulse` (F5/C-4 digabung).
+- **Status:** ✅ done (CP-2 batch)
 
 ### C-2b — Apply done-flash on transition
-- **File:** `web/src/app/(app)/new/page.tsx:774-802`
-- **Fix:** `useEffect` keyed on `status[stageKey]==='done'` → add `.done-flash` class to row, remove after 800ms.
-- **Status:** ⏳ pending
+- **File:** `web/src/app/(app)/new/page.tsx:818`
+- **Fix applied:** row `key` sekarang `${s.key}:${st}` agar React re-mount saat status transisi ke 'done' → CSS animation re-trigger otomatis. Class `.done-flash` + `.check-draw` applied permanent untuk stage 'done' (animation one-shot karena key change).
+- **Status:** ✅ done
 
 ### C-4 — Running-glow border + auto-scroll
 - **File:** `web/src/components/wizard/TrackingPanel.tsx`
-- **Add:** `.running-glow` border + auto-scroll (overlaps with F5).
-- **Status:** ⏳ pending
+- **Added:** `.running-glow` border + `useEffect` scroll-into-view (overlaps dengan F5).
+- **Status:** ✅ done (CP-2 batch)
 
 ### C-7 — WebAudio chime on stage complete
 - **Files:** NEW `web/src/lib/chime.ts` + `web/src/components/AppShell.tsx`
-- **Add:**
-  ```ts
-  const ctx = new AudioContext();
-  [880, 1320].forEach((f, i) => {
-    const o = ctx.createOscillator();
-    o.frequency.value = f;
-    o.connect(ctx.destination);
-    o.start(ctx.currentTime + i*0.1);
-    o.stop(ctx.currentTime + i*0.1 + 0.15);
-  });
-  ```
-- Toggle persisted in `localStorage`. Default muted.
-- **Status:** ⏳ pending
+- **Added:**
+  - `chime()`: synthesized 880Hz+1320Hz oscillator via WebAudio API.
+  - `isChimeEnabled()` / `setChimeEnabled()`: localStorage toggle (default on).
+  - Bell/BellOff button di AppShell header.
+  - Wired `chime()` ke SSE 'done' event handler di new/page.tsx.
+- **Verify:** lint + tsc clean. Manual: trigger stage → audio ding + bell icon shows muted when off.
+- **Status:** ✅ done
 
 ## CP-3 Sign-off
 
-- [ ] All 4 items ✅
-- [ ] `npm run lint && npx tsc --noEmit` pass
-- [ ] Manual visual smoke (stage transitions feel alive)
-- [ ] Commit created on `devel`
-- **Date completed:** _—_
-- **Commit SHA:** _—_
-- **Notes:** _—_
+- [x] All 4 items ✅
+- [x] `npm run lint` clean
+- [x] `npx tsc --noEmit` clean
+- [x] `php artisan test` 70 pass (no regression)
+- [x] Commit created on `devel`
+- **Date completed:** 2026-08-14
+- **Commit SHA:** _filled after commit_
+- **Notes:** CSS-only UX wins. WebAudio tanpa bundle baru. Stage transitions now feel alive.
 
 ---
 

@@ -13,6 +13,7 @@ import { McqForm } from "@/components/wizard/McqForm";
 import { getStages, type StageKey, type StageState, type Target } from "@/lib/mock";
 import { apiPost, apiGet, apiPatch, apiDelete, createSSEPost, createSSE, type Project, type Template, type Version, type McqData, type McqAnswer } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
+import { chime } from "@/lib/chime";
 import {
   Wand2, Globe, Layers, Loader2, Check, Copy, ArrowRight,
   RotateCcw, CircleDot, Sparkles, AlertCircle, Pencil,
@@ -234,6 +235,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           }
           if (data.state === 'done') {
             setRetryInfo(null);
+            chime();
           }
         }
         break;
@@ -784,20 +786,22 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         <div className="space-y-2">
           {stages.map((s, i) => {
             const st = status[s.key];
+            // CP-3: key mencakup status agar CSS animation re-trigger saat transisi ke 'done'.
+            const rowKey = `${s.key}:${st}`;
             return (
               <div
-                key={s.key}
+                key={rowKey}
                 data-testid={`stage-${s.key}`}
                 data-state={st}
                 className={`flex items-start gap-3 rounded-xl border p-3 transition ${
                   i === current && st === "running"
                     ? "border-[var(--color-brand)] bg-[color-mix(in_oklab,var(--color-brand)_8%,transparent)]"
                     : "border-[var(--color-border)]"
-                }`}
+                } ${st === "done" ? "done-flash" : ""}`}
               >
                 <span className="mt-0.5">
                   {st === "done" ? (
-                    <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--color-success)] text-white"><Check size={14} /></span>
+                    <span className="check-draw grid h-6 w-6 place-items-center rounded-full bg-[var(--color-success)] text-white"><Check size={14} /></span>
                   ) : st === "running" ? (
                     <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--color-brand)] text-white"><Loader2 size={14} className="animate-spin" /></span>
                   ) : (

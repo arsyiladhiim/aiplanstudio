@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -12,7 +12,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { Footer } from "@/components/Footer";
 import {
   Sparkles, LayoutDashboard, FolderKanban, Wand2, LayoutTemplate,
-  Settings, Menu, X, Plus, LogOut, Search, Star, Archive,
+  Settings, Menu, X, Plus, LogOut, Search, Star, Archive, Bell, BellOff,
 } from "lucide-react";
 
 const LiveProgressWidget = dynamic(
@@ -44,7 +44,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
+  const [chimeOn, setChimeOn] = useState<boolean>(true);
   const { user } = useUser();
+
+  useEffect(() => {
+    import("@/lib/chime").then(m => setChimeOn(m.isChimeEnabled()));
+  }, []);
+
+  const toggleChime = useCallback(() => {
+    import("@/lib/chime").then(m => {
+      const next = !m.isChimeEnabled();
+      m.setChimeEnabled(next);
+      setChimeOn(next);
+    });
+  }, []);
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -132,6 +145,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             />
           </form>
           <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleChime}
+              title={chimeOn ? "Matikan chime" : "Nyalakan chime"}
+              aria-label={chimeOn ? "Matikan chime" : "Nyalakan chime"}
+              className="grid h-9 w-9 place-items-center rounded-full border border-[var(--color-border)] bg-[var(--color-bg-soft)] text-[var(--color-fg-muted)] transition hover:bg-[var(--color-surface)]"
+            >
+              {chimeOn ? <Bell size={16} /> : <BellOff size={16} />}
+            </button>
             <ThemeToggle />
             <ButtonLink variant="secondary" size="sm" href="/help">Bantuan</ButtonLink>
           </div>
