@@ -14,7 +14,7 @@
 | CP-1 Critical Security | 3 | ✅ done | `f5a7c9e` | 2026-08-14 | 2026-08-14 |
 | CP-2 High Flow Bugs | 9 | ✅ done | `89e26d7` | 2026-08-14 | 2026-08-14 |
 | CP-3 UX Quick Wins | 4 | ✅ done | `24e92bd` | 2026-08-14 | 2026-08-14 |
-| CP-4 UX Heavy Lifts | 9 | 🚧 in-progress | _tbd_ | 2026-08-14 | _—_ |
+| CP-4 UX Heavy Lifts | 9 | ✅ done | `220040b` | 2026-08-14 | 2026-08-14 |
 | CP-5 Polish + Hardening | 16 | ⏳ pending | _tbd_ | _—_ | _—_ |
 
 Status legend: ⏳ pending · 🚧 in-progress · ✅ done · ❌ blocked · ⚠️ partial
@@ -276,7 +276,7 @@ Before marking a checkpoint ✅:
 - [x] `npx tsc --noEmit` clean
 - [x] Commit created on `devel`
 - **Date completed:** 2026-08-14
-- **Commit SHA:** _filled after commit_
+- **Commit SHA:** `220040b`
 - **Notes:** BuildWall immersive view untuk master prompt execution. Stage lain tetap Modal biasa. Cost counter UI ada tapi rate belum dari backend.
 
 ---
@@ -402,6 +402,13 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - Items: N/N done
 - Notes: ...
 -->
+
+### CP-4 — 2026-08-14
+- Status: ✅ done (C-6 partial — providerRate placeholder)
+- Items: 9/9 (1 partial)
+- Lint/tsc: clean
+- Tests: 106 backend pass
+- Notes: BuildWall + StageThroughputBar + StreamingMarkdown shipped. Cost counter UI ada tapi butuh endpoint backend untuk rate.
 
 ### CP-3 — 2026-08-14
 - Status: ✅ done
