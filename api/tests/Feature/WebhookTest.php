@@ -147,4 +147,30 @@ class WebhookTest extends TestCase
 
         $response->assertStatus(401);
     }
+
+    public function test_webhook_rejects_missing_token_secret_header(): void
+    {
+        $body = ['version_id' => $this->version->id, 'phase_key' => 'fase1_setup'];
+        $bodyJson = json_encode($body, JSON_UNESCAPED_UNICODE);
+        $timestamp = (string) time();
+        $signature = hash_hmac('sha256', $timestamp.'.'.$bodyJson, $this->secret);
+
+        $response = $this->call(
+            'POST',
+            '/api/webhooks/phase-complete',
+            [],
+            [],
+            [],
+            [
+                'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
+                'HTTP_X_TIMESTAMP' => $timestamp,
+                'HTTP_X_SIGNATURE' => $signature,
+                'CONTENT_TYPE' => 'application/json',
+            ],
+            $bodyJson,
+        );
+
+        $response->assertStatus(401)
+            ->assertJsonFragment(['message' => 'Header X-Token-Secret wajib diisi untuk route webhook.']);
+    }
 }

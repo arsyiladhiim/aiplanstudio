@@ -12,7 +12,7 @@ class AuthenticateProjectToken
     public function handle(Request $request, Closure $next): Response
     {
         $token = $request->bearerToken();
-        if (!$token) {
+        if (! $token) {
             return response()->json(['message' => 'Token tidak ditemukan. Header Authorization: Bearer <token> required.'], 401);
         }
 
@@ -23,13 +23,16 @@ class AuthenticateProjectToken
             })
             ->first();
 
-        if (!$projectToken) {
+        if (! $projectToken) {
             return response()->json(['message' => 'Token tidak valid atau sudah kedaluwarsa.'], 401);
         }
 
-        $secret = request()->header('X-Token-Secret');
+        $secret = $request->header('X-Token-Secret');
+        if (! $secret && $projectToken->secret_hash) {
+            return response()->json(['message' => 'Header X-Token-Secret wajib diisi untuk route webhook.'], 401);
+        }
         if ($secret && $projectToken->secret_hash) {
-            if (!hash_equals($projectToken->secret_hash, hash('sha256', $secret))) {
+            if (! hash_equals($projectToken->secret_hash, hash('sha256', $secret))) {
                 return response()->json(['message' => 'Token secret tidak valid.'], 401);
             }
             $request->attributes->set('project_token_secret', $secret);

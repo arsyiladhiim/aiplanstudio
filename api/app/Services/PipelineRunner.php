@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\Activity;
+use App\Models\PhaseProgress;
 use App\Models\ProjectApiToken;
 use App\Models\Version;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -22,6 +25,7 @@ class PipelineRunner
 
     /** Plain tracking token — kept in-memory only, never persisted plaintext */
     private ?string $plainTrackingToken = null;
+
     private ?string $pendingTrackingToken = null;
 
     private const MOBILE_STAGES = ['pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile'];
@@ -125,7 +129,7 @@ class PipelineRunner
     private function syncPhaseProgress(string $stage, string $state): void
     {
         try {
-            $progress = \App\Models\PhaseProgress::firstOrNew([
+            $progress = PhaseProgress::firstOrNew([
                 'version_id' => $this->version->id,
                 'phase_key' => $stage,
             ]);
@@ -169,22 +173,25 @@ class PipelineRunner
         $buffer = '';
         $maxChunks = 3;
         $maxBufferBytes = 10 * 1024 * 1024;
+        $shouldRedactStream = in_array($key, ['master_web', 'master_mobile'], true);
 
         for ($i = 0; $i < $maxChunks; $i++) {
             if (strlen($buffer) >= $maxBufferBytes) {
                 throw new \RuntimeException("Stage {$key}: Output melebihi batas 10MB. Stage ditandai error.");
             }
             $prevLen = strlen($buffer);
-            $this->client->stream($messages, function (string $delta) use (&$buffer, $key, $maxBufferBytes) {
+            $this->client->stream($messages, function (string $delta) use (&$buffer, $key, $maxBufferBytes, $shouldRedactStream) {
                 if (strlen($buffer) + strlen($delta) > $maxBufferBytes) {
                     $delta = mb_substr($delta, 0, $maxBufferBytes - strlen($buffer));
                     $buffer .= $delta;
-                    $this->sse->emit('token', ['stage' => $key, 'delta' => $delta]);
+                    $emitDelta = $shouldRedactStream ? $this->stripTrackingToken($delta) : $delta;
+                    $this->sse->emit('token', ['stage' => $key, 'delta' => $emitDelta]);
 
                     return;
                 }
                 $buffer .= $delta;
-                $this->sse->emit('token', ['stage' => $key, 'delta' => $delta]);
+                $emitDelta = $shouldRedactStream ? $this->stripTrackingToken($delta) : $delta;
+                $this->sse->emit('token', ['stage' => $key, 'delta' => $emitDelta]);
             });
 
             $added = strlen($buffer) - $prevLen;
@@ -327,7 +334,7 @@ class PipelineRunner
             "3. Setelah tiap sub-item selesai, kirim: `{\"status\": \"done\", \"phase_key\": \"<key>\", \"task_key\": \"<sub_item_key>\", \"task_type\": \"halaman|menu|fitur|flow|api\", \"title\": \"judul\", \"output\": \"ringkasan\"}`\n".
             "4. Setelah semua sub-item dan fase selesai, kirim: `{\"status\": \"done\", \"phase_key\": \"<key>\", \"output\": \"ringkasan seluruh fase\"}`\n".
             "5. HANYA lanjut ke fase berikutnya SETELAH webhook `done` untuk fase saat ini terkirim\n".
-            "6. Jika ada error, kirim `{\"status\": \"error\", \"output\": \"pesan error\"}` dan berhenti";
+            '6. Jika ada error, kirim `{"status": "error", "output": "pesan error"}` dan berhenti';
     }
 
     private function stripTrackingToken(string $content): string
@@ -441,11 +448,11 @@ class PipelineRunner
                 return;
             }
             $serialized = is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_UNICODE);
-            $activity = \App\Models\Activity::create([
+            $activity = Activity::create([
                 'project_id' => $project->id,
                 'user_id' => $project->user_id,
                 'version_id' => $this->version->id,
-                'action' => \App\Models\Activity::ACTION_ARTIFACT_SNAPSHOT,
+                'action' => Activity::ACTION_ARTIFACT_SNAPSHOT,
                 'description' => "Snapshot stage {$stage} (v{$this->version->version_no})",
                 'metadata' => [
                     'stage' => $stage,
@@ -454,7 +461,7 @@ class PipelineRunner
                     'sha_prefix' => substr(sha1((string) $serialized), 0, 12),
                 ],
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             report($e);
         }
     }
@@ -478,13 +485,14 @@ class PipelineRunner
                 report($e);
                 $delayUs = min(500_000 * (2 ** ($attempt - 1)), 8_000_000);
                 usleep($delayUs);
+
                 continue;
             }
             $count = $this->outputParser->mcqCount($content);
 
             if ($count >= self::MIN_MCQ_QUESTIONS) {
                 $this->sse->emit('status', ['stage' => 'pertanyaan', 'state' => 'running']);
-                \Illuminate\Support\Facades\Log::info('PipelineRunner pertanyaan retry resolved', [
+                Log::info('PipelineRunner pertanyaan retry resolved', [
                     'version_id' => $this->version->id,
                     'attempt' => $attempt,
                     'mcq_count' => $count,
@@ -500,7 +508,7 @@ class PipelineRunner
         }
 
         $this->sse->emit('status', ['stage' => 'pertanyaan', 'state' => 'running']);
-        \Illuminate\Support\Facades\Log::warning('PipelineRunner pertanyaan retry exhausted', [
+        Log::warning('PipelineRunner pertanyaan retry exhausted', [
             'version_id' => $this->version->id,
             'attempts' => self::MAX_MCQ_RETRIES,
             'best_count' => $bestCount,
