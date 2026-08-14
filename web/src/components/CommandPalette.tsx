@@ -14,12 +14,14 @@ export function CommandPalette() {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<{ projects: ProjectHit[]; versions: VersionHit[] }>({ projects: [], versions: [] });
   const [loading, setLoading] = useState(false);
+  const [highlight, setHighlight] = useState(0);
 
   const handleKey = useCallback((e: KeyboardEvent) => {
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === "k") {
       e.preventDefault();
       setOpen((v) => !v);
+      setHighlight(0);
     }
   }, []);
 
@@ -27,6 +29,44 @@ export function CommandPalette() {
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [handleKey]);
+
+  // P4: ArrowUp/Down + Enter navigation dalam result list.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      const total = results.projects.length + results.versions.length;
+      if (total === 0) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlight(h => (h + 1) % total);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlight(h => (h - 1 + total) % total);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const idx = highlight;
+        if (idx < results.projects.length) {
+          go(`/projects/${results.projects[idx].id}`);
+        } else {
+          const v = results.versions[idx - results.projects.length];
+          if (v) go(`/projects/${v.project_id}`);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, results, highlight]);
+
+  useEffect(() => {
+    setHighlight(0);
+  }, [q]);
+
+  const go = (href: string) => {
+    setOpen(false);
+    setQ("");
+    router.push(href);
+  };
 
   useEffect(() => {
     if (!open || q.length < 2) {
@@ -47,12 +87,6 @@ export function CommandPalette() {
     }, 200);
     return () => { cancelled = true; clearTimeout(t); };
   }, [q, open]);
-
-  const go = (href: string) => {
-    setOpen(false);
-    setQ("");
-    router.push(href);
-  };
 
   return (
     <Modal open={open} onClose={() => setOpen(false)} title="Pencarian Cepat" size="md" closeOnBackdrop>
@@ -80,11 +114,12 @@ export function CommandPalette() {
           <div>
             <p className="mb-2 text-xs uppercase tracking-wide text-[var(--color-fg-subtle)]">Project</p>
             <ul className="space-y-1">
-              {results.projects.map((p) => (
+              {results.projects.map((p, i) => (
                 <li key={`p-${p.id}`}>
                   <button
                     onClick={() => go(`/projects/${p.id}`)}
-                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--color-surface-2)]"
+                    onMouseEnter={() => setHighlight(i)}
+                    className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--color-surface-2)] ${highlight === i ? "bg-[var(--color-surface-2)]" : ""}`}
                   >
                     <FolderKanban size={14} />
                     <span className="flex-1">{p.title}</span>
@@ -101,17 +136,21 @@ export function CommandPalette() {
           <div>
             <p className="mb-2 text-xs uppercase tracking-wide text-[var(--color-fg-subtle)]">Versi</p>
             <ul className="space-y-1">
-              {results.versions.map((v) => (
-                <li key={`v-${v.id}`}>
-                  <button
-                    onClick={() => go(`/projects/${v.project_id}`)}
-                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--color-surface-2)]"
-                  >
-                    <span className="flex-1 truncate">{v.project?.title} · v{v.version_no}</span>
-                    <span className="text-xs text-[var(--color-fg-subtle)]">→</span>
-                  </button>
-                </li>
-              ))}
+              {results.versions.map((v, i) => {
+                const idx = results.projects.length + i;
+                return (
+                  <li key={`v-${v.id}`}>
+                    <button
+                      onClick={() => go(`/projects/${v.project_id}`)}
+                      onMouseEnter={() => setHighlight(idx)}
+                      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-[var(--color-surface-2)] ${highlight === idx ? "bg-[var(--color-surface-2)]" : ""}`}
+                    >
+                      <span className="flex-1 truncate">{v.project?.title} · v{v.version_no}</span>
+                      <span className="text-xs text-[var(--color-fg-subtle)]">→</span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}

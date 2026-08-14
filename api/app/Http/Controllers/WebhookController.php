@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Activity;
-use App\Models\TaskProgress;
 use App\Models\Version;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class WebhookController extends Controller
 {
@@ -16,11 +16,21 @@ class WebhookController extends Controller
         $signature = $request->header('X-Signature');
         $projectToken = $request->attributes->get('project_token');
 
-        if (!$timestamp || !$signature) {
+        if (! $timestamp || ! $signature) {
             return response()->json(['message' => 'Header X-Timestamp dan X-Signature wajib diisi.'], 401);
         }
 
-        if (!$projectToken || !$projectToken->verifySignature($timestamp, $request->getContent(), $signature)) {
+        if (! $projectToken || ! $projectToken->verifySignature($timestamp, $request->getContent(), $signature)) {
+            return response()->json(['message' => 'Signature webhook tidak valid atau timestamp kedaluwarsa (>300s).'], 401);
+        }
+
+        // Replay protection: cache key by token+timestamp+signature selama 1 jam.
+        $replayKey = sprintf('webhook:%s:%s:%s', $projectToken->id, $timestamp, substr($signature, 0, 16));
+        if (! Cache::add($replayKey, 1, 3600)) {
+            return response()->json(['message' => 'Webhook duplikat terdeteksi. Permintaan sudah diproses.'], 409);
+        }
+
+        if (! $projectToken || ! $projectToken->verifySignature($timestamp, $request->getContent(), $signature)) {
             return response()->json(['message' => 'Signature webhook tidak valid atau timestamp kedaluwarsa (>300s).'], 401);
         }
 
@@ -34,7 +44,7 @@ class WebhookController extends Controller
             'status' => ['nullable', 'string', 'in:running,done,error,pending'],
         ]);
 
-        $version = Version::whereHas('project', fn($q) => $q->where('id', $request->project_id))
+        $version = Version::whereHas('project', fn ($q) => $q->where('id', $request->project_id))
             ->findOrFail($data['version_id']);
 
         $phases = $version->phases ?? [];
@@ -77,7 +87,7 @@ class WebhookController extends Controller
         }
         $progress->save();
 
-        if (!empty($data['task_key'])) {
+        if (! empty($data['task_key'])) {
             $task = $progress->taskProgress()->firstOrNew(['task_key' => $data['task_key']]);
             $task->task_type = $data['task_type'] ?? $task->task_type ?? 'fitur';
             $task->title = $data['title'] ?? $task->title ?? $data['task_key'];

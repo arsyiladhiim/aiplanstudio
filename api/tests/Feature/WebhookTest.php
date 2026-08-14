@@ -173,4 +173,22 @@ class WebhookTest extends TestCase
         $response->assertStatus(401)
             ->assertJsonFragment(['message' => 'Header X-Token-Secret wajib diisi untuk route webhook.']);
     }
+
+    public function test_webhook_rejects_duplicate_replay(): void
+    {
+        $body = [
+            'version_id' => $this->version->id,
+            'phase_key' => 'fase1_setup',
+            'status' => 'done',
+        ];
+
+        // First call succeeds
+        $first = $this->webhook($body);
+        $first->assertStatus(200);
+
+        // Replay with same timestamp+signature must be rejected
+        $second = $this->webhook($body);
+        $second->assertStatus(409)
+            ->assertJsonFragment(['message' => 'Webhook duplikat terdeteksi. Permintaan sudah diproses.']);
+    }
 }

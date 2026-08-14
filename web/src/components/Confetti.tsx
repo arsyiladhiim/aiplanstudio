@@ -15,16 +15,25 @@ interface Piece {
   height: number;
 }
 
+function rand(): number {
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return buf[0] / 0x100000000;
+  }
+  return Math.random();
+}
+
 function generate(): Piece[] {
   return Array.from({ length: PIECE_COUNT }, (_, i) => ({
     id: i,
-    left: Math.random() * 100,
-    delay: Math.random() * 0.3,
-    duration: 1.8 + Math.random() * 1.4,
-    rotate: Math.random() * 360,
-    color: COLORS[Math.floor(Math.random() * COLORS.length)],
-    width: 6 + Math.random() * 6,
-    height: 8 + Math.random() * 8,
+    left: rand() * 100,
+    delay: rand() * 0.3,
+    duration: 1.8 + rand() * 1.4,
+    rotate: rand() * 360,
+    color: COLORS[Math.floor(rand() * COLORS.length)],
+    width: 6 + rand() * 6,
+    height: 8 + rand() * 8,
   }));
 }
 

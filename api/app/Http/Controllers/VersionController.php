@@ -4,15 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Activity;
 use App\Models\Project;
-use App\Models\TaskProgress;
 use App\Models\Version;
 use App\Services\AiClient;
+use App\Services\PipelineRunner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Services\PipelineRunner;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use ZipArchive;
@@ -105,6 +104,7 @@ class VersionController extends Controller
 
             if ($totalPhases === 0) {
                 $emit('done', ['completed' => 0, 'total' => 0]);
+
                 return;
             }
 
@@ -113,7 +113,9 @@ class VersionController extends Controller
             $maxTicks = 600; // 20 minutes max
 
             while ($ticks < $maxTicks) {
-                if (connection_aborted()) break;
+                if (connection_aborted()) {
+                    break;
+                }
                 $ticks++;
                 $progress = $version->phaseProgress()->with('taskProgress')->get();
                 $sig = $progress->map(fn ($p) => $p->phase_key.':'.$p->status.':'.$p->done.':'.$p->output.'|'.$p->taskProgress->map(fn ($t) => $t->task_key.':'.$t->status)->implode(';'))->implode('|');
@@ -374,12 +376,13 @@ class VersionController extends Controller
     public function updateArtifact(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'stage' => ['required', 'string', 'in:' . implode(',', Version::ALL_STAGES)],
+            'stage' => ['required', 'string', 'in:'.implode(',', Version::ALL_STAGES)],
             'content' => ['required', 'string'],
         ]);
 
         $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->findOrFail($id);
+        $this->authorize('update', $version);
 
         $colMap = [
             'pertanyaan' => 'pertanyaan',
@@ -557,6 +560,7 @@ class VersionController extends Controller
         $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with('project')
             ->findOrFail($id);
+        $this->authorize('delete', $version);
 
         $project = $version->project;
         $versionNo = $version->version_no;
@@ -640,7 +644,8 @@ class VersionController extends Controller
         }
     }
 
-    public function regenerateStandards(Request $request, AiClient $client, int $id): JsonResponse    {
+    public function regenerateStandards(Request $request, AiClient $client, int $id): JsonResponse
+    {
         try {
             $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
                 ->with('project')
@@ -763,7 +768,7 @@ class VersionController extends Controller
             ->findOrFail($id);
 
         $data = $request->validate([
-            'stage' => ['required', 'string', 'in:' . implode(',', Version::ALL_STAGES)],
+            'stage' => ['required', 'string', 'in:'.implode(',', Version::ALL_STAGES)],
         ]);
         $stage = $data['stage'];
 
@@ -797,13 +802,13 @@ class VersionController extends Controller
 
             $version->project->logActivity(
                 Activity::ACTION_REGENERATE_STAGE,
-                "Regenerate stage {$stage} di v{$version->version_no}" . ($hasError ? ' (rolled back)' : ''),
+                "Regenerate stage {$stage} di v{$version->version_no}".($hasError ? ' (rolled back)' : ''),
                 $version->id,
                 ['stage' => $stage, 'status' => $finalStatus[$stage] ?? 'pending', 'rolled_back' => $hasError],
             );
 
             return response()->json([
-                'ok' => !$hasError,
+                'ok' => ! $hasError,
                 'stage' => $stage,
                 'status' => $finalStatus[$stage] ?? 'pending',
                 'rolled_back' => $hasError,

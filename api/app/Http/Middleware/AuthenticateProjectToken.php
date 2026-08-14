@@ -32,7 +32,10 @@ class AuthenticateProjectToken
             return response()->json(['message' => 'Header X-Token-Secret wajib diisi untuk route webhook.'], 401);
         }
         if ($secret && $projectToken->secret_hash) {
-            if (! hash_equals($projectToken->secret_hash, hash('sha256', $secret))) {
+            $expected = $projectToken->secret_salt
+                ? hash_hmac('sha256', $secret, $projectToken->secret_salt)
+                : hash('sha256', $secret);
+            if (! hash_equals((string) $projectToken->secret_hash, $expected)) {
                 return response()->json(['message' => 'Token secret tidak valid.'], 401);
             }
             $request->attributes->set('project_token_secret', $secret);

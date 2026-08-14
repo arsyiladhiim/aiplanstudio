@@ -8,6 +8,8 @@ use App\Models\Version;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProjectController extends Controller
 {
@@ -16,7 +18,7 @@ class ProjectController extends Controller
         $perPage = min((int) $request->query('per_page', 50), 100);
 
         $query = $request->user()->projects()
-            ->with(['versions' => fn($q) => $q->orderByDesc('version_no')->limit(1)])
+            ->with(['versions' => fn ($q) => $q->orderByDesc('version_no')->limit(1)])
             ->withCount('versions');
 
         if ($q = $request->query('q')) {
@@ -72,6 +74,14 @@ class ProjectController extends Controller
             'stack' => ['nullable', 'string', 'max:255'],
         ]);
 
+        // B-M3: reject ideas containing obvious prompt-injection role markers
+        // di awal/awal baris (e.g. "system:\n...", "### Instruksi:" terlalu panjang).
+        if (preg_match('/^\s*(system|assistant|user)\s*:/i', $data['idea'])) {
+            return response()->json([
+                'message' => 'Idea mengandung format yang tidak diperbolehkan (role markers).',
+            ], 422);
+        }
+
         $project = DB::transaction(function () use ($request, $data) {
             $project = $request->user()->projects()->create($data);
             $project->versions()->create([
@@ -84,6 +94,7 @@ class ProjectController extends Controller
                 'action' => Activity::ACTION_CREATED_PROJECT,
                 'description' => "Project \"{$project->title}\" dibuat",
             ]);
+
             return $project;
         });
 
@@ -104,6 +115,7 @@ class ProjectController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $project = Project::where('user_id', $request->user()->id)->findOrFail($id);
+        $this->authorize('update', $project);
 
         $data = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
@@ -129,7 +141,7 @@ class ProjectController extends Controller
     {
         $user = $request->user();
         $totalProjects = $user->projects()->count();
-        $totalVersions = Version::whereHas('project', fn($q) => $q->where('user_id', $user->id))->count();
+        $totalVersions = Version::whereHas('project', fn ($q) => $q->where('user_id', $user->id))->count();
         $activeProjects = $user->projects()
             ->whereHas('versions', function ($q) {
                 $q->whereRaw("EXISTS (SELECT 1 FROM jsonb_each_text(stage_status) kv WHERE kv.value = 'done')");
@@ -138,14 +150,14 @@ class ProjectController extends Controller
 
         $today = now()->startOfDay();
         $projectsThisWeek = $user->projects()->where('created_at', '>=', $today->copy()->subDays(7))->count();
-        $versionsThisWeek = Version::whereHas('project', fn($q) => $q->where('user_id', $user->id))
+        $versionsThisWeek = Version::whereHas('project', fn ($q) => $q->where('user_id', $user->id))
             ->where('created_at', '>=', $today->copy()->subDays(7))->count();
 
         $favoriteProjects = $user->projects()->where('is_favorite', true)->count();
 
         $latestProjects = $user->projects()
             ->withCount('versions')
-            ->with(['versions' => fn($q) => $q->orderByDesc('version_no')->limit(1)])
+            ->with(['versions' => fn ($q) => $q->orderByDesc('version_no')->limit(1)])
             ->latest()
             ->take(5)
             ->get()
@@ -174,7 +186,7 @@ class ProjectController extends Controller
                 ];
             });
 
-        $recentActivities = \App\Models\Activity::whereHas('project', fn($q) => $q->where('user_id', $user->id))
+        $recentActivities = Activity::whereHas('project', fn ($q) => $q->where('user_id', $user->id))
             ->with('user:id,name')
             ->latest()
             ->take(5)
@@ -196,6 +208,7 @@ class ProjectController extends Controller
     public function destroy(Request $request, int $id): JsonResponse
     {
         $project = Project::where('user_id', $request->user()->id)->findOrFail($id);
+        $this->authorize('delete', $project);
         Activity::create([
             'project_id' => $project->id,
             'user_id' => $request->user()->id,
@@ -210,7 +223,8 @@ class ProjectController extends Controller
     public function toggleFavorite(Request $request, int $id): JsonResponse
     {
         $project = Project::where('user_id', $request->user()->id)->findOrFail($id);
-        $project->update(['is_favorite' => !$project->is_favorite]);
+        $this->authorize('update', $project);
+        $project->update(['is_favorite' => ! $project->is_favorite]);
 
         return response()->json(['is_favorite' => $project->fresh()->is_favorite]);
     }
@@ -218,7 +232,8 @@ class ProjectController extends Controller
     public function togglePin(Request $request, int $id): JsonResponse
     {
         $project = Project::where('user_id', $request->user()->id)->findOrFail($id);
-        $project->update(['is_pinned' => !$project->is_pinned]);
+        $this->authorize('update', $project);
+        $project->update(['is_pinned' => ! $project->is_pinned]);
 
         return response()->json(['is_pinned' => $project->fresh()->is_pinned]);
     }
@@ -226,6 +241,7 @@ class ProjectController extends Controller
     public function toggleArchive(Request $request, int $id): JsonResponse
     {
         $project = Project::where('user_id', $request->user()->id)->findOrFail($id);
+        $this->authorize('update', $project);
         $project->update(['archived_at' => $project->archived_at ? null : now()]);
 
         return response()->json(['archived_at' => $project->fresh()->archived_at]);
@@ -236,7 +252,7 @@ class ProjectController extends Controller
         $project = Project::where('user_id', $request->user()->id)
             ->findOrFail($id);
 
-        $tasks = \Illuminate\Support\Facades\DB::table('aiplanstudio_project.task_progress')
+        $tasks = DB::table('aiplanstudio_project.task_progress')
             ->join('aiplanstudio_project.phase_progress', 'task_progress.phase_progress_id', '=', 'phase_progress.id')
             ->join('aiplanstudio_project.versions', 'phase_progress.version_id', '=', 'versions.id')
             ->where('versions.project_id', $project->id)
@@ -279,10 +295,10 @@ class ProjectController extends Controller
             return response()->json(['message' => 'Project belum memiliki versi.'], 422);
         }
 
-        $projectTitle = \Illuminate\Support\Str::slug($project->title);
+        $projectTitle = Str::slug($project->title);
         $versions = $project->versions;
 
-        return new \Symfony\Component\HttpFoundation\StreamedResponse(function () use ($versions, $projectTitle, $project) {
+        return new StreamedResponse(function () use ($versions, $projectTitle) {
             $zip = new \ZipArchive;
             $tmpPath = tempnam(sys_get_temp_dir(), 'export_all').'.zip';
             $zip->open($tmpPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
@@ -328,7 +344,7 @@ class ProjectController extends Controller
             ->limit(8)
             ->get(['id', 'title', 'target', 'is_pinned', 'is_favorite']);
 
-        $versions = \App\Models\Version::query()
+        $versions = Version::query()
             ->select(['versions.id', 'versions.project_id', 'versions.version_no', 'versions.pertanyaan'])
             ->whereHas('project', fn ($p) => $p->where('user_id', $userId))
             ->where(function ($qry) use ($q) {

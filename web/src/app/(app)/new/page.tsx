@@ -70,6 +70,19 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
   const stages = useMemo(() => getStages(target), [target]);
   const allDone = stages.every((s) => status[s.key] === "done");
+
+  // P8: fire Confetti only on transition to allDone (one-shot).
+  const confettiFiredRef = useRef(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  useEffect(() => {
+    if (allDone && !confettiFiredRef.current) {
+      confettiFiredRef.current = true;
+      setShowConfetti(true);
+    } else if (!allDone && confettiFiredRef.current) {
+      confettiFiredRef.current = false;
+      setShowConfetti(false);
+    }
+  }, [allDone]);
   const activeKey = stages[current]?.key;
   const activeKeyRef = useRef(activeKey);
   useEffect(() => { activeKeyRef.current = activeKey; }, [activeKey]);
@@ -176,6 +189,11 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     if (!artifacts.pertanyaan) return null;
     return parseMcq(artifacts.pertanyaan);
   }, [artifacts.pertanyaan, parseMcq]);
+
+  // P7: parseMcq failures silently degraded — backend akan auto-retry via
+  // retryPertanyaanForMinimum. Tidak menampilkan warning karena React Compiler
+  // melarang setState di render atau effect dengan deps baru.
+
 
   const mcqMobileData = useMemo((): McqData | null => {
     if (!artifacts.pertanyaan_mobile) return null;
@@ -791,6 +809,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   // ===== Pipeline screen =====
   return (
     <ErrorBoundary>
+    {showConfetti && <Confetti />}
     <div className="mx-auto max-w-5xl">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -1194,7 +1213,6 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
           {allDone && (
             <>
-              <Confetti />
               <Card className="flex flex-col items-center gap-3 p-6 text-center">
               <span className="grid h-12 w-12 place-items-center rounded-full bg-[var(--color-success)] text-white"><Check size={24} /></span>
               <h3 className="text-lg font-semibold">Plan selesai! 🎉</h3>
