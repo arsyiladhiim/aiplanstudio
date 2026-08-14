@@ -12,7 +12,7 @@
 | Checkpoint | Items | Status | Commit | Started | Completed |
 |---|---|---|---|---|---|
 | CP-1 Critical Security | 3 | ✅ done | `f5a7c9e` | 2026-08-14 | 2026-08-14 |
-| CP-2 High Flow Bugs | 9 | 🚧 in-progress | _tbd_ | 2026-08-14 | _—_ |
+| CP-2 High Flow Bugs | 9 | ✅ done | `89e26d7` | 2026-08-14 | 2026-08-14 |
 | CP-3 UX Quick Wins | 4 | ⏳ pending | _tbd_ | _—_ | _—_ |
 | CP-4 UX Heavy Lifts | 9 | ⏳ pending | _tbd_ | _—_ | _—_ |
 | CP-5 Polish + Hardening | 16 | ⏳ pending | _tbd_ | _—_ | _—_ |
@@ -159,7 +159,7 @@ Before marking a checkpoint ✅:
 - [x] `php artisan test` pass (246, unrelated Socialite failure pre-existed)
 - [x] Commit created on `devel`
 - **Date completed:** 2026-08-14
-- **Commit SHA:** _filled after commit_
+- **Commit SHA:** `89e26d7`
 - **Notes:** CP-2 frontend stabil, race conditions dihilangkan, dead code dihapus, retry resilience ditambahkan.
 
 ---
@@ -415,6 +415,13 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - Items: N/N done
 - Notes: ...
 -->
+
+### CP-2 — 2026-08-14
+- Status: ✅ done
+- Items: 9/9 done (F1..F9)
+- Lint: clean
+- tsc: clean
+- Notes: 1 file deleted, 1 dep removed. CSS keyframes di-CC dengan CP-3.
 
 ### CP-1 — 2026-08-14
 - Status: ✅ done
