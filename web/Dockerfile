@@ -13,6 +13,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Sentry/GlitchTip build DSN — DISABLED (service mati). Aktifkan lagi bila dibutuhkan.
 # ARG NEXT_PUBLIC_SENTRY_DSN=
 # ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_API_URL=https://api-aiplanstudio.arsyiladm.my.id
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TURBOPACK_CACHE=0
 RUN npm run build
 

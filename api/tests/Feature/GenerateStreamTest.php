@@ -107,4 +107,30 @@ class GenerateStreamTest extends TestCase
 
         $response->assertStatus(401);
     }
+
+    public function test_auto_mode_runs_multiple_stages(): void
+    {
+        // Requires a reachable OpenAI-compatible endpoint; skip when running offline.
+        if (empty(env('OPENAI_API_KEY'))) {
+            $this->markTestSkipped('OPENAI_API_KEY not set; integration test skipped.');
+        }
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->post("/api/generate/stream?version={$this->version->id}&stage=analisa&auto=1");
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('text/event-stream', $response->headers->get('Content-Type') ?? '');
+
+        $content = $response->getContent();
+        $this->assertNotEmpty($content);
+
+        $stageEvents = collect(explode("\n", $content))
+            ->filter(fn ($line) => str_starts_with($line, 'event: '))
+            ->map(fn ($line) => trim(substr($line, 7)))
+            ->unique()
+            ->values();
+
+        $this->assertTrue($stageEvents->contains('status') || $stageEvents->contains('fail'),
+            'Auto mode should emit status or fail events from pipeline execution.');
+    }
 }

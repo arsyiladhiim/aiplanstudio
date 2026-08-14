@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui";
-import { ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageHeader, TargetBadge } from "@/components/common";
-import { apiGet, type Target } from "@/lib/api";
+import { apiGet, apiPost, apiDelete, type Target } from "@/lib/api";
+import { useUser } from "@/components/UserContext";
 import {
-  LayoutDashboard, ShoppingCart, Smartphone, Store, Rocket, Wrench, ArrowRight, Loader2,
+  LayoutDashboard, ShoppingCart, Smartphone, Store, Rocket, Wrench, ArrowRight, Loader2, Plus, Trash2,
 } from "lucide-react";
 
 type Template = {
@@ -28,9 +30,15 @@ const ICON_MAP: Record<string, typeof Rocket> = {
 };
 
 export default function TemplatesPage() {
+  const { user } = useUser();
+  const isAdmin = user?.role === "admin";
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   useEffect(() => {
     apiGet<Template[]>("/templates")
@@ -38,6 +46,41 @@ export default function TemplatesPage() {
       .catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat templates"))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    const form = new FormData(e.currentTarget);
+    const body = {
+      name: form.get("name") as string,
+      target: form.get("target") as string,
+      description: form.get("description") as string,
+    };
+    try {
+      const created = await apiPost<Template>("/templates", body);
+      setTemplates(prev => [...prev, created]);
+      setShowForm(false);
+      (e.target as HTMLFormElement).reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal membuat template");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    setDeleting(id);
+    try {
+      await apiDelete(`/templates/${id}`);
+      setTemplates(prev => prev.filter(t => t.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menghapus template");
+    } finally {
+      setDeleting(null);
+      setConfirmDeleteId(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -62,6 +105,33 @@ export default function TemplatesPage() {
   return (
     <>
       <PageHeader title="Templates" subtitle="Mulai lebih cepat dari preset jenis aplikasi." />
+      {isAdmin && (
+        <div className="mb-4">
+          {!showForm ? (
+            <Button variant="secondary" onClick={() => setShowForm(true)}>
+              <Plus size={16} /> Buat Template
+            </Button>
+          ) : (
+            <form onSubmit={handleCreate} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Template Baru</h3>
+                <button type="button" onClick={() => setShowForm(false)} className="text-sm text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]">Batal</button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input name="name" placeholder="Nama template" required className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm" />
+                <select name="target" className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm">
+                  <option value="web">Web</option>
+                  <option value="both">Web + Mobile</option>
+                </select>
+              </div>
+              <textarea name="description" placeholder="Deskripsi singkat" rows={2} className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm" />
+              <Button type="submit" size="sm" disabled={saving}>
+                {saving ? <Loader2 size={14} className="animate-spin" /> : "Simpan Template"}
+              </Button>
+            </form>
+          )}
+        </div>
+      )}
       {templates.length === 0 && (
         <div className="text-center py-12 text-[var(--color-fg-muted)]">
           Belum ada template tersedia.
@@ -84,11 +154,30 @@ export default function TemplatesPage() {
                 <ButtonLink href={`/new?template=${t.id}`} variant="secondary" size="sm" className="mt-4">
                   Gunakan Template <ArrowRight size={15} />
                 </ButtonLink>
+                {isAdmin && (
+                  <button
+                    onClick={() => setConfirmDeleteId(t.id)}
+                    disabled={deleting === t.id}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-[var(--color-fg-muted)] hover:text-red-500 transition disabled:opacity-50"
+                    title="Hapus template"
+                  >
+                    {deleting === t.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Hapus Template
+                  </button>
+                )}
               </Card>
             );
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        onConfirm={() => confirmDeleteId !== null && handleDelete(confirmDeleteId)}
+        title="Hapus Template?"
+        message="Yakin ingin menghapus template ini?"
+        confirmLabel="Ya, Hapus"
+      />
     </>
   );
 }

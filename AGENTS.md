@@ -1,8 +1,8 @@
 # AI Plan Studio — OpenCode Rules
 
 ## Stack
-- Backend: Laravel 11 (PHP 8.4)
-- Frontend: Next.js (Node 24) + React 19 + Tailwind CSS v4
+- Backend: Laravel 13 (PHP 8.3)
+- Frontend: Next.js (Node 20) + React 19 + Tailwind CSS v4
 - Database: PostgreSQL 16
 - Infrastructure: Docker Compose
 
@@ -18,8 +18,8 @@
 - BFF (Backend-for-Frontend): nginx → Next.js (BFF) → Laravel API
 - Auth: Sanctum SPA Session (HttpOnly cookie + CSRF), NOT Bearer token
 - All API calls go through Next.js route handlers, never direct to Laravel
-- AI pipeline: pertanyaan (klarifikasi) → analisa → prd → architecture → erd → phased_master → phased_master_mobile (hanya untuk target 'both')
-- Default stage status: pertanyaan, analisa, prd, architecture, erd, phased_master, phased_master_mobile
+- AI pipeline (14 stages): pertanyaan → analisa → prd → architecture → erd → api_contract → phases_web → standards_web → master_web → pertanyaan_mobile → phases_mobile → standards_mobile → master_mobile → agents
+- Mobile stages (10-13) only for target 'both', gated on master_web done
 - [PATCH] /api/projects/{id} — update project title/idea/target
 - [DELETE] /api/versions/{id} — hapus versi (tidak bisa hapus versi terakhir)
 - [GET/PATCH] /api/settings/profile — lihat/edit profil user

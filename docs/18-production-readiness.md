@@ -11,16 +11,18 @@
 
 | Aspek | Status | Cara verifikasi |
 |-------|--------|-----------------|
-| Backend test | ✅ 150 passed (518 assertions) | `php artisan test` |
-| Frontend lint | ✅ 0 error / 5 warning (non-blocking) | `npm run lint` |
+| Backend test | ✅ **246 passed, 1 skipped, 1 failed (pre-existing Socialite ordering)** (980 assertions) | `php artisan test --env=testing` |
+| Frontend lint | ✅ 0 error / 0 warning | `npm run lint` |
 | TypeScript | ✅ 0 error | `npx tsc --noEmit` |
-| Build | ✅ 17/17 pages | `npm run build` |
-| E2E Playwright | ✅ 10 test hijau (auth, wizard, projects) | lihat [14-frontend-testing](14-frontend-testing.md) |
-| Database schema | ✅ 3 schema master/project/settings, `public` dropped | psql query |
+| Build | ✅ semua route compile | `npm run build` |
+| E2E Playwright | ✅ 10 test hijau (auth, wizard, projects) + E20–E25 planned (MP12) | lihat [14-frontend-testing](14-frontend-testing.md) |
+| Database schema | ✅ 3 schema master/project/settings + `public.users.accent_color` (MP11) | psql query |
 | Error monitoring | ⚠️ GlitchTip **DISABLED** (service di-comment, DSN kosong, SDK no-op) | re-enable bila dibutuhkan |
 | Dependency audit | ✅ `composer audit` + `npm audit` 0 vuln | command audit |
 | Persistent volume | ✅ semua data → host `./docker/` | docker inspect mount |
-| Cloudflare Tunnel | ✅ nginx join network `cloudflare_tunnel_default` | `docker network inspect` |
+| Cloudflare Tunnel | ✅ 2 ingress: `aiplanstudio.arsyiladm.my.id` → Next.js :3000 + `api-aiplanstudio.arsyiladm.my.id` → Laravel via nginx :80 | `docker logs` cloudflared |
+| Direct routing (no BFF) | ✅ frontend → API direct via Cloudflare Tunnel, CORS configured | `curl https://api-aiplanstudio.arsyiladm.my.id/api/version` |
+| CSP/Security headers | ✅ `connect-src https://api-aiplanstudio.arsyiladm.my.id`, `frame-ancestors 'none'`, `SameSite=None; Secure` cookies | `curl -I https://aiplanstudio.arsyiladm.my.id` |
 
 ---
 

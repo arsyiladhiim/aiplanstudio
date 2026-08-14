@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Activity;
+use App\Models\TaskProgress;
 use App\Models\Version;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -10,10 +12,25 @@ class WebhookController extends Controller
 {
     public function phaseComplete(Request $request): JsonResponse
     {
+        $timestamp = $request->header('X-Timestamp');
+        $signature = $request->header('X-Signature');
+        $projectToken = $request->attributes->get('project_token');
+
+        if (!$timestamp || !$signature) {
+            return response()->json(['message' => 'Header X-Timestamp dan X-Signature wajib diisi.'], 401);
+        }
+
+        if (!$projectToken || !$projectToken->verifySignature($timestamp, $request->getContent(), $signature)) {
+            return response()->json(['message' => 'Signature webhook tidak valid atau timestamp kedaluwarsa (>300s).'], 401);
+        }
+
         $data = $request->validate([
             'version_id' => ['required', 'integer'],
             'phase_key' => ['required', 'string'],
-            'output' => ['nullable', 'string'],
+            'task_key' => ['nullable', 'string', 'max:255'],
+            'task_type' => ['nullable', 'string', 'in:halaman,menu,fitur,flow,api'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'output' => ['nullable', 'string', 'max:65535'],
             'status' => ['nullable', 'string', 'in:running,done,error,pending'],
         ]);
 
@@ -29,9 +46,7 @@ class WebhookController extends Controller
         $allowedKeys = array_column($allPhases, 'key');
         $phaseKey = $data['phase_key'];
 
-        // Terima key aktual (mis. fase1_setup) ATAU bentuk phase-{n}/{n}/fase{n}
-        // dengan mapping ke key aktual berdasarkan urutan (agent CLI umumnya pakai phase-1..5).
-        if (! in_array($phaseKey, $allowedKeys)) {
+        if (! in_array($phaseKey, $allowedKeys, true)) {
             $resolved = null;
             if (preg_match('/^(?:phase|fase)?[-_]?(\d+)$/i', $phaseKey, $m)) {
                 $idx = ((int) $m[1]) - 1;
@@ -62,6 +77,42 @@ class WebhookController extends Controller
         }
         $progress->save();
 
-        return response()->json(['ok' => true, 'phase_key' => $phaseKey, 'status' => $status]);
+        if (!empty($data['task_key'])) {
+            $task = $progress->taskProgress()->firstOrNew(['task_key' => $data['task_key']]);
+            $task->task_type = $data['task_type'] ?? $task->task_type ?? 'fitur';
+            $task->title = $data['title'] ?? $task->title ?? $data['task_key'];
+            if ($status === 'running' && ! $task->started_at) {
+                $task->started_at = $now;
+            }
+            $task->status = $status;
+            $task->output = $data['output'] ?? $task->output;
+            if ($status === 'done' || $status === 'error') {
+                $task->finished_at = $now;
+            }
+            $task->save();
+        }
+
+        Activity::create([
+            'project_id' => $request->project_id,
+            'version_id' => $version->id,
+            'user_id' => $version->project->user_id,
+            'action' => Activity::ACTION_WEBHOOK_RECEIVED,
+            'description' => sprintf('Webhook phase-complete: %s/%s → %s', $phaseKey, $data['task_key'] ?? '-', $status),
+            'metadata' => [
+                'token_id' => $projectToken->id,
+                'token_name' => $projectToken->name,
+                'phase_key' => $phaseKey,
+                'task_key' => $data['task_key'] ?? null,
+                'status' => $status,
+                'remote_ip' => $request->ip(),
+            ],
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'phase_key' => $phaseKey,
+            'task_key' => $data['task_key'] ?? null,
+            'status' => $status,
+        ]);
     }
 }

@@ -14,9 +14,12 @@ RUN apk add --no-cache \
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 ENV PATH="/usr/bin/composer:${PATH}"
 
-WORKDIR /var/www/html
+WORKDIR /app
 
 COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
+
+RUN addgroup -g 1001 -S app && adduser -u 1001 -S app -G app
+USER app
 
 EXPOSE 9000
 CMD ["php-fpm", "-F"]

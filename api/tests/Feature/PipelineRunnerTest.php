@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AiProvider;
+use App\Models\PhaseProgress;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\Version;
@@ -138,7 +139,7 @@ class PipelineRunnerTest extends TestCase
             'phases_mobile', 'standards_mobile', 'master_mobile',
             'agents',
         ];
-        $const = (new \ReflectionClass(PipelineRunner::class))->getConstant('ALL_STAGES');
+        $const = (new \ReflectionClass(Version::class))->getConstant('ALL_STAGES');
         $this->assertEquals($expected, $const);
     }
 
@@ -416,33 +417,24 @@ class PipelineRunnerTest extends TestCase
     public function test_mcq_count_returns_question_count(): void
     {
         $content = '{"ambiguities":["a"],"questions":[{"id":"q1"},{"id":"q2"},{"id":"q3"}]}';
-        $client = new AiClient;
-        $runner = new PipelineRunner($this->version, $client);
-        $ref = new \ReflectionMethod($runner, 'mcqCount');
-        $ref->setAccessible(true);
+        $parser = new \App\Services\AiOutputParser;
 
-        $this->assertSame(3, $ref->invoke($runner, $content));
+        $this->assertSame(3, $parser->mcqCount($content));
     }
 
     public function test_mcq_count_returns_zero_for_non_json(): void
     {
-        $client = new AiClient;
-        $runner = new PipelineRunner($this->version, $client);
-        $ref = new \ReflectionMethod($runner, 'mcqCount');
-        $ref->setAccessible(true);
+        $parser = new \App\Services\AiOutputParser;
 
-        $this->assertSame(0, $ref->invoke($runner, 'bukan json'));
+        $this->assertSame(0, $parser->mcqCount('bukan json'));
     }
 
     public function test_mcq_count_returns_zero_without_questions_key(): void
     {
         $content = '{"foo":"bar"}';
-        $client = new AiClient;
-        $runner = new PipelineRunner($this->version, $client);
-        $ref = new \ReflectionMethod($runner, 'mcqCount');
-        $ref->setAccessible(true);
+        $parser = new \App\Services\AiOutputParser;
 
-        $this->assertSame(0, $ref->invoke($runner, $content));
+        $this->assertSame(0, $parser->mcqCount($content));
     }
 
     public function test_save_pertanyaan_stores_clean_json_when_valid(): void
@@ -477,7 +469,8 @@ class PipelineRunnerTest extends TestCase
 
     public function test_mcq_retry_constants(): void
     {
-        $this->assertGreaterThanOrEqual(60, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_RETRIES'));
+        $this->assertGreaterThanOrEqual(3, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_RETRIES'));
+        $this->assertLessThanOrEqual(20, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_RETRIES'));
         $this->assertSame(5, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MIN_MCQ_QUESTIONS'));
         $this->assertSame(10, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_QUESTIONS'));
     }
@@ -499,5 +492,167 @@ class PipelineRunnerTest extends TestCase
         $this->assertNotEmpty($this->version->tracking_token);
         // tergenerate di project_api_tokens
         $this->assertSame(1, $this->project->apiTokens()->count());
+    }
+
+    public function test_master_web_context_includes_phases_breakdown(): void
+    {
+        $this->version->update([
+            'phases' => [
+                ['key' => 'fase1_setup', 'title' => 'Fase 1 Setup', 'tasks' => [], 'prompt' => ''],
+                ['key' => 'fase2_backend', 'title' => 'Fase 2 Backend', 'tasks' => [], 'prompt' => ''],
+            ],
+        ]);
+
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'contextPrompt');
+        $ref->setAccessible(true);
+
+        $prompt = $ref->invoke($runner, 'master_web', $this->version);
+
+        $this->assertStringContainsString('Fase (dari stages phases_web', $prompt);
+        $this->assertStringContainsString('fase1_setup', $prompt);
+        $this->assertStringContainsString('fase2_backend', $prompt);
+    }
+
+    public function test_agents_context_includes_standards_and_erd(): void
+    {
+        $this->version->update([
+            'standards' => 'STANDARDS.md web content',
+            'erd' => ['nodes' => [], 'edges' => [], 'api_contract' => []],
+        ]);
+
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'contextPrompt');
+        $ref->setAccessible(true);
+
+        $prompt = $ref->invoke($runner, 'agents', $this->version);
+
+        $this->assertStringContainsString('Standards (web)', $prompt);
+        $this->assertStringContainsString('ERD & API Contract', $prompt);
+    }
+
+    public function test_pertanyaan_mobile_context_truncates_master_prompt(): void
+    {
+        $this->project->update(['target' => 'both']);
+        $longMp = str_repeat("MASTER PROMPT BLOCK. ", 1000);
+        $this->version->update([
+            'master_prompt' => $longMp,
+            'master_web' => $longMp,
+            'erd' => ['nodes' => [], 'edges' => [], 'api_contract' => []],
+        ]);
+
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'contextPrompt');
+        $ref->setAccessible(true);
+
+        $prompt = $ref->invoke($runner, 'pertanyaan_mobile', $this->version);
+
+        $this->assertStringContainsString('Master Prompt Web (SUDAH SELESAI)', $prompt);
+        $this->assertStringContainsString('[... truncated for context size ...]', $prompt);
+        $this->assertLessThan(5000, strlen($prompt), 'pertanyaan_mobile context must stay < 5KB after truncation');
+    }
+
+    public function test_truncate_for_context_helper(): void
+    {
+        $short = 'hello';
+        $this->assertSame('hello', \App\Services\PipelineRunner::truncateForContext($short, 100));
+
+        $long = str_repeat('x', 5000);
+        $truncated = \App\Services\PipelineRunner::truncateForContext($long, 100);
+        $this->assertLessThanOrEqual(100 + 60, strlen($truncated));
+        $this->assertStringContainsString('[... truncated', $truncated);
+    }
+
+    public function test_update_stage_status_syncs_phase_progress_table(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'updateStageStatus');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'analisa', 'running');
+        $progress = PhaseProgress::where('version_id', $this->version->id)
+            ->where('phase_key', 'analisa')->first();
+        $this->assertNotNull($progress);
+        $this->assertSame('running', $progress->status);
+        $this->assertFalse($progress->done);
+        $this->assertNotNull($progress->started_at);
+
+        $ref->invoke($runner, 'analisa', 'done');
+        $progress->refresh();
+        $this->assertSame('done', $progress->status);
+        $this->assertTrue($progress->done);
+        $this->assertNotNull($progress->finished_at);
+
+        $ref->invoke($runner, 'analisa', 'error');
+        $progress->refresh();
+        $this->assertSame('error', $progress->status);
+        $this->assertFalse($progress->done);
+        $this->assertNotNull($progress->finished_at);
+    }
+
+    public function test_mobile_skip_stage_marked_done_in_phase_progress(): void
+    {
+        $this->project->update(['target' => 'web']);
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'updateStageStatus');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'master_web', 'done');
+        $ref->invoke($runner, 'pertanyaan_mobile', 'done');
+
+        $progress = PhaseProgress::where('version_id', $this->version->id)
+            ->where('phase_key', 'pertanyaan_mobile')->first();
+        $this->assertNotNull($progress);
+        $this->assertTrue($progress->done);
+    }
+
+    public function test_save_artifact_creates_snapshot_activity(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'analisa', 'Konten analisa awal.');
+
+        $this->assertDatabaseHas('activities', [
+            'project_id' => $this->project->id,
+            'version_id' => $this->version->id,
+            'action' => 'artifact_snapshot',
+        ]);
+
+        $ref->invoke($runner, 'analisa', 'Konten analisa kedua, lebih panjang.');
+        $this->assertDatabaseCount('activities', 2);
+    }
+
+    public function test_retry_pertanyaan_returns_early_when_min_met(): void
+    {
+        $validJson = json_encode([
+            'ambiguities' => ['x'],
+            'questions' => [
+                ['id' => 'q1', 'question' => '?', 'options' => []],
+                ['id' => 'q2', 'question' => '?', 'options' => []],
+                ['id' => 'q3', 'question' => '?', 'options' => []],
+                ['id' => 'q4', 'question' => '?', 'options' => []],
+                ['id' => 'q5', 'question' => '?', 'options' => []],
+            ],
+        ]);
+
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'retryPertanyaanForMinimum');
+        $ref->setAccessible(true);
+
+        $start = microtime(true);
+        $result = $ref->invoke($runner, $validJson);
+        $elapsed = microtime(true) - $start;
+
+        $this->assertSame($validJson, $result);
+        $this->assertLessThan(0.1, $elapsed, 'Early-return must skip retry loop entirely.');
     }
 }

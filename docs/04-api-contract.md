@@ -71,7 +71,7 @@
 | PATCH | `/api/versions/{id}/answers` | Session (owner) | `{answers: {key:value}}` | update jawaban pertanyaan |
 | GET | `/api/versions/{id}/diff` | Session (owner) | `?compare={otherId}` | structured diff semua artifact fields (incl. mobile: phases, standards, agents, master_prompt) |
 | PATCH | `/api/versions/{id}/phases/{phaseKey}` | Session (owner) | `{done:bool}` | toggle phase progress checklist |
-| GET | `/api/versions/{id}/export` | Session (owner) | `?format=md\|zip` | file unduhan — include mobile artifacts (phases, master prompt, standards, agents) jika ada; zip juga sertakan `erd.json` |
+| GET | `/api/versions/{id}/export` | Session (owner) | `?format=md\|zip` | file unduhan — md menyertakan analisa, PRD, arsitektur, ERD, **API Contract**, **clarifikasi mobile**, phases, master prompt, mobile artifacts; zip = `{project}-v{n}.md` + `erd.json` + `mobile-standards.md` + `mobile-agents.md` (jika ada) |
 
 ### Standards & Agents Download
 | Method | Path | Auth | Response |

@@ -118,6 +118,48 @@ Setiap fase baru boleh ditandai `[x]` bila:
 - [x] Build fixes: ThemeToggle SSR guard, Suspense boundary
 - [x] tsc --noEmit: 0 errors, next build: 17/17 pages
 
+### [x] Phase 5 — Monitoring + DX + UX Polish (MP0–MP13) (2026-08-13)
+- [x] MP0: `/api/version` + InfoController + 3 test
+- [x] MP1: RequestContext middleware (X-Request-ID) + 3 test
+- [x] MP2: DemoDataSeeder (idempotent) + 4 test
+- [x] MP3: `/api/admin/health` + 3 test
+- [x] MP4: `/api/admin/migrations` + 2 test
+- [x] MP5: Footer version badge + `/settings/about`
+- [x] MP6: LiveProgressWidget (polling `/api/projects`)
+- [x] MP7: WhatsNewModal (`localStorage app:lastSeenVersion`)
+- [x] MP8: `/api/changelog` + 4 test
+- [x] MP9: OnboardingTour 4 steps (`localStorage onboarding:completed`)
+- [x] MP10: Confetti (CSS, `prefers-reduced-motion`)
+- [x] MP11: Accent color picker (migration + ProfileTest 5/5)
+- [x] MP12: E20–E25 sync `docs/22-e2e-test-plan.md`
+- [x] MP13: Final pass — backend 243 test pass, frontend lint/tsc/build 0
+
+### [x] Phase 6 — Pertanyaan Stage Performance (2026-08-13)
+- [x] `MAX_MCQ_RETRIES = 180 → 10` (`PipelineRunner.php:35`)
+- [x] Exponential backoff di retry loop (`PipelineRunner.php:477`)
+- [x] Log retry count (Log::info/warning)
+- [x] Truncate `master_prompt` pertanyaan_mobile 2000 char (`PipelineRunner.php:294`)
+- [x] Helper `truncateForContext()` static
+- [x] Frontend spinner + retry counter inline
+- [x] Backend test 246 pass (+3 baru), frontend lint/tsc clean
+- [x] Plan saved di `docs/24-pertanyaan-performance.md`
+
+### [x] Phase 7 — Bypass BFF + Direct Domain Routing (2026-08-14)
+- [x] Backend CORS config (`config/cors.php`): allowlist `https://aiplanstudio.arsyiladm.my.id` + localhost dev
+- [x] Backend session config: `SESSION_SAME_SITE=none`, `SESSION_DOMAIN=null`, `SESSION_SECURE_COOKIE=true`
+- [x] Frontend `NEXT_PUBLIC_API_URL` env (production + development)
+- [x] Frontend `api.ts`: BASE = env var (direct, no BFF)
+- [x] Hapus `web/src/lib/bff.ts` + `web/src/app/api/**` (40+ BFF routes)
+- [x] Frontend `middleware.ts`: pass-through (cookie cross-origin tidak readable)
+- [x] Frontend `next.config.ts`: CSP `connect-src ${API_URL}`, `frame-ancestors 'none'`
+- [x] Docker compose: build arg `NEXT_PUBLIC_API_URL`
+- [x] nginx_api: listen 80 (sebelumnya hanya 8000)
+- [x] Cloudflare tunnel: `aiplanstudio.arsyiladm.my.id` + `api-aiplanstudio.arsyiladm.my.id` (verified)
+- [x] Backend test 246 pass, lint/tsc 0
+- [x] CORS preflight verified (valid origin allowed, evil origin blocked)
+- [x] Cookies verified: `secure; samesite=none`
+- [x] Plan saved di `docs/25-bypass-bff.md`
+
 ## Catatan Melanjutkan Sesi
 1. Baca [17-next-progress.md](17-next-progress.md) untuk next steps terprioritas.
 2. Baca [11-development-rules](11-development-rules.md) sebelum menulis kode.

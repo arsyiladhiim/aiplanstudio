@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, Input, Label, Badge } from "@/components/ui";
+import { Card, Input, Label, Badge, Modal } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
-import { CheckCircle2, AlertCircle, Zap, Plus, Trash2, Star, X, Lock, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertCircle, Zap, Plus, Trash2, Star, Lock, Loader2 } from "lucide-react";
 import { apiGet, apiPost, apiPatch, apiDelete, fetchCsrfCookie, ApiError } from "@/lib/api";
 
 type Provider = {
@@ -211,53 +211,45 @@ interface ProviderFormData {
         ))}
       </div>
 
-      {/* Modal Form */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setShowForm(false); setEditId(null); }}>
-          <Card className="relative w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <button className="absolute right-4 top-4 text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
-              onClick={() => { setShowForm(false); setEditId(null); }}><X size={18} /></button>
-            <h3 className="font-semibold mb-4">{editId ? "Edit Provider" : "Tambah Provider Baru"}</h3>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="pname">Nama Provider</Label>
-                <Input id="pname" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Contoh: OpenAI GPT-4o" />
-              </div>
-              <div>
-                <Label>Tipe Provider</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {PROVIDER_TYPES.map(t => (
-                    <button key={t.key} onClick={() => setForm({...form, provider_type: t.key, base_url: t.defaultUrl, model: t.defaultModel})}
-                      className={`rounded-xl border p-3 text-sm font-medium transition text-center ${
-                        form.provider_type === t.key
-                          ? 'border-[var(--color-brand)] bg-[color-mix(in_oklab,var(--color-brand)_12%,transparent)] text-[var(--color-brand)]'
-                          : 'border-[var(--color-border)] text-[var(--color-fg-muted)]'
-                      }`}>{t.label}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="purl">Base URL</Label>
-                <Input id="purl" value={form.base_url} onChange={e => setForm({...form, base_url: e.target.value})} />
-              </div>
-              <div>
-                <Label htmlFor="pkey">API Key {editId && <span className="text-[var(--color-fg-subtle)]">(kosongkan jika tidak diubah)</span>}</Label>
-                <Input id="pkey" type="password" value={form.api_key} onChange={e => setForm({...form, api_key: e.target.value})} />
-              </div>
-              <div>
-                <Label htmlFor="pmodel">Model</Label>
-                <Input id="pmodel" value={form.model} onChange={e => setForm({...form, model: e.target.value})} />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <Button onClick={save} disabled={saving || !form.name || !form.base_url || !form.model}>
-                  {saving ? "Menyimpan..." : "Simpan"}
-                </Button>
-                <Button variant="secondary" onClick={() => { setShowForm(false); setEditId(null); }}>Batal</Button>
-              </div>
+      <Modal open={showForm} onClose={() => { setShowForm(false); setEditId(null); }} title={editId ? "Edit Provider" : "Tambah Provider Baru"}>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="pname">Nama Provider</Label>
+            <Input id="pname" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Contoh: OpenAI GPT-4o" />
+          </div>
+          <div>
+            <Label>Tipe Provider</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {PROVIDER_TYPES.map(t => (
+                <button key={t.key} onClick={() => setForm({...form, provider_type: t.key, base_url: t.defaultUrl, model: t.defaultModel})}
+                  className={`rounded-xl border p-3 text-sm font-medium transition text-center ${
+                    form.provider_type === t.key
+                      ? 'border-[var(--color-brand)] bg-[color-mix(in_oklab,var(--color-brand)_12%,transparent)] text-[var(--color-brand)]'
+                      : 'border-[var(--color-border)] text-[var(--color-fg-muted)]'
+                  }`}>{t.label}</button>
+              ))}
             </div>
-          </Card>
+          </div>
+          <div>
+            <Label htmlFor="purl">Base URL</Label>
+            <Input id="purl" value={form.base_url} onChange={e => setForm({...form, base_url: e.target.value})} />
+          </div>
+          <div>
+            <Label htmlFor="pkey">API Key {editId && <span className="text-[var(--color-fg-subtle)]">(kosongkan jika tidak diubah)</span>}</Label>
+            <Input id="pkey" type="password" value={form.api_key} onChange={e => setForm({...form, api_key: e.target.value})} />
+          </div>
+          <div>
+            <Label htmlFor="pmodel">Model</Label>
+            <Input id="pmodel" value={form.model} onChange={e => setForm({...form, model: e.target.value})} />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button onClick={save} disabled={saving || !form.name || !form.base_url || !form.model}>
+              {saving ? "Menyimpan..." : "Simpan"}
+            </Button>
+            <Button variant="secondary" onClick={() => { setShowForm(false); setEditId(null); }}>Batal</Button>
+          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

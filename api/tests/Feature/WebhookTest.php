@@ -21,6 +21,10 @@ class WebhookTest extends TestCase
 
     private string $token;
 
+    private string $secret;
+
+    private string $tokenSecretHash;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -38,14 +42,33 @@ class WebhookTest extends TestCase
             ],
         ]);
 
-        $this->token = \App\Models\ProjectApiToken::generate($this->project, 'test')['token'];
+        $result = \App\Models\ProjectApiToken::generate($this->project, 'test');
+        $this->token = $result['token'];
+        $this->secret = $result['secret'];
+        $this->tokenSecretHash = hash('sha256', $this->secret);
     }
 
     private function webhook(array $body): \Illuminate\Testing\TestResponse
     {
-        return $this->postJson('/api/webhooks/phase-complete', $body, [
-            'Authorization' => 'Bearer '.$this->token,
-        ]);
+        $bodyJson = json_encode($body, JSON_UNESCAPED_UNICODE);
+        $timestamp = (string) time();
+        $signature = hash_hmac('sha256', $timestamp.'.'.$bodyJson, $this->secret);
+
+        return $this->call(
+            'POST',
+            '/api/webhooks/phase-complete',
+            [],
+            [],
+            [],
+            [
+                'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
+                'HTTP_X_TOKEN_SECRET' => $this->secret,
+                'HTTP_X_TIMESTAMP' => $timestamp,
+                'HTTP_X_SIGNATURE' => $signature,
+                'CONTENT_TYPE' => 'application/json',
+            ],
+            $bodyJson,
+        );
     }
 
     public function test_webhook_accepts_real_phase_key(): void
@@ -99,10 +122,28 @@ class WebhookTest extends TestCase
 
     public function test_webhook_rejects_invalid_token(): void
     {
-        $response = $this->postJson('/api/webhooks/phase-complete', [
+        $body = [
             'version_id' => $this->version->id,
             'phase_key' => 'fase1_setup',
-        ], ['Authorization' => 'Bearer wrong-token']);
+        ];
+        $bodyJson = json_encode($body, JSON_UNESCAPED_UNICODE);
+        $timestamp = (string) time();
+
+        $response = $this->call(
+            'POST',
+            '/api/webhooks/phase-complete',
+            [],
+            [],
+            [],
+            [
+                'HTTP_AUTHORIZATION' => 'Bearer wrong-token',
+                'HTTP_X_TOKEN_SECRET' => $this->secret,
+                'HTTP_X_TIMESTAMP' => $timestamp,
+                'HTTP_X_SIGNATURE' => 'a'.str_repeat('b', 63),
+                'CONTENT_TYPE' => 'application/json',
+            ],
+            $bodyJson,
+        );
 
         $response->assertStatus(401);
     }

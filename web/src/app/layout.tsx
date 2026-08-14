@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "Ubah satu ide jadi dokumentasi & prompt lengkap untuk AI coding agent. Web & Mobile. Untuk solo developer.",
 };
 
-const themeScript = `try{var t=localStorage.getItem('theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}`;
+const themeScript = `try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

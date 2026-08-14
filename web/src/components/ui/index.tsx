@@ -58,3 +58,4 @@ export function Label({ className, ...props }: ComponentProps<"label">) {
 }
 
 export { Markdown } from "./Markdown";
+export { Modal } from "./Modal";

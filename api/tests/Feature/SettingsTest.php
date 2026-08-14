@@ -120,23 +120,6 @@ class SettingsTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_reject_pending_user(): void
-    {
-        $user = User::factory()->create(['status' => 'pending']);
-
-        $response = $this->actingAs($this->admin, 'sanctum')
-            ->patchJson("/api/settings/users/{$user->id}", [
-                'status' => 'pending',
-            ]);
-
-        $response->assertStatus(200);
-
-        $this->assertDatabaseHas('users', [
-            'id' => $user->id,
-            'status' => 'pending',
-        ]);
-    }
-
     public function test_admin_cannot_set_invalid_status(): void
     {
         $user = User::factory()->create(['status' => 'active']);

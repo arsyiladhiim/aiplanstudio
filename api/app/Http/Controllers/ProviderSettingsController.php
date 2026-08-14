@@ -6,6 +6,7 @@ use App\Models\AiProvider;
 use App\Services\AiClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProviderSettingsController extends Controller
 {
@@ -66,9 +67,14 @@ class ProviderSettingsController extends Controller
 
     public function setActive(int $id): JsonResponse
     {
-        AiProvider::query()->update(['is_active' => false]);
-        $provider = AiProvider::findOrFail($id);
-        $provider->update(['is_active' => true]);
+        $provider = DB::transaction(function () use ($id) {
+            AiProvider::query()->update(['is_active' => false]);
+            $provider = AiProvider::findOrFail($id);
+            $provider->update(['is_active' => true]);
+
+            return $provider;
+        });
+
         return response()->json(['message' => "{$provider->name} aktif secara global."]);
     }
 

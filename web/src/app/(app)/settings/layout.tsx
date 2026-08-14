@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PageHeader } from "@/components/common";
-import { Cpu, Users, User } from "lucide-react";
+import { Cpu, Users, User, Info } from "lucide-react";
 import { useUser } from "@/components/UserContext";
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +13,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     { href: "/settings/profile", label: "Profile", icon: User },
     { href: "/settings/provider", label: "AI Provider", icon: Cpu },
     { href: "/settings/users", label: "User Management", icon: Users },
+    { href: "/settings/about", label: "About", icon: Info },
   ];
   const tabs = user?.role === "admin" ? baseTabs : baseTabs.filter((t) => t.href === "/settings/profile");
 

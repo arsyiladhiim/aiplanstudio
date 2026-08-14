@@ -9,6 +9,12 @@ interface UserContextValue {
 
 const UserContext = createContext<UserContextValue>({ user: null, loading: true });
 
+function applyAccent(color: string | null | undefined) {
+  if (typeof document === "undefined") return;
+  if (color) document.documentElement.style.setProperty("--color-brand", color);
+  else document.documentElement.style.removeProperty("--color-brand");
+}
+
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -16,7 +22,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const load = () => {
       apiGet<User>("/user")
-        .then(setUser)
+        .then((u) => {
+          setUser(u);
+          applyAccent(u.accent_color);
+        })
         .catch((err) => console.error("Failed to fetch user:", err))
         .finally(() => setLoading(false));
     };

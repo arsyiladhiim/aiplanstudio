@@ -45,6 +45,19 @@ docker run --rm --network host -v "$PWD/web":/work -w /work \
 
 Semua alur pakai real backend di Docker; test login tidak lewat UI throttle (`throttle:5,1`) — global-setup pakai API login sekali.
 
+## Cakupan Spec Phase 5 (MP5–MP11) — Direncanakan
+
+Per `docs/22-e2e-test-plan.md` E20–E25 (rencana E2E untuk fitur Phase 5):
+
+| Spec (planned) | Cakupan |
+|---|---|
+| `e2e/footer-about.spec.ts` (E20) | Footer version badge + `/settings/about` info match `/api/version` |
+| `e2e/live-progress-widget.spec.ts` (E21) | Widget floating bottom-right, polling, navigasi ke tracking tab, toast "Plan selesai!" |
+| `e2e/whatsnew-modal.spec.ts` (E22) | Modal otomatis saat `localStorage app:lastSeenVersion` outdated; persist dismissal |
+| `e2e/onboarding-tour.spec.ts` (E23) | 4-step tour dengan keyboard nav; `localStorage onboarding:completed` gate |
+| `e2e/confetti.spec.ts` (E24) | `prefers-reduced-motion=reduce` → no pieces; default → 80 pieces + CSS animation |
+| `e2e/accent-color.spec.ts` (E25) | Preset + custom hex; `--color-brand` CSS var apply; reset |
+
 ## Smoke Test Menyeluruh
 Satu spec yang **mengklik seluruh menu & tombol utama** berurutan (crawl UI) dan memastikan tak ada:
 - error konsol browser (`page.on('console')` error/`pageerror`),

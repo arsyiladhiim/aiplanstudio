@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ProjectApiToken;
 use App\Models\Version;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -13,76 +14,71 @@ class PipelineRunner
 
     private AiClient $client;
 
-    /** @var resource */
-    private $stdout;
+    private SseEmitter $sse;
 
-    private const ALL_STAGES = [
-        'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
-        'phases_web', 'standards_web', 'master_web',
-        'pertanyaan_mobile',
-        'phases_mobile', 'standards_mobile', 'master_mobile',
-        'agents',
-    ];
+    private AiJsonParser $jsonParser;
 
-    // Stage mana yang termasuk jalur mobile (hanya untuk target 'both').
+    private AiOutputParser $outputParser;
+
+    /** Plain tracking token — kept in-memory only, never persisted plaintext */
+    private ?string $plainTrackingToken = null;
+    private ?string $pendingTrackingToken = null;
+
     private const MOBILE_STAGES = ['pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile'];
 
-    // Stage sebelum mobile track → gate: mobile menunggu web selesai.
     private const WEB_DONE_STAGE = 'master_web';
+
+    private const MIN_MCQ_QUESTIONS = 5;
+
+    private const MAX_MCQ_QUESTIONS = 10;
+
+    private const MAX_MCQ_RETRIES = 10;
 
     public function __construct(Version $version, AiClient $client, $stdout = null)
     {
         $this->version = $version;
         $this->client = $client;
-        $this->stdout = $stdout ?? fopen('php://output', 'w');
-    }
-
-    public function __destruct()
-    {
-        if (is_resource($this->stdout)) {
-            fclose($this->stdout);
-        }
+        $this->sse = new SseEmitter($stdout);
+        $this->jsonParser = new AiJsonParser;
+        $this->outputParser = new AiOutputParser($this->jsonParser);
     }
 
     public function run(?string $stage, bool $auto): void
     {
-        // Eager load project to avoid N+1 on every stage iteration
         $this->version->load('project');
 
         if (! $this->client->isConfigured()) {
-            $this->emit('fail', ['stage' => $stage ?? 'start', 'message' => 'AI Provider belum dikonfigurasi.']);
+            $this->sse->emit('fail', ['stage' => $stage ?? 'start', 'message' => 'AI Provider belum dikonfigurasi.']);
 
             return;
         }
 
         $startIdx = $stage !== null
-            ? array_search($stage, self::ALL_STAGES, true)
+            ? array_search($stage, Version::ALL_STAGES, true)
             : 0;
 
         if ($startIdx === false) {
             $startIdx = 0;
         }
 
-        foreach (array_slice(self::ALL_STAGES, $startIdx) as $key) {
+        foreach (array_slice(Version::ALL_STAGES, $startIdx) as $key) {
             $target = $this->version->project->target ?? 'web';
 
-            // Stage jalur mobile HANYA untuk target 'both', dan menunggu web selesai.
             if (in_array($key, self::MOBILE_STAGES, true)) {
                 if ($target !== 'both') {
                     $this->updateStageStatus($key, 'done');
 
                     continue;
                 }
-                // Gate: mobile tidak boleh mulai sebelum master_web done.
                 if (($this->version->stage_status[self::WEB_DONE_STAGE] ?? 'pending') !== 'done') {
-                    $this->emit('status', ['stage' => 'web_gate', 'state' => 'waiting']);
-                    $this->emit('fail', ['stage' => $key, 'message' => 'Web track belum selesai. Selesaikan master_web sebelum melanjutkan ke mobile.']);
+                    $this->sse->emit('status', ['stage' => 'web_gate', 'state' => 'waiting']);
+                    $this->sse->emit('fail', ['stage' => $key, 'message' => 'Web track belum selesai. Selesaikan master_web sebelum melanjutkan ke mobile.']);
 
                     return;
                 }
             }
 
-            $this->emit('status', ['stage' => $key, 'state' => 'running']);
+            $this->sse->emit('status', ['stage' => $key, 'state' => 'running']);
             $this->updateStageStatus($key, 'running');
 
             try {
@@ -92,13 +88,14 @@ class PipelineRunner
                 }
                 $this->saveArtifact($key, $content);
 
-                $this->emit('done', ['stage' => $key]);
-                $this->emit('status', ['stage' => $key, 'state' => 'done']);
+                $this->sse->emit('done', ['stage' => $key]);
+                $this->sse->emit('status', ['stage' => $key, 'state' => 'done']);
                 $this->updateStageStatus($key, 'done');
             } catch (Throwable $e) {
-                $this->emit('fail', ['stage' => $key, 'message' => $e->getMessage()]);
+                $this->sse->emit('fail', ['stage' => $key, 'message' => $e->getMessage()]);
                 $this->updateStageStatus($key, 'error');
-                if (! $auto) {
+                $this->persistPendingTrackingToken();
+                if (! $auto || in_array($key, ['erd', 'api_contract', 'phases_web', 'master_web', 'phases_mobile', 'master_mobile'])) {
                     return;
                 }
             }
@@ -121,6 +118,42 @@ class PipelineRunner
             $locked->update(['stage_status' => $status]);
             $this->version = $locked->fresh();
         });
+
+        $this->syncPhaseProgress($stage, $state);
+    }
+
+    private function syncPhaseProgress(string $stage, string $state): void
+    {
+        try {
+            $progress = \App\Models\PhaseProgress::firstOrNew([
+                'version_id' => $this->version->id,
+                'phase_key' => $stage,
+            ]);
+
+            $now = now();
+            if ($state === 'running' && ! $progress->started_at) {
+                $progress->started_at = $now;
+            }
+            if ($state === 'done') {
+                $progress->done = true;
+                $progress->status = 'done';
+                $progress->finished_at = $now;
+                if (! $progress->started_at) {
+                    $progress->started_at = $now;
+                }
+            } elseif ($state === 'error') {
+                $progress->done = false;
+                $progress->status = 'error';
+                $progress->finished_at = $now;
+            } else {
+                $progress->done = false;
+                $progress->status = $state;
+            }
+            $progress->save();
+        } catch (Throwable $e) {
+            // Jangan gagalkan pipeline karena sinkronisasi tabel opsional.
+            report($e);
+        }
     }
 
     private function runStage(string $key, ?string $overrideTarget = null, string $extraInstruction = ''): string
@@ -128,11 +161,14 @@ class PipelineRunner
         $messages = $this->buildMessages($key, $overrideTarget);
         $system = $messages[0]['content'] ?? '';
         if ($extraInstruction !== '' && is_string($system)) {
-            $messages[0]['content'] = $system."\n\n[PERINGATAN TAMBAHAN]\n{$extraInstruction}";
+            // Strip role markers that could simulate conversation turns in prompt injection
+            $sanitized = preg_replace('/\b(system|assistant|user)\s*:/i', '[rol]:', $extraInstruction);
+            $sanitized = preg_replace('/\b(system|assistant|user)\b/i', '[rol]', $sanitized);
+            $messages[0]['content'] = $system."\n\n[PERINGATAN TAMBAHAN]\n{$sanitized}";
         }
         $buffer = '';
         $maxChunks = 3;
-        $maxBufferBytes = 10 * 1024 * 1024; // 10MB limit
+        $maxBufferBytes = 10 * 1024 * 1024;
 
         for ($i = 0; $i < $maxChunks; $i++) {
             if (strlen($buffer) >= $maxBufferBytes) {
@@ -143,17 +179,21 @@ class PipelineRunner
                 if (strlen($buffer) + strlen($delta) > $maxBufferBytes) {
                     $delta = mb_substr($delta, 0, $maxBufferBytes - strlen($buffer));
                     $buffer .= $delta;
-                    $this->emit('token', ['stage' => $key, 'delta' => $delta]);
+                    $this->sse->emit('token', ['stage' => $key, 'delta' => $delta]);
 
                     return;
                 }
                 $buffer .= $delta;
-                $this->emit('token', ['stage' => $key, 'delta' => $delta]);
+                $this->sse->emit('token', ['stage' => $key, 'delta' => $delta]);
             });
 
             $added = strlen($buffer) - $prevLen;
             $trimmed = trim($buffer);
             $endsNatural = $added < 50 || preg_match('/[.\n}\]>!?]$/', $trimmed) || $trimmed === '';
+
+            if ($added > 0 && $this->client->lastFinishReason === '') {
+                break;
+            }
 
             if ($this->client->lastFinishReason === 'stop' && $endsNatural) {
                 break;
@@ -161,11 +201,9 @@ class PipelineRunner
             if ($this->client->lastFinishReason === 'length') {
                 // Terpotong oleh token limit → lanjut continuation
             } elseif ($added < 20) {
-                // Hampir tidak ada output baru → AI selesai
                 break;
             }
 
-            // Continuation: prompt AI to continue from where it stopped
             $last200 = mb_substr($buffer, -200);
             $messages = [
                 ['role' => 'system', 'content' => 'Lanjutkan output dari bagian sebelumnya. JANGAN ulangi konten yang sudah ada. Langsung lanjutkan dari bagian terakhir yang terpotong.'],
@@ -180,12 +218,10 @@ class PipelineRunner
     {
         $v = $this->version;
         $target = $overrideTarget ?? $v->project->target ?? 'web';
-        // Stage jalur mobile selalu menargetkan platform mobile.
         if (in_array($stage, self::MOBILE_STAGES, true)) {
             $target = 'mobile';
             $overrideTarget = 'mobile';
         } elseif (in_array($stage, ['phases_web', 'standards_web', 'master_web'], true)) {
-            // Track web selalu diselesaikan sebagai platform web (walau target both).
             $target = 'web';
             $overrideTarget = 'web';
         }
@@ -247,61 +283,68 @@ class PipelineRunner
 
         return match ($stage) {
             'pertanyaan' => $ctx,
-
             'analisa' => $ctx,
-
             'prd' => $ctx."\n\n### Hasil Analisa\n{$v->analysis}\n\n### Ide Awal\n{$idea}\n### Target Platform\n{$target}",
-
             'architecture' => $ctx."\n\n### Dokumen PRD\n{$v->prd}",
-
             'erd' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}",
-
+            'api_contract' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => []], JSON_PRETTY_PRINT),
             'standards_web' => $ctx."\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT),
-
-            'phases_web' => $ctx."\n\n### Standars\n{$v->standards}\n\n### AGENTS\n{$v->agents}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT).$this->trackingBlock($v),
-
-            'master_web' => $ctx."\n\n### Standars (web)\n{$v->standards}\n\n### AGENTS (web)\n{$v->agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT).$this->trackingBlock($v),
-
-            'pertanyaan_mobile' => $ctx."\n\n### Master Prompt Web (SUDAH SELESAI)\n{$v->master_prompt}\n\n### API Contract\n".json_encode($v->erd ? ($v->erd['api_contract'] ?? []) : [], JSON_PRETTY_PRINT)."\n\n### ERD\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[]], JSON_PRETTY_PRINT),
-
-            'phases_mobile' => $ctx."\n\n### Mobile Answers (klarifikasi mobile)\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### Dokumen PRD (web)\n{$v->prd}\n\n### Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH SELESAI — referensi lengkap web)\n{$v->master_prompt}".$this->trackingBlock($v),
-
-            'standards_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Web (SUDAH SELESAI)\n{$v->master_prompt}",
-
-            'master_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standars Mobile\n{$v->mobile_standards}\n\n### AGENTS Mobile\n{$v->mobile_agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes'=>[],'edges'=>[],'api_contract'=>[]], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH 100% — referensi lengkap web)\n{$v->master_prompt}".$this->trackingBlock($v),
-
-            'agents' => $ctx."\n\n### Master Prompt Web (WAJIB — base untuk semua agent)\n{$v->master_prompt}\n\n### Master Prompt Mobile (jika target=both, SUDAH SELESAI)\n".(($target === 'both' && ! empty($v->mobile_master_prompt)) ? $v->mobile_master_prompt : '_Belum ada (target=web)_'),
-
+            'phases_web' => $ctx."\n\n### Standards\n{$v->standards}\n\n### AGENTS\n{$v->agents}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT).$this->trackingBlock($v),
+            'master_web' => $ctx."\n\n### Standards (web)\n{$v->standards}\n\n### AGENTS (web)\n{$v->agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => [], 'api_contract' => []], JSON_PRETTY_PRINT)."\n\n### Fase (dari stages phases_web — gunakan persis key-nya, JANGAN buat urutan baru)\n".json_encode(is_array($v->phases) ? $v->phases : [], JSON_PRETTY_PRINT).$this->trackingBlock($v),
+            'pertanyaan_mobile' => $ctx."\n\n### Master Prompt Web (SUDAH SELESAI)\n".self::truncateForContext((string) $v->master_prompt, 2000)."\n\n### API Contract\n".json_encode($v->erd ? ($v->erd['api_contract'] ?? []) : [], JSON_PRETTY_PRINT)."\n\n### ERD\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => []], JSON_PRETTY_PRINT),
+            'phases_mobile' => $ctx."\n\n### Mobile Answers (klarifikasi mobile)\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standards Mobile\n{$v->mobile_standards}\n\n### Dokumen PRD (web)\n{$v->prd}\n\n### Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => [], 'api_contract' => []], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH SELESAI — referensi lengkap web)\n{$v->master_prompt}".$this->trackingBlock($v),
+            'standards_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => [], 'api_contract' => []], JSON_PRETTY_PRINT)."\n\n### Master Web (SUDAH SELESAI)\n{$v->master_prompt}",
+            'master_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standards Mobile\n{$v->mobile_standards}\n\n### AGENTS Mobile\n{$v->mobile_agents}\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => [], 'api_contract' => []], JSON_PRETTY_PRINT)."\n\n### Fase Mobile (dari stages phases_mobile — gunakan persis key-nya, JANGAN buat urutan baru)\n".json_encode(is_array($v->mobile_phases) ? $v->mobile_phases : [], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH 100% — referensi lengkap web)\n{$v->master_prompt}".$this->trackingBlock($v),
+            'agents' => $ctx."\n\n### Standards (web)\n{$v->standards}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => [], 'api_contract' => []], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (WAJIB — base untuk semua agent)\n{$v->master_prompt}\n\n### Master Prompt Mobile (jika target=both, SUDAH SELESAI)\n".(($target === 'both' && ! empty($v->mobile_master_prompt)) ? $v->mobile_master_prompt : '_Belum ada (target=web)_'),
             default => $idea,
         };
     }
 
-    /** Auto-generate tracking token + blok webhook lengkap untuk disuntikkan ke prompt master. */
     private function trackingBlock(Version $v): string
     {
-        $project = $v->project;
-
-        // Pakai token plain yang sudah ada (versions.tracking_token), atau buat baru.
-        $plain = $v->tracking_token;
-        if (! $plain || $plain === '') {
-            $existing = $project->apiTokens()->where('name', 'auto-tracking')->first();
-            if (! $existing) {
-                $plain = \App\Models\ProjectApiToken::generate($project, 'auto-tracking')['token'];
-                $v->forceFill(['tracking_token' => $plain])->save();
-            } else {
-                // Token lama sudah di-hash di DB — buat token generasi baru yang dicek plain.
-                $plain = \App\Models\ProjectApiToken::generate($project, 'auto-tracking-'.Str::random(4))['token'];
-                $v->forceFill(['tracking_token' => $plain])->save();
-            }
+        if ($this->plainTrackingToken !== null) {
+            $plain = $this->plainTrackingToken;
+        } else {
+            $project = $v->project;
+            $plain = ProjectApiToken::generate($project, 'auto-tracking-'.Str::random(4))['token'];
+            $this->plainTrackingToken = $plain;
+            $this->pendingTrackingToken = hash('sha256', $plain);
+            $v->update(['tracking_token' => $this->pendingTrackingToken]);
+            $this->pendingTrackingToken = null;
         }
 
         return "\n\n### Version ID\n{$v->id}\n".
-            "### WEBHOOK TRACKING (wajib setelah tiap fase selesai)\n".
-            "POST ".config('app.url')."/api/webhooks/phase-complete\n".
+            "### WEBHOOK TRACKING — CHECKPOINT WAJIB per fase + per sub-item\n".
+            'POST '.config('app.url')."/api/webhooks/phase-complete\n".
             "Authorization: Bearer {$plain}\n".
-            "Body: {\"version_id\": {$v->id}, \"phase_key\": \"{key}\", \"status\": \"done\", \"output\": \"...\"}\n".
-            "PENTING: `phase_key` HARUS memakai `key` persis dari daftar FASE di atas (misal fase1_setup). Boleh juga phase-1/phase-2 dst sesuai urutan fase — tapi yang paling akurat adalah key asli.\n".
-            "Status didukung: running | done | error. Kirim `running` saat mulai, `done` saat selesai.";
+            "Body (per fase): {\"version_id\": {$v->id}, \"phase_key\": \"{key}\", \"status\": \"done\", \"output\": \"ringkasan\"}\n".
+            "Body (per sub-item): {\"version_id\": {$v->id}, \"phase_key\": \"{key}\", \"task_key\": \"{sub_item_key}\", \"task_type\": \"halaman|menu|fitur|flow|api\", \"title\": \"judul\", \"status\": \"done\", \"output\": \"ringkasan\"}\n".
+            "PENTING: `phase_key` HARUS memakai `key` persis dari daftar FASE di atas (misal fase1_setup). Untuk sub-item, `task_key` adalah key persis dari HALAMAN/MENU/FITUR/FLOW/API di fase.\n".
+            'Status didukung: running | done | error. Kirim `running` saat mulai suatu fase/sub-item, `done` saat selesai.'.
+            "\n\n#### INSTRUKSI CHECKPOINT:\n".
+            "1. Sebelum mulai fase, kirim webhook fase: `{\"status\": \"running\", \"phase_key\": \"<key>\"}`\n".
+            "2. Bangun setiap HALAMAN, MENU, FITUR, FLOW, API dalam fase sesuai sub-item list\n".
+            "3. Setelah tiap sub-item selesai, kirim: `{\"status\": \"done\", \"phase_key\": \"<key>\", \"task_key\": \"<sub_item_key>\", \"task_type\": \"halaman|menu|fitur|flow|api\", \"title\": \"judul\", \"output\": \"ringkasan\"}`\n".
+            "4. Setelah semua sub-item dan fase selesai, kirim: `{\"status\": \"done\", \"phase_key\": \"<key>\", \"output\": \"ringkasan seluruh fase\"}`\n".
+            "5. HANYA lanjut ke fase berikutnya SETELAH webhook `done` untuk fase saat ini terkirim\n".
+            "6. Jika ada error, kirim `{\"status\": \"error\", \"output\": \"pesan error\"}` dan berhenti";
+    }
+
+    private function stripTrackingToken(string $content): string
+    {
+        if ($this->plainTrackingToken === null) {
+            return $content;
+        }
+
+        return str_replace($this->plainTrackingToken, '[REDACTED]', $content);
+    }
+
+    private function persistPendingTrackingToken(): void
+    {
+        if ($this->pendingTrackingToken !== null) {
+            $this->version->update(['tracking_token' => $this->pendingTrackingToken]);
+            $this->pendingTrackingToken = null;
+        }
     }
 
     private function saveArtifact(string $key, string $content): void
@@ -330,437 +373,140 @@ class PipelineRunner
 
         $value = $content;
         if ($key === 'architecture') {
-            // Architecture disimpan sebagai TEXT mentah (bukan diagram).
-            // parseArchText hanya opsional untuk validasi diagram; bila output
-            // tidak berupa diagram, tetap simpan sebagai teks (jangan gagal).
-            $this->emit('artifact', ['stage' => $key, 'content' => $content]);
+            $this->sse->emit('artifact', ['stage' => $key, 'content' => $content]);
         } elseif ($key === 'pertanyaan' || $key === 'pertanyaan_mobile') {
-            // Simpan & emit sebagai JSON bersih bila output AI valid (hindari
-            // flash fallback di frontend akibat prose/fence/trailing comma).
-            $cleaned = $this->extractJson($content);
-            $decoded = $this->tryJsonDecode($cleaned);
+            $cleaned = $this->jsonParser->extractJson($content);
+            $decoded = $this->jsonParser->tryJsonDecode($cleaned);
             if ($decoded !== null) {
                 $value = json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-                $this->emit('artifact', ['stage' => $key, 'content' => $value]);
+                $this->sse->emit('artifact', ['stage' => $key, 'content' => $value]);
             } else {
-                $this->emit('artifact', ['stage' => $key, 'content' => $content]);
+                $this->sse->emit('artifact', ['stage' => $key, 'content' => $content]);
             }
         } elseif ($key === 'erd') {
-            $parsed = $this->parseErdText($content);
+            $parsed = $this->outputParser->parseErdText($content);
             if ($parsed !== null) {
                 $value = $parsed;
                 if (isset($parsed['api_contract'])) {
                     $this->version->update(['api_contract' => $parsed['api_contract']]);
                 }
-                $this->emit('artifact', ['stage' => $key, 'content' => json_encode($parsed)]);
+                $this->sse->emit('artifact', ['stage' => $key, 'content' => json_encode($parsed)]);
             } else {
                 throw new \RuntimeException('ERD: Gagal parse output AI. Stage ditandai error.');
             }
         } elseif ($key === 'phases_web' || $key === 'phases_mobile') {
-            $phases = $this->parsePhasesText($content);
+            $phases = $this->outputParser->parsePhasesText($content);
             if ($phases === null) {
                 throw new \RuntimeException('Phases: Gagal parse output AI. Stage ditandai error.');
             }
-            // Simpan array (bukan teks mentah) — wajib agar webhook phase_key valid
-            // dan frontend bisa merender list fase. Emit JSON utk wizard.
             $value = $phases;
-            $this->emit('artifact', ['stage' => $key, 'content' => json_encode($phases, JSON_PRETTY_PRINT)]);
+            $this->sse->emit('artifact', ['stage' => $key, 'content' => json_encode($phases, JSON_PRETTY_PRINT)]);
         } elseif ($key === 'api_contract') {
-            $cleaned = $this->extractJson($content);
-            $decoded = $this->tryJsonDecode($cleaned);
+            $cleaned = $this->jsonParser->extractJson($content);
+            $decoded = $this->jsonParser->tryJsonDecode($cleaned);
             if ($decoded !== null) {
-                // Normalisasi ke bentuk ARRAY endpoint — konsisten dengan
-                // api_contract hasil stage ERD & renderer frontend.
-                // Dukungan dua format:
-                //   1) [ {method,path,description,auth}, ... ]   (langsung)
-                //   2) { endpoints: [...], base_url, auth, ... } (objek pembungkus)
-                if (isset($decoded['endpoints']) && is_array($decoded['endpoints']) && $this->isListKey($decoded, 'endpoints')) {
+                if (isset($decoded['endpoints']) && is_array($decoded['endpoints']) && $this->outputParser->isListKey($decoded, 'endpoints')) {
                     $value = $decoded['endpoints'];
-                } elseif ($this->isEndpointList($decoded)) {
+                } elseif ($this->outputParser->isEndpointList($decoded)) {
                     $value = $decoded;
                 } else {
-                    throw new \RuntimeException("API Contract: struktur tidak dikenali. Stage ditandai error.");
+                    throw new \RuntimeException('API Contract: struktur tidak dikenali. Stage ditandai error.');
                 }
-                $this->emit('artifact', ['stage' => $key, 'content' => json_encode($value, JSON_PRETTY_PRINT)]);
+                $this->sse->emit('artifact', ['stage' => $key, 'content' => json_encode($value, JSON_PRETTY_PRINT)]);
             } else {
                 throw new \RuntimeException("JSON tidak valid untuk stage {$key}. Stage ditandai error.");
             }
+        } elseif ($key === 'master_web' || $key === 'master_mobile') {
+            $value = $this->stripTrackingToken($content);
+            $this->sse->emit('artifact', ['stage' => $key, 'content' => $value]);
         } else {
-            $this->emit('artifact', ['stage' => $key, 'content' => $content]);
+            $this->sse->emit('artifact', ['stage' => $key, 'content' => $content]);
         }
 
-        $this->version->update([$col => $value]);
+        $updateData = [$col => $value];
+        if ($this->pendingTrackingToken !== null) {
+            $updateData['tracking_token'] = $this->pendingTrackingToken;
+            $this->pendingTrackingToken = null;
+        }
+        $this->version->update($updateData);
+
+        $this->snapshotArtifact($key, $col, $value);
     }
 
-    private const MIN_MCQ_QUESTIONS = 5;
-
-    private const MAX_MCQ_QUESTIONS = 10;
-
-    private const MAX_MCQ_RETRIES = 180;
+    private function snapshotArtifact(string $stage, string $column, mixed $value): void
+    {
+        try {
+            $project = $this->version->project;
+            if (! $project) {
+                return;
+            }
+            $serialized = is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_UNICODE);
+            $activity = \App\Models\Activity::create([
+                'project_id' => $project->id,
+                'user_id' => $project->user_id,
+                'version_id' => $this->version->id,
+                'action' => \App\Models\Activity::ACTION_ARTIFACT_SNAPSHOT,
+                'description' => "Snapshot stage {$stage} (v{$this->version->version_no})",
+                'metadata' => [
+                    'stage' => $stage,
+                    'column' => $column,
+                    'length' => strlen((string) $serialized),
+                    'sha_prefix' => substr(sha1((string) $serialized), 0, 12),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
 
     private function retryPertanyaanForMinimum(string $content): string
     {
-        if ($this->mcqCount($content) >= self::MIN_MCQ_QUESTIONS) {
+        if ($this->outputParser->mcqCount($content) >= self::MIN_MCQ_QUESTIONS) {
             return $content;
         }
 
-        // Instruksi retry singkat & keras: HANYA JSON, mulai langsung dengan {, tanpa prosa/fence.
         $instruction = 'Output HANYA satu blok JSON valid dimulai langsung dengan "{". Tanpa prosa, tanpa markdown, tanpa ``` fence, tanpa komentar. WAJIB minimal '.self::MIN_MCQ_QUESTIONS.' pertanyaan (target '.self::MIN_MCQ_QUESTIONS.'-'.self::MAX_MCQ_QUESTIONS.').';
 
         $best = $content;
-        $bestCount = $this->mcqCount($content);
+        $bestCount = $this->outputParser->mcqCount($content);
 
         for ($attempt = 1; $attempt <= self::MAX_MCQ_RETRIES; $attempt++) {
-            $this->emit('status', ['stage' => 'pertanyaan', 'state' => 'retrying', 'attempt' => $attempt, 'max' => self::MAX_MCQ_RETRIES, 'message' => "Pertanyaan kurang dari ".self::MIN_MCQ_QUESTIONS.', generate ulang percobaan ke-'.$attempt.'...']);
-            $content = $this->runStage('pertanyaan', null, $instruction);
-            $count = $this->mcqCount($content);
+            $this->sse->emit('status', ['stage' => 'pertanyaan', 'state' => 'retrying', 'attempt' => $attempt, 'max' => self::MAX_MCQ_RETRIES, 'message' => 'Pertanyaan kurang dari '.self::MIN_MCQ_QUESTIONS.', generate ulang percobaan ke-'.$attempt.'...']);
+            try {
+                $content = $this->runStage('pertanyaan', null, $instruction);
+            } catch (Throwable $e) {
+                report($e);
+                $delayUs = min(500_000 * (2 ** ($attempt - 1)), 8_000_000);
+                usleep($delayUs);
+                continue;
+            }
+            $count = $this->outputParser->mcqCount($content);
 
             if ($count >= self::MIN_MCQ_QUESTIONS) {
-                $this->emit('status', ['stage' => 'pertanyaan', 'state' => 'running']);
+                $this->sse->emit('status', ['stage' => 'pertanyaan', 'state' => 'running']);
+                \Illuminate\Support\Facades\Log::info('PipelineRunner pertanyaan retry resolved', [
+                    'version_id' => $this->version->id,
+                    'attempt' => $attempt,
+                    'mcq_count' => $count,
+                ]);
 
                 return $content;
             }
 
-            // Simpan hasil terbaik bila ada — biar ada data walau guard terlewati.
             if ($count > $bestCount) {
                 $best = $content;
                 $bestCount = $count;
             }
         }
 
-        // Guard terlewati: return hasil terbaik (bukan null / bukan attempt terakhir yang cacat).
-        $this->emit('status', ['stage' => 'pertanyaan', 'state' => 'running']);
+        $this->sse->emit('status', ['stage' => 'pertanyaan', 'state' => 'running']);
+        \Illuminate\Support\Facades\Log::warning('PipelineRunner pertanyaan retry exhausted', [
+            'version_id' => $this->version->id,
+            'attempts' => self::MAX_MCQ_RETRIES,
+            'best_count' => $bestCount,
+        ]);
 
         return $best;
-    }
-
-    private function mcqCount(string $content): int
-    {
-        $cleaned = $this->extractJson($content);
-        $decoded = $this->tryJsonDecode($cleaned);
-        if (! is_array($decoded)) {
-            return 0;
-        }
-        $questions = $decoded['questions'] ?? [];
-
-        return is_array($questions) ? count($questions) : 0;
-    }
-
-    private function isListKey(array $arr, string $key): bool
-    {
-        return array_is_list($arr[$key]);
-    }
-
-    private function isEndpointList(array $arr): bool
-    {
-        if (! array_is_list($arr)) {
-            return false;
-        }
-        foreach ($arr as $item) {
-            if (! is_array($item)) {
-                return false;
-            }
-            if (! isset($item['method'], $item['path'])) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private function parseErdText(string $content): ?array
-    {
-        $nodes = [];
-        $edges = [];
-        $api = [];
-
-        foreach (explode("\n", $content) as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-
-            if (preg_match('/^TABEL:\s*(.+?)\s*\|\s*(.+)$/i', $line, $m)) {
-                $name = trim($m[1]);
-                $fields = array_map('trim', explode(',', $m[2]));
-                $nodes[] = ['id' => $name, 'label' => $name, 'fields' => $fields];
-            } elseif (preg_match('/^RELASI:\s*(.+?)\s*->\s*(.+?)\s*\|\s*(.+)$/i', $line, $m)) {
-                $edges[] = ['from' => trim($m[1]), 'to' => trim($m[2]), 'relation' => trim($m[3])];
-            } elseif (preg_match('/^API:\s*(\w+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+)$/i', $line, $m)) {
-                $api[] = [
-                    'method' => strtoupper(trim($m[1])),
-                    'path' => trim($m[2]),
-                    'description' => trim($m[3]),
-                    'auth' => strtolower(trim($m[4])) === 'true' || trim($m[4]) === '1',
-                ];
-            }
-        }
-
-        // Fallback: bila output AI berupa JSON block (bukan baris format),
-        // ambil nodes/edges/api_contract dari sana. Lengkapi bagian yang kosong.
-        $json = $this->parseJsonErd($content);
-        if ($json !== null) {
-            if (empty($nodes)) {
-                $nodes = $json['nodes'];
-                $edges = array_merge($edges, $json['edges']);
-            }
-            if (empty($api)) {
-                $api = array_merge($api, $json['api_contract']);
-            }
-        }
-
-        if (empty($nodes)) {
-            return null;
-        }
-
-        return ['nodes' => $nodes, 'edges' => $edges, 'api_contract' => $api];
-    }
-
-    private function parseJsonErd(string $content): ?array
-    {
-        $cleaned = $this->extractJson($content);
-        if ($cleaned === '') {
-            return null;
-        }
-
-        $decoded = $this->tryJsonDecode($cleaned);
-        if (! is_array($decoded)) {
-            return null;
-        }
-
-        $nodes = $decoded['nodes'] ?? [];
-        $edges = $decoded['edges'] ?? [];
-        $api = $decoded['api_contract'] ?? $decoded['apiContract'] ?? [];
-
-        $nodes = is_array($nodes) ? array_values($nodes) : [];
-        $edges = is_array($edges) ? array_values($edges) : [];
-        $api = is_array($api) ? array_values($api) : [];
-
-        if (empty($nodes) && empty($edges) && empty($api)) {
-            return null;
-        }
-
-        return ['nodes' => $nodes, 'edges' => $edges, 'api_contract' => $api];
-    }
-
-    private function parseArchText(string $content): ?array
-    {
-        $nodes = [];
-        $edges = [];
-
-        foreach (explode("\n", $content) as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-
-            if (preg_match('/^KOMPONEN:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+)$/i', $line, $m)) {
-                $id = trim($m[1]);
-                $label = trim($m[2]);
-                $fields = array_map('trim', explode(',', $m[3]));
-                $nodes[] = ['id' => $id, 'label' => $label, 'fields' => $fields];
-            } elseif (preg_match('/^KONEKSI:\s*(.+?)\s*->\s*(.+?)\s*\|\s*(.+)$/i', $line, $m)) {
-                $edges[] = [
-                    'from' => trim($m[1]),
-                    'to' => trim($m[2]),
-                    'relation' => trim($m[3]),
-                ];
-            }
-        }
-
-        if (empty($nodes)) {
-            return null;
-        }
-
-        return ['nodes' => $nodes, 'edges' => $edges];
-    }
-
-    private function parsePhasesText(string $content): ?array
-    {
-        $phases = [];
-        $blocks = preg_split('/^-{3,}\s*$/m', $content);
-
-        foreach ($blocks as $block) {
-            $block = trim($block);
-            if ($block === '') {
-                continue;
-            }
-
-            $key = '';
-            $title = '';
-            $tasks = [];
-            $prompt = '';
-
-            foreach (explode("\n", $block) as $line) {
-                $line = trim($line);
-                if (preg_match('/^FASE:\s*(.+?)\s*\|\s*(.+)$/i', $line, $m)) {
-                    $key = trim($m[1]);
-                    $title = trim($m[2]);
-                } elseif (preg_match('/^TASK:\s*(.+)$/i', $line, $m)) {
-                    $tasks[] = trim($m[1]);
-                } elseif (preg_match('/^PROMPT:\s*(.+)$/i', $line, $m)) {
-                    $prompt = trim($m[1]);
-                } else {
-                    // Append continuation lines to the current PROMPT
-                    if ($prompt !== '' && ! preg_match('/^(FASE|TASK|PROMPT):/i', $line)) {
-                        $prompt .= "\n".$line;
-                    }
-                }
-            }
-
-            if ($key && $title) {
-                $phases[] = [
-                    'key' => $key,
-                    'title' => $title,
-                    'tasks' => $tasks,
-                    'prompt' => $prompt,
-                ];
-            }
-        }
-
-        return ! empty($phases) ? $phases : null;
-    }
-
-    private function extractJson(string $content): string
-    {
-        // BOM & whitespace
-        $content = trim(preg_replace('/^\xEF\xBB\xBF/', '', $content) ?? '');
-        if ($content === '') {
-            return '';
-        }
-
-        // Strip ALL fenced code blocks (```json ... ```, ``` ... ```, ```JSON ... ```),
-        // regardless of surrounding prose or how many blocks.
-        $content = (string) preg_replace('/```(?:json)?\s*\n?(.*?)```/si', '$1', $content);
-        $content = trim($content);
-
-        $openBrace = strpos($content, '{');
-        $openBracket = strpos($content, '[');
-        if ($openBrace === false && $openBracket === false) {
-            return '';
-        }
-        // Pilih bracket yang muncul paling awal — menangkap struktur atas (object ATAU array).
-        $open = ($openBrace !== false && ($openBracket === false || $openBrace < $openBracket))
-            ? $openBrace
-            : $openBracket;
-
-        // Extract from first { or [ to its matching closing bracket,
-        // skipping string literals so nested } ] inside strings are safe.
-        $closer = $content[$open] === '{' ? '}' : ']';
-        $depth = 0;
-        $inString = false;
-        $escaped = false;
-        $length = strlen($content);
-        $end = -1;
-
-        for ($i = $open; $i < $length; $i++) {
-            $ch = $content[$i];
-            if ($inString) {
-                if ($escaped) {
-                    $escaped = false;
-                } elseif ($ch === '\\') {
-                    $escaped = true;
-                } elseif ($ch === '"') {
-                    $inString = false;
-                }
-                continue;
-            }
-            if ($ch === '"') {
-                $inString = true;
-                continue;
-            }
-            if ($ch === '{' || $ch === '[') {
-                $depth++;
-            } elseif ($ch === '}' || $ch === ']') {
-                $depth--;
-                if ($depth === 0) {
-                    $end = $i;
-                    break;
-                }
-            }
-        }
-
-        if ($end === -1) {
-            $end = strrpos($content, $closer);
-            if ($end === false || $end <= $open) {
-                return '';
-            }
-        }
-
-        $sub = substr($content, $open, $end - $open + 1);
-        // Remove trailing commas before ] or }
-        $sub = (string) preg_replace('/,\s*([\]}])/', '$1', $sub);
-
-        return trim($sub);
-    }
-
-    private function tryJsonDecode(string $content): ?array
-    {
-        // Strategy 1: Direct parse
-        $decoded = json_decode($content, true);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return $decoded;
-        }
-
-        // Strategy 2: Strip control characters
-        $stripped = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $content);
-        $decoded = json_decode($stripped, true);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return $decoded;
-        }
-
-        // Strategy 3: Quote unquoted object keys (common LLM flaw)
-        $quotedKeys = (string) preg_replace(
-            '/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)/',
-            '$1"$2"$3',
-            $stripped
-        );
-        $decoded = json_decode($quotedKeys, true);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return $decoded;
-        }
-
-        // Strategy 4: Balance brackets — append missing closers progressively
-        foreach (['[', '{'] as $open) {
-            $close = $open === '[' ? ']' : '}';
-            $missing = substr_count($stripped, $open) - substr_count($stripped, $close);
-            if ($missing > 0 && $missing < 30) {
-                $candidate = $stripped.str_repeat($close, $missing);
-                $decoded = json_decode($candidate, true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    return $decoded;
-                }
-            }
-        }
-
-        // Strategy 5: Trim trailing annotations progressively (larger window)
-        for ($i = 0; $i < 40; $i++) {
-            $trimmed = substr($stripped, 0, -1 - $i);
-            $decoded = json_decode($trimmed, true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                return $decoded;
-            }
-        }
-
-        // Strategy 6a: single-quoted values + quoted keys combined
-        $singleQuoted = (string) preg_replace("/'([^']+)'/", '"$1"', $stripped);
-        $combo = (string) preg_replace(
-            '/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)/',
-            '$1"$2"$3',
-            $singleQuoted
-        );
-        $decoded = json_decode($combo, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return $decoded;
-        }
-
-        // Strategy 7: single-quoted JSON (fallback, can corrupt real apostrophes)
-        $decoded = json_decode($singleQuoted, true, 512, JSON_INVALID_UTF8_SUBSTITUTE);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return $decoded;
-        }
-
-        return null;
     }
 
     private function techStackForTarget(string $target): string
@@ -772,23 +518,12 @@ class PipelineRunner
         };
     }
 
-    private function emit(string $event, array $data): void
+    public static function truncateForContext(string $text, int $maxBytes): string
     {
-        $json = json_encode($data);
-        if ($json === false) {
-            $clean = [];
-            foreach ($data as $k => $v) {
-                $clean[$k] = is_string($v) ? mb_convert_encoding($v, 'UTF-8', 'UTF-8') : $v;
-            }
-            $json = json_encode($clean, JSON_INVALID_UTF8_SUBSTITUTE);
+        if (strlen($text) <= $maxBytes) {
+            return $text;
         }
-        fwrite($this->stdout, "event: {$event}\ndata: {$json}\n\n");
-        fwrite($this->stdout, ": ping\n\n");
-        if (ob_get_level() > 0) {
-            ob_flush();
-        }
-        if (function_exists('flush')) {
-            flush();
-        }
+
+        return mb_substr($text, 0, $maxBytes)."\n\n[... truncated for context size ...]";
     }
 }

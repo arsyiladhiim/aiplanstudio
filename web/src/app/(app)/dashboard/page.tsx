@@ -6,6 +6,7 @@ import { PageHeader, TargetBadge } from "@/components/common";
 import { apiGet, type Activity } from "@/lib/api";
 import type { Target } from "@/lib/mock";
 import { Wand2, FolderKanban, GitBranch, ArrowRight, Plus, Clock, Loader2, TrendingUp, CalendarDays, Heart, History, RefreshCw } from "lucide-react";
+import { formatRelativeTime } from "@/lib/format";
 
 interface DashboardStats {
   total_projects: number;
@@ -22,6 +23,9 @@ interface DashboardStats {
     versions_count: number;
     is_favorite?: boolean;
     updated_at: string;
+    progress?: number;
+    stage_count?: number;
+    latest_version_id?: number | null;
   }>;
   recent_activities: Activity[];
 }
@@ -58,21 +62,6 @@ export default function DashboardPage() {
     window.addEventListener('profile-updated', handler);
     return () => { cancelled = true; window.removeEventListener('profile-updated', handler); };
   }, []);
-
-  function formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 60) return `${diffMins} menit lalu`;
-    if (diffHours < 24) return `${diffHours} jam lalu`;
-    if (diffDays === 1) return "kemarin";
-    if (diffDays < 7) return `${diffDays} hari lalu`;
-    return date.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
-  }
 
   if (loading) {
     return <div className="text-center py-12"><Loader2 className="animate-spin inline" /> Memuat dashboard...</div>;
@@ -143,9 +132,20 @@ export default function DashboardPage() {
                   <ButtonLink href={`/projects/${p.id}`} variant="secondary" size="sm" className="shrink-0">Buka</ButtonLink>
                 </div>
                 <div className="mt-4 flex items-center gap-4 text-xs text-[var(--color-fg-muted)]">
-                  <span className="inline-flex items-center gap-1"><Clock size={12} /> {formatDate(p.updated_at)}</span>
+                  <span className="inline-flex items-center gap-1"><Clock size={12} /> {formatRelativeTime(p.updated_at)}</span>
                   <span className="inline-flex items-center gap-1"><GitBranch size={12} /> {p.versions_count} versi</span>
                 </div>
+                {typeof p.progress === "number" && typeof p.stage_count === "number" && p.stage_count > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-xs text-[var(--color-fg-muted)]">
+                      <span>Pipeline</span>
+                      <span>{p.progress}/{p.stage_count} tahap</span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
+                      <div className="h-full rounded-full bg-[var(--color-brand)] transition-all" style={{ width: `${(p.progress / p.stage_count) * 100}%` }} />
+                    </div>
+                  </div>
+                )}
               </Card>
             ))}
           </div>
@@ -172,7 +172,7 @@ export default function DashboardPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm">{a.description}</p>
                   <p className="mt-0.5 text-xs text-[var(--color-fg-subtle)]">
-                    {a.user?.name} &middot; {formatDate(a.created_at)}
+                    {a.user?.name} &middot; {formatRelativeTime(a.created_at)}
                   </p>
                 </div>
               </div>

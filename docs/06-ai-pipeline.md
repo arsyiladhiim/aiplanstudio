@@ -43,11 +43,11 @@ app/Prompts/*.php                # template prompt per stage (target-aware)
 | `api_contract` | PRD, arsitektur, ERD | `api_contract` (jsonb, array endpoint) |
 | `phases_web` | standards, agents, PRD, arsitektur, ERD | `phases` (jsonb) — breakdown fase web |
 | `standards_web` | PRD, arsitektur, ERD | `standards` (STANDARDS.md web) |
-| `master_web` | standards, agents, analisa, PRD, arsitektur, ERD | `master_prompt` (self-contained + auto token tracking) |
+| `master_web` | standards, agents, analisa, PRD, arsitektur, ERD, **phases (fase dari phases_web)** | `master_prompt` (self-contained + auto token tracking; **fase wajib pakai dari phases_web, bukan buat baru**) |
 | `pertanyaan_mobile` | master_web, api_contract, erd | `pertanyaan_mobile` (JSON MCQ) + `mobile_answers` |
 | `phases_mobile` | mobile_answers, mobile_standards, master_web, PRD, arsitektur, ERD | `mobile_phases` (jsonb) |
 | `standards_mobile` | mobile_answers, PRD, arsitektur, ERD, master_web | `mobile_standards` (STANDARDS.md mobile) |
-| `master_mobile` | mobile_answers, mobile_standards, mobile_agents, analisa, PRD, arsitektur, ERD, master_web | `mobile_master_prompt` |
+| `master_mobile` | mobile_answers, mobile_standards, mobile_agents, analisa, PRD, arsitektur, ERD, **mobile_phases** , master_web | `mobile_master_prompt` |
 | `agents` | master_web (+ master_mobile jika both) | `agents` (AGENTS.md) |
 
 > Mobile track (stage 10-13) hanya dijalankan jika `project.target === 'both'` **dan** `master_web` sudah done (gate). Untuk target `web`, mobile track di-skip dan langsung ditandai `done`.

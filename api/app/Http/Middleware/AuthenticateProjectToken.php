@@ -27,12 +27,22 @@ class AuthenticateProjectToken
             return response()->json(['message' => 'Token tidak valid atau sudah kedaluwarsa.'], 401);
         }
 
+        $secret = request()->header('X-Token-Secret');
+        if ($secret && $projectToken->secret_hash) {
+            if (!hash_equals($projectToken->secret_hash, hash('sha256', $secret))) {
+                return response()->json(['message' => 'Token secret tidak valid.'], 401);
+            }
+            $request->attributes->set('project_token_secret', $secret);
+        }
+
         $projectToken->touch('last_used_at');
 
         $request->merge([
             'project_token' => $projectToken,
             'project_id' => $projectToken->project_id,
         ]);
+
+        $request->attributes->set('project_token', $projectToken);
 
         return $next($request);
     }

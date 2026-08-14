@@ -19,6 +19,14 @@ class Version extends Model
 {
     use HasFactory;
 
+    public const ALL_STAGES = [
+        'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
+        'phases_web', 'standards_web', 'master_web',
+        'pertanyaan_mobile',
+        'phases_mobile', 'standards_mobile', 'master_mobile',
+        'agents',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -66,5 +74,12 @@ class Version extends Model
             'master_mobile' => 'pending',
             'agents' => 'pending',
         ];
+    }
+
+    /** Count of completed stages. */
+    public function progressCount(): int
+    {
+        if (! $this->stage_status) return 0;
+        return collect($this->stage_status)->filter(fn ($s) => $s === 'done')->count();
     }
 }

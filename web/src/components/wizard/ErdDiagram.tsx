@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import ReactFlow, { Background, Controls, Handle, Position, type Node, type Edge } from "reactflow";
 import "reactflow/dist/style.css";
 import { sampleErd } from "@/lib/mock";
+import type { ErdData } from "@/lib/api";
 
 function isPk(field: string): boolean {
   return field === "id" || field.endsWith("_id") || /^(pk|key)_/i.test(field);
@@ -12,7 +13,7 @@ function isFk(field: string): boolean {
   return field.endsWith("_id") && field !== "id";
 }
 
-function TableNode({ data }: { data: { label: string; fields: string[] } }) {
+function TableNode({ data }: { data: { label: string; fields?: string[] } }) {
   return (
     <div className="min-w-[180px] overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
       <Handle type="target" position={Position.Left} className="!bg-[var(--color-brand)]" />
@@ -20,7 +21,7 @@ function TableNode({ data }: { data: { label: string; fields: string[] } }) {
         {data.label}
       </div>
       <div className="max-h-56 overflow-y-auto divide-y divide-[var(--color-border)]">
-        {data.fields.map((f) => {
+        {(data.fields ?? []).map((f) => {
           const pk = isPk(f);
           const fk = isFk(f);
           return (
@@ -43,23 +44,20 @@ function TableNode({ data }: { data: { label: string; fields: string[] } }) {
 
 const NODE_TYPES = { table: TableNode };
 
-type ErdData = {
-  nodes: Array<{ id: string; label: string; fields: string[] }>;
-  edges: Array<{ from: string; to: string; relation: string }>;
-};
-
 /** Layout berjenjang sederhana (tanpa dagre): nodes dirutekan per-kedalaman relasi. */
 function layoutGraph(erd: ErdData): { nodes: Node[]; edges: Edge[] } {
+  const erdNodes = erd.nodes ?? [];
+  const erdEdges = erd.edges ?? [];
   const indegree = new Map<string, number>();
-  for (const n of erd.nodes) indegree.set(n.id, 0);
-  for (const e of erd.edges) {
+  for (const n of erdNodes) indegree.set(n.id, 0);
+  for (const e of erdEdges) {
     if (!indegree.has(e.from)) indegree.set(e.from, 0);
     indegree.set(e.to, (indegree.get(e.to) ?? 0) + 1);
   }
 
   const levels = new Map<string, number>();
   const queue: string[] = [];
-  for (const n of erd.nodes) {
+  for (const n of erdNodes) {
     if ((indegree.get(n.id) ?? 0) === 0) {
       levels.set(n.id, 0);
       queue.push(n.id);
@@ -67,7 +65,7 @@ function layoutGraph(erd: ErdData): { nodes: Node[]; edges: Edge[] } {
   }
 
   const outEdges = new Map<string, string[]>();
-  for (const e of erd.edges) {
+  for (const e of erdEdges) {
     if (!outEdges.has(e.from)) outEdges.set(e.from, []);
     outEdges.get(e.from)!.push(e.to);
   }
@@ -86,7 +84,7 @@ function layoutGraph(erd: ErdData): { nodes: Node[]; edges: Edge[] } {
     }
   }
 
-  const nodes: Node[] = erd.nodes.map((n) => {
+  const nodes: Node[] = erdNodes.map((n) => {
     const lvl = levels.get(n.id) ?? 0;
     const idx = perLevel.get(lvl) ?? 0;
     perLevel.set(lvl, idx + 1);
@@ -98,7 +96,7 @@ function layoutGraph(erd: ErdData): { nodes: Node[]; edges: Edge[] } {
     };
   });
 
-  const edges: Edge[] = erd.edges.map((e, i) => ({
+  const edges: Edge[] = erdEdges.map((e, i) => ({
     id: `e${i}`,
     source: e.from,
     target: e.to,
@@ -111,10 +109,10 @@ function layoutGraph(erd: ErdData): { nodes: Node[]; edges: Edge[] } {
   return { nodes, edges };
 }
 
-export function ErdDiagram({ erd }: { erd?: object }) {
+export function ErdDiagram({ erd }: { erd?: ErdData }) {
   const nodeTypes = useMemo(() => NODE_TYPES, []);
   const { nodes, edges } = useMemo(() => {
-    const erdData = (erd as ErdData) || sampleErd;
+    const erdData = erd ?? sampleErd;
     return layoutGraph(erdData);
   }, [erd]);
 

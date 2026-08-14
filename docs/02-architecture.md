@@ -6,49 +6,43 @@
 - **Backend:** Laravel (REST API + orkestrasi AI pipeline).
 - **Frontend:** Next.js (App Router, SPA client).
 - **DB:** PostgreSQL dengan 3 schema (`aiplanstudio_master`, `aiplanstudio_project`, `aiplanstudio_settings`).
-- **Reverse proxy:** Nginx — satu-satunya service yang expose port ke host.
-- **BFF Pattern:** Semua traffic masuk via nginx → Next.js. Next.js proxy `/api/*` ke Laravel internal (`http://aiplanstudionginx_api:8000`). Tidak ada route langsung nginx ke Laravel.
+- **Reverse proxy:** Cloudflare Tunnel (`cloudflared`) — external reverse proxy, tidak ada service di repo yang publish port ke host.
+- **Direct routing:** Cloudflare Tunnel routing langsung ke `aiplanstudio_web` (web origin) dan `aiplanstudionginx_api` (API origin). Frontend call API cross-origin dengan Sanctum session cookie + CSRF.
 
-## Topologi (BFF Pattern)
+## Topologi (Direct Tunnel Routing)
 ```
-                    host :4197
-                       │
-                   ┌───▼────────┐
-                   │ aiplanstudionginx_web │   (satu-satunya port: 4197:80)
-                   └──┬─────────┘
-          location /  │   ke aiplanstudio_web:3000
-                       │
-               ┌───────▼──────────┐
-               │ aiplanstudio_web │   Next.js BFF (port 3000 internal, standalone)
-               └────┬───┘
-                    │ proxy /api/* → http://aiplanstudionginx_api:8000
-                ┌────▼────────────┐
-                │aiplanstudionginx_api │   nginx front (port 8000 internal) → php-fpm
-                └──┬────┬──────┘
-             ┌─────▼─────────┐ ┌─▼────────────┐
-             │ aiplanstudio_db │ │ aiplanstudio_redis │
-             │  pg             │ └────────┘
-             └──────┘
-                   (tanpa ports host)
+                  Cloudflare Tunnel (external)
+                  aiplanstudio.arsyiladm.my.id    api-aiplanstudio.arsyiladm.my.id
+                            │                            │
+                            │ HTTP                       │ HTTP
+                            ▼                            ▼
+                   ┌─────────────────┐         ┌─────────────────────────┐
+                   │ aiplanstudio_web │         │ aiplanstudionginx_api    │
+                   │  Next.js (3000)  │         │ nginx → php-fpm (8000)  │
+                   └────────┬─────────┘         └────────┬─────────────────┘
+                            │                           │
+                  ┌─────────┴─────────┐         ┌───────┴────────┐
+                  ▼                   ▼         ▼                ▼
+         ┌────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌──────────────────┐
+         │ aiplanstudio_db │ │ aiplanstudio_redis │ │ aiplanstudio_apifpm │ │ (no host ports) │
+         └────────────────┘ └─────────────────┘ └─────────────────┘ └──────────────────┘
 ```
 
-## Routing Nginx
-| Path | Tujuan |
-|------|--------|
-| `/` | `aiplanstudio_web:3000` (Next.js) |
-| `/_next/*` | `aiplanstudio_web:3000` (static assets) |
-| `/*` (semua) | `aiplanstudio_web:3000` (BFF handles routing) |
+## Routing Cloudflare Tunnel
+| Hostname | Tujuan |
+|----------|--------|
+| `aiplanstudio.arsyiladm.my.id` | `aiplanstudio_web:3000` (Next.js standalone) |
+| `api-aiplanstudio.arsyiladm.my.id` | `aiplanstudionginx_api:8000` (Laravel via nginx → php-fpm) |
 
-Semua `/api/*`, `/sanctum/*` masuk ke Next.js → Next.js proxy ke Laravel internal.
+Frontend call API langsung ke `api-aiplanstudio.arsyiladm.my.id` (cross-origin, cookie `SameSite=None; Secure`).
 
 ## Service
 | Service | Image/Base | Expose | Publish ke host |
 |---------|-----------|--------|-----------------|
-| `aiplanstudionginx_web` | nginx:alpine | 80 | **4197:80 (satu-satunya)** |
-| `aiplanstudio_web` | node:20-alpine (Next.js) | 3000 (internal) | tidak |
+| `aiplanstudio_web` | node:20-alpine (Next.js standalone) | 3000 (internal) | tidak |
 | `aiplanstudionginx_api` | nginx:alpine (front Laravel) | 8000 (internal) | tidak |
 | `aiplanstudio_apifpm` | php:8.3-fpm-alpine (`php-fpm -F`) | 9000 (internal) | tidak |
-| `aiplanstudio_db` | postgres:16-alpine | 5432 (internal) | **tidak** |
+| `aiplanstudio_db` | postgres:16-alpine | 5432 (internal) | tidak |
 | `aiplanstudio_redis` | redis:alpine | 6379 (internal) | tidak |
 | `migrate` | one-shot (sama image dengan api-fpm) | — | tidak |
 | `glitchtip` | glitchtip/glitchtip:6 — **DISABLED** (service di-comment) | 8000 (internal) | tidak |
@@ -58,15 +52,15 @@ Semua `/api/*`, `/sanctum/*` masuk ke Next.js → Next.js proxy ke Laravel inter
 > **Error monitoring:** GlitchTip (Sentry-compatible) — **DISABLED saat ini** (service di-comment, DSN dikosongkan, route nginx di-comment). SDK `sentry/sentry-laravel` (backend) + `@sentry/nextjs` (frontend) dipertahankan sebagai no-op; aktifkan kembali bila dibutuhkan.
 
 ## Jaringan
-- Satu Docker network internal (`aistack`).
+- Docker network internal `aiplanstudio` (bridge) + external `cloudflare_tunnel_default` (attach container tunnel).
 - Referensi antar-service pakai hostname = nama service: `aiplanstudio_db`, `aiplanstudionginx_api`, `aiplanstudio_web`, `aiplanstudio_redis`.
 - Contoh Laravel `.env`: `BOOT_HOST=aiplanstudio_db`, `REDIS_HOST=aiplanstudio_redis`.
-- Contoh nginx: `proxy_pass http://web:3000;` (BFF — semua melalui Next.js).
+- Tunnel container (`cloudflare_tunnel-cloudflare-tunnel-1`, di project terpisah) di-attach ke `aiplanstudio_aiplanstudio` network untuk resolve `aiplanstudio_web` + `aiplanstudionginx_api`.
 
-## Aliran Request Utama (BFF)
-1. Browser → `http://localhost:4197/` → nginx → `aiplanstudio_web` (render UI).
-2. Frontend fetch `http://localhost:4197/api/...` (dengan cookie session + CSRF header) → nginx → `aiplanstudio_web` (BFF) → `api:8000` (Laravel).
-3. Pipeline AI: frontend POST ke BFF `/api/generate/stream` → Next.js proxy GET ke Laravel → AI Provider streaming → relay token & status per stage ke frontend realtime via SSE.
+## Aliran Request Utama (Direct Tunnel)
+1. Browser → `https://aiplanstudio.arsyiladm.my.id/` → Cloudflare Tunnel → `aiplanstudio_web:3000` (render UI standalone).
+2. Browser → `https://api-aiplanstudio.arsyiladm.my.id/api/...` (dengan cookie session + CSRF header) → Cloudflare Tunnel → `aiplanstudionginx_api:8000` → `aiplanstudio_apifpm:9000` (Laravel).
+3. Pipeline AI: frontend POST ke `https://api-aiplanstudio.arsyiladm.my.id/api/generate/stream` → nginx → Laravel → AI Provider streaming → relay token & status per stage ke frontend realtime via SSE.
 
 ## Pipeline AI (14 Stages)
 Pipeline `PipelineRunner` menjalankan 14 stage (target `both`) / 10 stage (target `web`) secara berurutan:

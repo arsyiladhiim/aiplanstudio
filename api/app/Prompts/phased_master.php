@@ -27,7 +27,8 @@ Format yang diminta:
 6. COMMIT: commit git tiap fase dengan format `feat(fase-key): {ringkasan}`.
 7. STATE & ROLLBACK: jangan hapus/rename file tanpa instruksi; git commit = snapshot state; jika gagal, kembali ke commit terakhir (jangan mulai ulang dari nol).
 8. STANDARS & AGENTS: patuhi standar & agent rules yang TUJU di bawah ini (sudah termasuk ke konteks).
-9. WEBHOOK: setelah tiap fase selesai kirim POST ke Webhook URL (Authorization Bearer token) dengan body {"version_id": ..., "phase_key": "{key}", "status":"done", "output":"..."}. PENTING: `phase_key` = key persis dari daftar FASE (misal fase1_setup), bukan "phase-1".
+9. WEBHOOK CHECKPOINT PER FASE: setelah tiap fase selesai kirim POST ke Webhook URL (Authorization Bearer token) dengan body {"version_id": ..., "phase_key": "{key}", "status":"done", "output":"..."}. PENTING: `phase_key` = key persis dari daftar FASE (misal fase1_setup), bukan "phase-1".
+10. WEBHOOK CHECKPOINT PER SUB-ITEM: setelah tiap HALAMAN/MENU/FITUR/FLOW/API selesai, kirim webhook dengan body tambahan: {"version_id":..., "phase_key":"{key}", "task_key":"{sub_item_key}", "task_type":"halaman|menu|fitur|flow|api", "title":"{judul}", "status":"done", "output":"ringkasan"}. Gunakan task_key persis dari daftar sub-item di fase.
 
 ## STANDARS (ringkas, bersumber dari STANDARDS.md)
 {ringkasan coding conventions: bahasa, framework, naming, struktur, DB, commit}
@@ -35,7 +36,8 @@ Format yang diminta:
 ## AGENTS (ringkas, bersumber dari AGENTS.md)
 {ringkasan aturan perilaku AI agent: baca docs, ikuti struktur, jangan hapus tanpa izin, dll}
 
-## FASE-FASE (urutan WAJIB)
+## FASE-FASE (urutan WAJIB — GUNLAN list `### Fase (dari stages phases_web)` dari konteks)
+- Salin daftar **fase dari konteks** PERSIS key-nya (jangan buat urutan/key baru).
 Untuk tiap fase, format:
 FASE: {key} | {title}
 TUJUAN: {apa yang selesai}
@@ -43,16 +45,16 @@ FILE: {file yang dibuat/dimodifikasi}
 TASK: {task 1}
 TASK: {task 2}
 TASK: {task 3}
+HALAMAN: {halaman_key} | {judul} | buat halaman ...
+MENU: {menu_key} | {judul} | {navigasi}
+FITUR: {fitur_key} | {judul} | {fungsionalitas}
+FLOW: {flow_key} | {nama} | {steps}
+API: {api_key} | {endpoint} | {method} | {deskripsi}
 INSTRUKSI: {instruksi lengkap teknis + aturan bisnis + acceptance criteria, minimal 150 kata}
 AC: {acceptance criteria — bagaimana tahu fase benar}
 ## SELESAI {key} → lanjut ke fase berikut
 
-Urutan fase Wajib berdasarkan halaman:
-1. Setup Project & Auth (Login, Register)
-2. Dashboard
-3. Halaman CRUD utama
-4. Halaman pendukung (reports, export, settings)
-5. Build & Polish + testing + deploy
+Urutan fase WAJIB mengikuti `### Fase (dari stages phases_web)` yang diberikan di konteks (jika kosong, baru susun 5-8 fase sesuai PRD dengan key `fase1_...`).
 
 WAJIB sertakan SEMUA fase dan SEMUA detail di atas dengan data asli dari pipeline (bukan placeholder). Jawab langsung dengan format, tanpa basa-basi.
 

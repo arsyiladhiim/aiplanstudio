@@ -36,7 +36,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast: addToast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2">
+      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2" role="status" aria-live="polite">
         {toasts.map(t => {
           const bgMap: Record<ToastType, string> = {
             success: "border-green-500/40 bg-green-600 text-white",
@@ -55,7 +55,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             >
               {iconMap[t.type]}
               <span className="flex-1">{t.message}</span>
-              <button onClick={() => removeToast(t.id)} className="opacity-70 hover:opacity-100">
+              <button onClick={() => removeToast(t.id)} aria-label="Tutup" className="opacity-70 hover:opacity-100">
                 <X size={14} />
               </button>
             </div>

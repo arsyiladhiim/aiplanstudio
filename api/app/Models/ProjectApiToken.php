@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['project_id', 'name', 'token_hash', 'expires_at'])]
+#[Fillable(['name', 'expires_at'])]
 class ProjectApiToken extends Model
 {
     protected $table = 'aiplanstudio_project.project_api_tokens';
+
+    protected $hidden = ['token_hash', 'secret_hash'];
 
     protected function casts(): array
     {
@@ -26,13 +28,40 @@ class ProjectApiToken extends Model
 
     public static function generate(Project $project, string $name, ?\DateTime $expiresAt = null): array
     {
-        $raw = bin2hex(random_bytes(32));
-        $token = self::create([
-            'project_id' => $project->id,
-            'name' => $name,
-            'token_hash' => hash('sha256', $raw),
-            'expires_at' => $expiresAt,
-        ]);
-        return ['token' => $raw, 'model' => $token];
+        $rawToken = bin2hex(random_bytes(32));
+        $rawSecret = bin2hex(random_bytes(32));
+
+        $token = new self();
+        $token->name = $name;
+        $token->token_hash = hash('sha256', $rawToken);
+        $token->secret_hash = hash('sha256', $rawSecret);
+        $token->expires_at = $expiresAt ?? now()->addDays(90);
+        $token->project()->associate($project);
+        $token->save();
+
+        return [
+            'token' => $rawToken,
+            'secret' => $rawSecret,
+            'model' => $token,
+        ];
+    }
+
+    public function verifySignature(string $timestamp, string $body, string $providedSignature): bool
+    {
+        if (abs(time() - (int) $timestamp) > 300) {
+            return false;
+        }
+        $secret = $this->revealSecret();
+        if ($secret === null) {
+            return false;
+        }
+        $expected = hash_hmac('sha256', $timestamp.'.'.$body, $secret);
+        return hash_equals($expected, $providedSignature);
+    }
+
+    private function revealSecret(): ?string
+    {
+        $secret = request()->attributes->get('project_token_secret');
+        return is_string($secret) ? $secret : null;
     }
 }

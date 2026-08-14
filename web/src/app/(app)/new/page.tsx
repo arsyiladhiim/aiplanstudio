@@ -1,28 +1,30 @@
 "use client";
 import { useState, useRef, useCallback, useEffect, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Badge, Textarea, Label, Markdown } from "@/components/ui";
+import { Card, Badge, Textarea, Label, Markdown, Modal } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
-import { ErdDiagram } from "@/components/wizard/ErdDiagram";
+import dynamic from "next/dynamic";
+const ErdDiagramDynamic = dynamic(() => import("@/components/wizard/ErdDiagram").then(m => ({ default: m.ErdDiagram })), { ssr: false, loading: () => <div className="h-[460px] animate-pulse rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)]" /> });
+import { ApiContractTable, type ApiContractItem } from "@/components/wizard/ApiContractTable";
+import { PhaseBreakdownCard, type PhaseItem } from "@/components/wizard/PhaseBreakdownCard";
+import type { ProgressItem } from "@/components/wizard/TrackingPhases";
+import { TrackingPanel } from "@/components/wizard/TrackingPanel";
+import { McqForm } from "@/components/wizard/McqForm";
 import { getStages, type StageKey, type StageState, type Target } from "@/lib/mock";
-import { apiPost, apiGet, apiPatch, apiDelete, createSSEPost, type Project, type Template, type Version, type McqData, type McqQuestion, type McqAnswer } from "@/lib/api";
+import { apiPost, apiGet, apiPatch, apiDelete, createSSEPost, createSSE, type Project, type Template, type Version, type McqData, type McqAnswer } from "@/lib/api";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   Wand2, Globe, Layers, Loader2, Check, Copy, ArrowRight,
   RotateCcw, CircleDot, Sparkles, AlertCircle, Pencil,
 } from "lucide-react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
+const Confetti = dynamic(() => import("@/components/Confetti").then(m => ({ default: m.Confetti })), { ssr: false });
 
 const TARGETS: { key: Target; label: string; icon: typeof Globe }[] = [
   { key: "web", label: "Web App", icon: Globe },
   { key: "both", label: "Web + Mobile", icon: Layers },
 ];
-
-interface PhaseItem {
-  key?: string; title?: string; tasks?: string[]; prompt?: string; ac?: string;
-}
-
-interface ApiContractItem {
-  method: string; path: string; description: string; auth: boolean;
-}
 
 interface ErdParsed {
   nodes?: Array<{ id: string; label: string; fields: string[] }>;
@@ -34,11 +36,12 @@ interface ErdParsed {
   agents?: boolean;
 }
 
-export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ resume?: string; version?: string }> }) {
+export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ resume?: string; version?: string; template?: string }> }) {
   const router = useRouter();
   const params = use(searchParams);
   const isResume = params.resume === '1';
   const resumeVersionId = params.version ? Number(params.version) : null;
+  const templateParam = params.template ?? "";
   const [started, setStarted] = useState(false);
   const [idea, setIdea] = useState("");
   const [title, setTitle] = useState("");
@@ -56,14 +59,16 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
   const [status, setStatus] = useState<Record<StageKey, StageState>>(() => initStatus(target));
 
-  function setTargetAndReset(newTarget: Target) {
+  const setTargetAndReset = useCallback((newTarget: Target) => {
     setTarget(newTarget);
     setStatus(initStatus(newTarget));
-  }
+  }, []);
 
   const stages = useMemo(() => getStages(target), [target]);
   const allDone = stages.every((s) => status[s.key] === "done");
   const activeKey = stages[current]?.key;
+  const activeKeyRef = useRef(activeKey);
+  useEffect(() => { activeKeyRef.current = activeKey; }, [activeKey]);
 
   // Real backend integration states
   const [projectId, setProjectId] = useState<number | null>(null);
@@ -74,9 +79,11 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [deleting, setDeleting] = useState(false);
   const [editingStage, setEditingStage] = useState<StageKey | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [savingArtifact, setSavingArtifact] = useState(false);
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
   const [phaseProg, setPhaseProg] = useState<Version["phase_progress"]>([]);
   const [pendingConfirmMaster, setPendingConfirmMaster] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // Fase web (phases) + status tracking — untuk gate: web belum selesai bangun
   // bila ada fase `phases_web` dengan phase_progress belum semua done.
@@ -95,10 +102,37 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     return doneCount >= webPhases.length;
   }, [webPhases, phaseProg]);
 
+  const mobilePhases = useMemo(() => {
+    try {
+      const p = JSON.parse(artifacts.phases_mobile || "[]");
+      return Array.isArray(p) ? (p as PhaseItem[]) : [];
+    } catch {
+      return [];
+    }
+  }, [artifacts.phases_mobile]);
+
+  const showTrackingPanel = activeKey === "master_web" || activeKey === "master_mobile"
+    || (activeKey === "agents" && (webPhases.length > 0 || mobilePhases.length > 0));
+  const trackingPhases = activeKey === "master_mobile" || (activeKey === "agents" && mobilePhases.length > 0)
+    ? mobilePhases
+    : webPhases;
+  const progMap = useMemo(
+    () => Object.fromEntries((phaseProg ?? []).map((p: ProgressItem) => [p.phase_key, p])),
+    [phaseProg],
+  );
+
   const abortRef = useRef<AbortController | null>(null);
   const cancelled = useRef(false);
+  const creatingRef = useRef(false);
+  const retryCountRef = useRef(0);
   const fallbackFetched = useRef(new Set<string>());
   const outputRef = useRef<HTMLDivElement>(null);
+  const webPhasesRef = useRef<PhaseItem[]>([]);
+  const mobilePhasesRef = useRef<PhaseItem[]>([]);
+  const artifactsRef = useRef<Record<StageKey, string>>({} as Record<StageKey, string>);
+  useEffect(() => { artifactsRef.current = artifacts; }, [artifacts]);
+  useEffect(() => { webPhasesRef.current = webPhases; }, [webPhases]);
+  useEffect(() => { mobilePhasesRef.current = mobilePhases; }, [mobilePhases]);
 
   // Parse MCQ JSON toleran: strip fence, buang trailing comma, ambil blok {..} terluar valid.
   const parseMcq = useCallback((raw: string): McqData | null => {
@@ -246,6 +280,30 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     }
   }, [stages]);
 
+  const doStream = useCallback((versionId: number, stage: string) => {
+    retryCountRef.current = 0;
+    const attempt = (retries: number) => {
+      if (abortRef.current) abortRef.current.abort();
+      if (cancelled.current) return;
+      createSSEPost(
+        `/generate/stream`,
+        { version: versionId, stage },
+        handleSSEEvent,
+        (err) => {
+          if (retries < 3 && !cancelled.current) {
+            retryCountRef.current = retries + 1;
+            console.warn(`SSE retry ${retries + 1}/3:`, err.message);
+            setTimeout(() => attempt(retries + 1), 2000 * (retries + 1));
+          } else {
+            console.error('SSE error (max retries):', err);
+            setError('Koneksi SSE terputus setelah 3x retry.');
+          }
+        }
+      ).then(ctrl => { abortRef.current = ctrl; });
+    };
+    attempt(0);
+  }, [handleSSEEvent]);
+
   const startPipeline = useCallback((versionId: number, stage?: string) => {
     if (abortRef.current) {
       abortRef.current.abort();
@@ -256,16 +314,8 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     if (idx >= 0) setCurrent(idx);
     setStatus(prev => ({ ...prev, [s]: 'running' }));
 
-    createSSEPost(
-      `/generate/stream`,
-      { version: versionId, stage: s },
-      handleSSEEvent,
-      (err) => {
-        console.error('SSE error:', err);
-        setError('Koneksi SSE terputus');
-      }
-    ).then(ctrl => { abortRef.current = ctrl; });
-  }, [handleSSEEvent, stages]);
+    doStream(versionId, s);
+  }, [doStream, stages]);
 
   // Apply template seed when selected
   function handleTemplateChange(value: string) {
@@ -281,10 +331,24 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     }
   }
 
-  // Load templates on mount
+  // Load templates on mount — auto-select if ?template=N URL param present
   useEffect(() => {
-    apiGet<Template[]>("/templates").then(setTemplates).catch((err) => console.error('Failed to load templates:', err));
-  }, []);
+    apiGet<Template[]>("/templates").then((t) => {
+      setTemplates(t);
+      if (templateParam) {
+        const tpl = t.find((x) => String(x.id) === templateParam);
+        if (tpl && tpl.seed) {
+          const seed = tpl.seed as Record<string, string>;
+          setSelectedTemplate(String(tpl.id));
+          if (seed.title) setTitle(seed.title);
+          if (seed.idea) setIdea(seed.idea);
+          if (seed.target && ["web", "both"].includes(seed.target)) {
+            setTargetAndReset(seed.target as Target);
+          }
+        }
+      }
+    }).catch((err) => console.error('Failed to load templates:', err));
+  }, [templateParam, setTargetAndReset]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -296,21 +360,36 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     };
   }, []);
 
-  // Tracking fase real-time — polling saat berada di stage master.
+  // Tracking fase real-time — SSE via EventSource saat berada di stage master.
   useEffect(() => {
     if (!versionId) return;
-    const isMaster = activeKey === "master_web" || activeKey === "master_mobile";
-    if (!isMaster) return;
+    const showTracking = activeKey === "master_web" || activeKey === "master_mobile"
+      || (activeKey === "agents" && (webPhasesRef.current.length > 0 || mobilePhasesRef.current.length > 0));
+    if (!showTracking) return;
 
-    const poll = async () => {
-      try {
-        const v = await apiGet<Version>(`/versions/${versionId}`);
-        if (v.phase_progress) setPhaseProg(v.phase_progress);
-      } catch { /* silent */ }
-    };
-    poll();
-    const timer = setInterval(poll, 5000);
-    return () => clearInterval(timer);
+    // Initial fetch for immediate render
+    apiGet<Version>(`/versions/${versionId}`).then(v => {
+      if (v.phase_progress) setPhaseProg(v.phase_progress);
+    }).catch(() => {});
+
+    const es = createSSE(
+      `/versions/${versionId}/phase-progress/stream`,
+      (event, data) => {
+        if (event === "phase_progress") {
+          const d = data as ProgressItem;
+          setPhaseProg(prev => {
+            const idx = (prev ?? []).findIndex(p => p.phase_key === d.phase_key);
+            if (idx >= 0) {
+              const next = [...(prev ?? [])];
+              next[idx] = { ...next[idx], ...d };
+              return next;
+            }
+            return [...(prev ?? []), d];
+          });
+        }
+      },
+    );
+    return () => es.close();
   }, [versionId, activeKey]);
 
   // Fallback: fetch artifact from DB when SSE artifact event was lost
@@ -325,7 +404,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       agents: 'agents',
     };
     const missing = stages.filter(s =>
-      status[s.key] === 'done' && !artifacts[s.key] && !fallbackFetched.current.has(s.key)
+      status[s.key] === 'done' && !artifactsRef.current[s.key] && !fallbackFetched.current.has(s.key)
     );
     if (missing.length === 0) return;
     for (const stage of missing) fallbackFetched.current.add(stage.key);
@@ -344,7 +423,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         return next;
       });
     }).catch((err) => console.error('Failed to fetch artifact fallback:', err));
-  }, [status, versionId, stages, artifacts]);
+  }, [status, versionId, stages]);
 
   // Resume mode: load existing version data
   useEffect(() => {
@@ -432,7 +511,9 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
   async function start() {
     if (!title.trim() || !idea.trim()) return;
+    if (creatingRef.current) return;
 
+    creatingRef.current = true;
     setCreating(true);
     setError("");
     cancelled.current = false;
@@ -460,6 +541,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       startPipeline(vId);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Gagal membuat project');
+      creatingRef.current = false;
       setCreating(false);
       console.error('Failed to create project:', err);
     }
@@ -483,15 +565,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       abortRef.current.abort();
     }
 
-    createSSEPost(
-      `/generate/stream`,
-      { version: versionId, stage: nextStage },
-      handleSSEEvent,
-      (err) => {
-        console.error('SSE error:', err);
-        setError('Koneksi SSE terputus');
-      }
-    ).then(ctrl => { abortRef.current = ctrl; });
+    doStream(versionId, nextStage);
   }
 
   function proceedAfterMasterConfirm() {
@@ -501,15 +575,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     if (abortRef.current) {
       abortRef.current.abort();
     }
-    createSSEPost(
-      `/generate/stream`,
-      { version: versionId, stage: nextStage },
-      handleSSEEvent,
-      (err) => {
-        console.error('SSE error:', err);
-        setError('Koneksi SSE terputus');
-      }
-    ).then(ctrl => { abortRef.current = ctrl; });
+    doStream(versionId, nextStage);
   }
 
   function retryStage() {
@@ -529,15 +595,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       abortRef.current.abort();
     }
 
-    createSSEPost(
-      `/generate/stream`,
-      { version: versionId, stage: currentStage },
-      handleSSEEvent,
-      (err) => {
-        console.error('SSE error:', err);
-        setError('Koneksi SSE terputus');
-      }
-    ).then(ctrl => { abortRef.current = ctrl; });
+    doStream(versionId, currentStage);
   }
 
   function cancelGeneration() {
@@ -546,8 +604,9 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       abortRef.current.abort();
       abortRef.current = null;
     }
-    setStatus(s => ({ ...s, [activeKey]: 'error' }));
+    setStatus(s => ({ ...s, [activeKeyRef.current]: 'error' }));
     setError("Pembuatan plan dibatalkan.");
+    setShowCancelConfirm(false);
   }
 
   async function reset() {
@@ -582,6 +641,8 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     setAnswers({});
     setMcqAnswers({});
     setMobileMcqAnswers({});
+    setPhaseProg([]);
+    setRetryInfo(null);
     setTitle("");
     setIdea("");
     setSelectedTemplate("");
@@ -661,7 +722,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
             <div>
               <Label>Target Platform</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {TARGETS.map((t) => (
                   <button
                     key={t.key}
@@ -697,6 +758,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
   // ===== Pipeline screen =====
   return (
+    <ErrorBoundary>
     <div className="mx-auto max-w-5xl">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -706,7 +768,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         <Button variant="secondary" size="sm" onClick={reset} disabled={deleting} data-testid="reset-plan">{deleting ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />} {deleting ? "Menghapus..." : "Mulai Ulang"}</Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className={`grid gap-6 ${showTrackingPanel ? "lg:grid-cols-[260px_1fr_340px]" : "lg:grid-cols-[280px_1fr]"}`}>
         {/* Stage tracker */}
         <div className="space-y-2">
           {stages.map((s, i) => {
@@ -764,16 +826,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 <button
                   onClick={() => {
                     const text = artifacts[activeKey];
-                    if (text) navigator.clipboard.writeText(text).catch(() => {
-                      const ta = document.createElement('textarea');
-                      ta.value = text;
-                      ta.style.position = 'fixed';
-                      ta.style.opacity = '0';
-                      document.body.appendChild(ta);
-                      ta.select();
-                      document.execCommand('copy');
-                      document.body.removeChild(ta);
-                    });
+                    if (text) copyToClipboard(text);
                   }}
                   className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)]"
                 >
@@ -797,17 +850,25 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 />
                   <div className="flex items-center gap-2">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setArtifacts(prev => ({ ...prev, [activeKey]: editContent }));
                       setEditingStage(null);
                       setEditContent("");
                       if (versionId) {
-                        apiPatch(`/versions/${versionId}/artifacts`, { stage: activeKey, content: editContent }).catch((err) => console.error('Failed to save artifact:', err));
+                        setSavingArtifact(true);
+                        try {
+                          await apiPatch(`/versions/${versionId}/artifacts`, { stage: activeKey, content: editContent });
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : "Gagal menyimpan artifact");
+                        } finally {
+                          setSavingArtifact(false);
+                        }
                       }
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs text-white hover:opacity-90"
+                    disabled={savingArtifact}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs text-white hover:opacity-90 disabled:opacity-50"
                   >
-                    Simpan
+                    {savingArtifact ? <Loader2 size={13} className="animate-spin" /> : "Simpan"}
                   </button>
                   <button
                     onClick={() => {
@@ -825,95 +886,38 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 {activeKey === "pertanyaan" && status.pertanyaan === "done" ? (
                   <div className="space-y-4">
                     {mcqData ? (
-                      <>
-                        {mcqData.ambiguities.length > 0 && (
-                          <div className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-                            <p className="mb-1 text-xs font-semibold text-amber-600">Area yang perlu diperjelas:</p>
-                            <ul className="space-y-0.5">
-                              {mcqData.ambiguities.map((a, i) => (
-                                <li key={i} className="text-xs text-amber-700">• {a}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {mcqData.questions.map((q: McqQuestion, i: number) => (
-                          <div key={q.id || i} className="rounded-xl border border-[var(--color-border)] p-4">
-                            <p className="mb-3 font-medium">{i + 1}. {q.question}</p>
-                            <div className="space-y-2">
-                              {q.options.map((opt) => {
-                                const isSelected = mcqAnswers[q.id]?.selected === opt.key;
-                                return (
-                                  <button
-                                    key={opt.key}
-                                    onClick={() => setMcqAnswers(prev => ({
-                                      ...prev,
-                                      [q.id]: { selected: opt.key, custom_text: opt.custom }
-                                    }))}
-                                    className={`w-full rounded-lg border p-3 text-left text-sm transition ${
-                                      isSelected
-                                        ? "border-[var(--color-brand)] bg-[color-mix(in_oklab,var(--color-brand)_10%,transparent)]"
-                                        : "border-[var(--color-border)] hover:border-[var(--color-brand)]/50"
-                                    }`}
-                                  >
-                                    <span className="mr-2 font-mono text-xs font-bold">{opt.key}.</span>
-                                    {opt.text}
-                                    {opt.recommended && (
-                                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">(Rekomendasi AI)</span>
-                                    )}
-                                  </button>
-                                );
-                              })}
-                              {mcqAnswers[q.id]?.selected === "E" && (
-                                <textarea
-                                  rows={2}
-                                  value={mcqAnswers[q.id]?.custom_text || ""}
-                                  onChange={(e) => setMcqAnswers(prev => ({
-                                    ...prev,
-                                    [q.id]: { ...prev[q.id], custom_text: e.target.value }
-                                  }))}
-                                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm"
-                                  placeholder="Jelaskan pilihan Anda..."
-                                />
-                              )}
-                              {q.recommendation_reason && mcqAnswers[q.id] && (
-                                <p className="mt-1 rounded bg-[var(--color-surface-2)] p-2 text-xs text-[var(--color-fg-muted)] italic">
-                                  💡 {q.recommendation_reason}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        <Button
-                          onClick={async () => {
-                            if (!versionId) return;
-                            const formatted: Record<string, string> = {};
-                            Object.entries(mcqAnswers).forEach(([qId, ans]) => {
-                              const q = mcqData.questions.find((x) => x.id === qId);
-                              formatted[`${qId}: ${q?.question || ""}`] = ans.selected === "E"
-                                ? `E. Lainnya: ${ans.custom_text || ""}`
-                                : `${ans.selected}. ${q?.options.find(o => o.key === ans.selected)?.text || ""}`;
-                            });
-                            await apiPatch(`/versions/${versionId}/answers`, { answers: formatted });
-                            const nextStage = stages[current + 1]?.key;
+                      <McqForm
+                        mcqData={mcqData}
+                        answers={mcqAnswers}
+                        onAnswerChange={(qId, ans) => setMcqAnswers(prev => ({ ...prev, [qId]: ans }))}
+                        onSubmit={async () => {
+                          if (!versionId) return;
+                          const formatted: Record<string, string> = {};
+                          Object.entries(mcqAnswers).forEach(([qId, ans]) => {
+                            const q = mcqData.questions.find((x) => x.id === qId);
+                            formatted[`${qId}: ${q?.question || ""}`] = ans.selected === "E"
+                              ? `E. Lainnya: ${ans.custom_text || ""}`
+                              : `${ans.selected}. ${q?.options.find(o => o.key === ans.selected)?.text || ""}`;
+                          });
+                          try { await apiPatch(`/versions/${versionId}/answers`, { answers: formatted }); }
+                          catch (e) { setError(e instanceof Error ? e.message : "Gagal menyimpan jawaban"); return; }
+                          const nextStage = stages[current + 1]?.key;
                             if (nextStage && versionId) {
                               setStatus(s => ({ ...s, [nextStage]: 'running' }));
                               setCurrent(current + 1);
-                              if (abortRef.current) abortRef.current.abort();
-                              createSSEPost(`/generate/stream`, { version: versionId, stage: nextStage }, handleSSEEvent,
-                                (err) => { console.error('SSE error:', err); setError('Koneksi SSE terputus'); }
-                              ).then(ctrl => { abortRef.current = ctrl; });
+                              doStream(versionId, nextStage);
                             }
                           }}
-                          disabled={mcqData.questions.some((q: McqQuestion) => !mcqAnswers[q.id])}
-                        >
-                          <ArrowRight size={15} /> Kirim Jawaban & Lanjutkan
-                        </Button>
-                      </>
+                          submitLabel="Kirim Jawaban & Lanjutkan"
+                        />
                     ) : (
                       <>
                         <h4 className="font-semibold">Jawab pertanyaan klarifikasi berikut:</h4>
                         {questions.length === 0 && artifacts.pertanyaan && (
-                          <div className="text-sm text-[var(--color-fg-muted)]">Memproses pertanyaan...</div>
+                          <div className="flex items-center gap-2 text-sm text-[var(--color-fg-muted)]">
+                            <Loader2 size={14} className="animate-spin" />
+                            Memproses pertanyaan{retryInfo ? ` (percobaan ${retryInfo.attempt}/${retryInfo.max})` : "..."}
+                          </div>
                         )}
                         {questions.map((q: string, i: number) => (
                           <div key={i}>
@@ -930,15 +934,13 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                         <Button
                           onClick={async () => {
                             if (!versionId) return;
-                            await apiPatch(`/versions/${versionId}/answers`, { answers });
+                            try { await apiPatch(`/versions/${versionId}/answers`, { answers }); }
+                            catch (e) { setError(e instanceof Error ? e.message : "Gagal menyimpan jawaban"); return; }
                             const nextStage = stages[current + 1]?.key;
                             if (nextStage && versionId) {
                               setStatus(s => ({ ...s, [nextStage]: 'running' }));
                               setCurrent(current + 1);
-                              if (abortRef.current) abortRef.current.abort();
-                              createSSEPost(`/generate/stream`, { version: versionId, stage: nextStage }, handleSSEEvent,
-                                (err) => { console.error('SSE error:', err); setError('Koneksi SSE terputus'); }
-                              ).then(ctrl => { abortRef.current = ctrl; });
+                              doStream(versionId, nextStage);
                             }
                           }}
                           disabled={!Object.values(answers).some(a => a.trim())}
@@ -951,87 +953,36 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 ) : activeKey === "pertanyaan_mobile" && status.pertanyaan_mobile === "done" ? (
                   <div className="space-y-4">
                     {mcqMobileData ? (
-                      <>
-                        {mcqMobileData.ambiguities.length > 0 && (
-                          <div className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-                            <p className="mb-1 text-xs font-semibold text-amber-600">Area mobile yang perlu diperjelas:</p>
-                            <ul className="space-y-0.5">
-                              {mcqMobileData.ambiguities.map((a, i) => (
-                                <li key={i} className="text-xs text-amber-700">• {a}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {mcqMobileData.questions.map((q: McqQuestion, i: number) => (
-                          <div key={q.id || i} className="rounded-xl border border-[var(--color-border)] p-4">
-                            <p className="mb-3 font-medium">{i + 1}. {q.question}</p>
-                            <div className="space-y-2">
-                              {q.options.map((opt) => {
-                                const isSelected = mobileMcqAnswers[q.id]?.selected === opt.key;
-                                return (
-                                  <button
-                                    key={opt.key}
-                                    onClick={() => setMobileMcqAnswers(prev => ({
-                                      ...prev,
-                                      [q.id]: { selected: opt.key, custom_text: opt.custom }
-                                    }))}
-                                    className={`w-full rounded-lg border p-3 text-left text-sm transition ${
-                                      isSelected
-                                        ? "border-[var(--color-brand)] bg-[color-mix(in_oklab,var(--color-brand)_10%,transparent)]"
-                                        : "border-[var(--color-border)] hover:border-[var(--color-brand)]/50"
-                                    }`}
-                                  >
-                                    <span className="mr-2 font-mono text-xs font-bold">{opt.key}.</span>
-                                    {opt.text}
-                                    {opt.recommended && (
-                                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">(Rekomendasi AI)</span>
-                                    )}
-                                  </button>
-                                );
-                              })}
-                              {mobileMcqAnswers[q.id]?.selected === "E" && (
-                                <textarea
-                                  rows={2}
-                                  value={mobileMcqAnswers[q.id]?.custom_text || ""}
-                                  onChange={(e) => setMobileMcqAnswers(prev => ({
-                                    ...prev,
-                                    [q.id]: { ...prev[q.id], custom_text: e.target.value }
-                                  }))}
-                                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm"
-                                  placeholder="Jelaskan pilihan Anda..."
-                                />
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        <Button
-                          onClick={async () => {
-                            if (!versionId) return;
-                            const formatted: Record<string, string> = {};
-                            Object.entries(mobileMcqAnswers).forEach(([qId, ans]) => {
-                              const q = mcqMobileData.questions.find((x) => x.id === qId);
-                              formatted[`${qId}: ${q?.question || ""}`] = ans.selected === "E"
-                                ? `E. Lainnya: ${ans.custom_text || ""}`
-                                : `${ans.selected}. ${q?.options.find(o => o.key === ans.selected)?.text || ""}`;
-                            });
-                            await apiPatch(`/versions/${versionId}/answers`, { answers: {}, mobile_answers: formatted });
-                            const nextStage = stages[current + 1]?.key;
-                            if (nextStage && versionId) {
-                              setStatus(s => ({ ...s, [nextStage]: 'running' }));
-                              setCurrent(current + 1);
-                              if (abortRef.current) abortRef.current.abort();
-                              createSSEPost(`/generate/stream`, { version: versionId, stage: nextStage }, handleSSEEvent,
-                                (err) => { console.error('SSE error:', err); setError('Koneksi SSE terputus'); }
-                              ).then(ctrl => { abortRef.current = ctrl; });
-                            }
-                          }}
-                          disabled={mcqMobileData.questions.some((q: McqQuestion) => !mobileMcqAnswers[q.id])}
-                        >
-                          <ArrowRight size={15} /> Kirim Jawaban Mobile & Lanjutkan
-                        </Button>
-                      </>
+                      <McqForm
+                        mcqData={mcqMobileData}
+                        answers={mobileMcqAnswers}
+                        onAnswerChange={(qId, ans) => setMobileMcqAnswers(prev => ({ ...prev, [qId]: ans }))}
+                        onSubmit={async () => {
+                          if (!versionId) return;
+                          const formatted: Record<string, string> = {};
+                          Object.entries(mobileMcqAnswers).forEach(([qId, ans]) => {
+                            const q = mcqMobileData.questions.find((x) => x.id === qId);
+                            formatted[`${qId}: ${q?.question || ""}`] = ans.selected === "E"
+                              ? `E. Lainnya: ${ans.custom_text || ""}`
+                              : `${ans.selected}. ${q?.options.find(o => o.key === ans.selected)?.text || ""}`;
+                          });
+                          try { await apiPatch(`/versions/${versionId}/answers`, { mobile_answers: formatted }); }
+                          catch (e) { setError(e instanceof Error ? e.message : "Gagal menyimpan jawaban mobile"); return; }
+                          const nextStage = stages[current + 1]?.key;
+                          if (nextStage && versionId) {
+                            setStatus(s => ({ ...s, [nextStage]: 'running' }));
+                            setCurrent(current + 1);
+                            doStream(versionId, nextStage);
+                          }
+                        }}
+                        submitLabel="Kirim Jawaban Mobile & Lanjutkan"
+                        ambiguitiesLabel="Area mobile yang perlu diperjelas:"
+                      />
                     ) : (
-                      <div className="text-sm text-[var(--color-fg-muted)]">Memproses pertanyaan mobile...</div>
+                      <div className="flex items-center gap-2 text-sm text-[var(--color-fg-muted)]">
+                        <Loader2 size={14} className="animate-spin" />
+                        Memproses pertanyaan mobile{retryInfo ? ` (percobaan ${retryInfo.attempt}/${retryInfo.max})` : "..."}
+                      </div>
                     )}
                   </div>
                 ) : (activeKey === "erd" && status.erd === "done") || (activeKey === "architecture" && status.architecture === "done") || (activeKey === "master_web" && status.master_web === "done") ? null : (
@@ -1070,7 +1021,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
                   return (
                     <>
-                      {nodes.length > 0 && <div className="mb-6"><ErdDiagram erd={{ nodes, edges }} /></div>}
+                      {nodes.length > 0 && <div className="mb-6"><ErdDiagramDynamic erd={{ nodes, edges }} /></div>}
                       {cleanText && (
                         <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
                           {cleanText}
@@ -1092,38 +1043,11 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                       if (!erdData) return <pre className="whitespace-pre-wrap text-sm">{artifacts.erd}</pre>;
                       return (
                         <>
-                          <div className="mb-6 mt-4"><ErdDiagram erd={erdData} /></div>
+                          <div className="mb-6 mt-4"><ErdDiagramDynamic erd={erdData} /></div>
                             {(() => { const ac = erdData.api_contract; return ac && ac.length > 0 ? <>
                               <div className="mt-6">
                                 <h4 className="mb-3 font-semibold">API Contract</h4>
-                                <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
-                                  <table className="w-full text-sm">
-                                    <thead>
-                                      <tr className="bg-[var(--color-surface-2)]">
-                                        <th className="px-3 py-2 text-left font-medium">Method</th>
-                                        <th className="px-3 py-2 text-left font-medium">Endpoint</th>
-                                        <th className="px-3 py-2 text-left font-medium">Deskripsi</th>
-                                        <th className="px-3 py-2 text-left font-medium">Auth</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-[var(--color-border)]">
-                                      {ac.map((api: ApiContractItem, i: number) => (
-                                        <tr key={i}>
-                                          <td className="px-3 py-2">
-                                            <Badge tone={
-                                              api.method === 'GET' ? 'success' :
-                                              api.method === 'POST' ? 'brand' :
-                                              api.method === 'PUT' || api.method === 'PATCH' ? 'warning' : 'danger'
-                                            }>{api.method}</Badge>
-                                          </td>
-                                          <td className="px-3 py-2 font-mono text-xs">{api.path}</td>
-                                          <td className="px-3 py-2 text-[var(--color-fg-muted)]">{api.description}</td>
-                                          <td className="px-3 py-2">{api.auth ? '✅ Ya' : '❌ Tidak'}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
+                                <ApiContractTable items={ac} />
                               </div>
                             </> : null; })()}
                         </>
@@ -1136,33 +1060,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     const parsed = JSON.parse(artifacts.phases_web);
                     const phases: PhaseItem[] = Array.isArray(parsed) ? parsed : [];
                     if (phases.length === 0) throw new Error("not array");
-                    return (
-                      <Card className="p-4">
-                        <h3 className="mb-4 font-semibold">Phase Breakdown Web ({phases.length} fase)</h3>
-                        <div className="space-y-3">
-                          {phases.map((p: PhaseItem, i: number) => (
-                            <div key={p.key || i} className="rounded-lg border border-[var(--color-border)] p-4">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1">
-                                  <div className="text-sm font-semibold">{p.title}</div>
-                                  {(() => { const tasks = p.tasks; return tasks && tasks.length > 0 ? (
-                                    <ul className="mt-1 list-disc pl-4 text-xs text-[var(--color-fg-muted)]">
-                                      {tasks.map((t: string, j: number) => <li key={j}>{t}</li>)}
-                                    </ul>
-                                  ) : null; })()}
-                                  {p.ac && <div className="mt-1 text-xs text-[var(--color-fg-muted)]"><span className="font-medium">AC:</span> {p.ac}</div>}
-                                </div>
-                                {p.prompt && (
-                                  <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(p.prompt ?? '').catch(() => {}); }}>
-                                    <Copy size={12} /> Copy Prompt
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </Card>
-                    );
+                    return <PhaseBreakdownCard phases={phases} label="Phase Breakdown Web" />;
                   } catch {
                     return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.phases_web}</Markdown>;
                   }
@@ -1172,33 +1070,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     const parsed = JSON.parse(artifacts.phases_mobile);
                     const phases: PhaseItem[] = Array.isArray(parsed) ? parsed : [];
                     if (phases.length === 0) throw new Error("not array");
-                    return (
-                      <Card className="p-4">
-                        <h3 className="mb-4 font-semibold">Phase Breakdown Mobile ({phases.length} fase)</h3>
-                        <div className="space-y-3">
-                          {phases.map((p: PhaseItem, i: number) => (
-                            <div key={p.key || i} className="rounded-lg border border-[var(--color-border)] p-4">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1">
-                                  <div className="text-sm font-semibold">{p.title}</div>
-                                  {(() => { const tasks = p.tasks; return tasks && tasks.length > 0 ? (
-                                    <ul className="mt-1 list-disc pl-4 text-xs text-[var(--color-fg-muted)]">
-                                      {tasks.map((t: string, j: number) => <li key={j}>{t}</li>)}
-                                    </ul>
-                                  ) : null; })()}
-                                  {p.ac && <div className="mt-1 text-xs text-[var(--color-fg-muted)]"><span className="font-medium">AC:</span> {p.ac}</div>}
-                                </div>
-                                {p.prompt && (
-                                  <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(p.prompt ?? '').catch(() => {}); }}>
-                                    <Copy size={12} /> Copy Prompt
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </Card>
-                    );
+                    return <PhaseBreakdownCard phases={phases} label="Phase Breakdown Mobile" />;
                   } catch {
                     return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.phases_mobile}</Markdown>;
                   }
@@ -1211,34 +1083,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     return (
                       <Card className="p-4">
                         <h3 className="mb-4 font-semibold">API Contract ({ac.length} endpoint)</h3>
-                        <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="bg-[var(--color-surface-2)]">
-                                <th className="px-3 py-2 text-left font-medium">Method</th>
-                                <th className="px-3 py-2 text-left font-medium">Endpoint</th>
-                                <th className="px-3 py-2 text-left font-medium">Deskripsi</th>
-                                <th className="px-3 py-2 text-left font-medium">Auth</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[var(--color-border)]">
-                              {ac.map((api: ApiContractItem, i: number) => (
-                                <tr key={i}>
-                                  <td className="px-3 py-2">
-                                    <Badge tone={
-                                      api.method === 'GET' ? 'success' :
-                                      api.method === 'POST' ? 'brand' :
-                                      api.method === 'PUT' || api.method === 'PATCH' ? 'warning' : 'danger'
-                                    }>{api.method}</Badge>
-                                  </td>
-                                  <td className="px-3 py-2 font-mono text-xs">{api.path}</td>
-                                  <td className="px-3 py-2 text-[var(--color-fg-muted)]">{api.description}</td>
-                                  <td className="px-3 py-2">{api.auth ? '✅ Ya' : '❌ Tidak'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                        <ApiContractTable items={ac} />
                       </Card>
                     );
                   } catch {
@@ -1247,38 +1092,28 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 })()}
                 {activeKey === "master_web" && artifacts.master_web && (() => {
                   const masterPrompt = artifacts.master_web;
-                  const phases: PhaseItem[] = (() => {
-                    try { const p = JSON.parse(artifacts.phases_web || '[]'); return Array.isArray(p) ? p : []; } catch { return []; }
-                  })();
-                  const progMap = Object.fromEntries((phaseProg ?? []).map((p) => [p.phase_key, p]));
                   return (
                     <Card className="p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <h3 className="font-semibold">Master Prompt Web</h3>
-                        <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(masterPrompt).catch(() => {}); }}>
+                        <Button variant="secondary" size="sm" onClick={() => copyToClipboard(masterPrompt)}>
                           <Copy size={13} /> Salin Master Prompt
                         </Button>
                       </div>
-                      <TrackingPhases phases={phases} progMap={progMap} />
                       <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</Markdown>
                     </Card>
                   );
                 })()}
                 {activeKey === "master_mobile" && artifacts.master_mobile && (() => {
                   const masterPrompt = artifacts.master_mobile;
-                  const phases: PhaseItem[] = (() => {
-                    try { const p = JSON.parse(artifacts.phases_mobile || '[]'); return Array.isArray(p) ? p : []; } catch { return []; }
-                  })();
-                  const progMap = Object.fromEntries((phaseProg ?? []).map((p) => [p.phase_key, p]));
                   return (
                     <Card className="p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <h3 className="font-semibold">Master Prompt Mobile</h3>
-                        <Button variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(masterPrompt).catch(() => {}); }}>
+                        <Button variant="secondary" size="sm" onClick={() => copyToClipboard(masterPrompt)}>
                           <Copy size={13} /> Salin Master Prompt
                         </Button>
                       </div>
-                      <TrackingPhases phases={phases} progMap={progMap} />
                       <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</Markdown>
                     </Card>
                   );
@@ -1295,7 +1130,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
               </span>
               <div className="flex gap-2">
                 {activeKey !== 'pertanyaan' && (
-                  <Button variant="secondary" size="sm" onClick={retryStage}><RotateCcw size={15} /> Analisa Ulang</Button>
+                  <Button variant="secondary" size="sm" onClick={retryStage}><RotateCcw size={15} /> Coba Lagi</Button>
                 )}
                 {status[activeKey] === "done" && activeKey !== 'pertanyaan' && (
                   <Button size="sm" onClick={approveNext} data-testid="approve-next">Approve & Lanjut <ArrowRight size={15} /></Button>
@@ -1305,30 +1140,33 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           )}
 
           {allDone && (
-            <Card className="flex flex-col items-center gap-3 p-6 text-center">
+            <>
+              <Confetti />
+              <Card className="flex flex-col items-center gap-3 p-6 text-center">
               <span className="grid h-12 w-12 place-items-center rounded-full bg-[var(--color-success)] text-white"><Check size={24} /></span>
               <h3 className="text-lg font-semibold">Plan selesai! 🎉</h3>
               <p className="text-sm text-[var(--color-fg-muted)]">Semua artefak siap. Salin master prompt & mulai bangun dengan AI agent.</p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-center gap-2">
                 <Button
                   variant="secondary"
-                  onClick={() => {
-                    const mp = artifacts.master_web;
-                    if (mp) navigator.clipboard.writeText(mp).catch(() => {
-                      const ta = document.createElement('textarea');
-                      ta.value = mp;
-                      ta.style.position = 'fixed';
-                      ta.style.opacity = '0';
-                      document.body.appendChild(ta);
-                      ta.select();
-                      document.execCommand('copy');
-                      document.body.removeChild(ta);
-                    });
-                  }}
-                ><Copy size={15} /> Salin Master Prompt</Button>
+                  onClick={() => { if (artifacts.master_web) copyToClipboard(artifacts.master_web); }}
+                ><Copy size={15} /> Salin Master Prompt (Web)</Button>
+                {target === "both" && artifacts.master_mobile && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => copyToClipboard(artifacts.master_mobile as string)}
+                  ><Copy size={15} /> Salin Master Prompt (Mobile)</Button>
+                )}
+                {target === "both" && artifacts.agents && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => copyToClipboard(artifacts.agents as string)}
+                  ><Copy size={15} /> Salin Agents</Button>
+                )}
                 <Button onClick={() => projectId && router.push(`/projects/${projectId}`)} data-testid="goto-project">Buka Project <ArrowRight size={15} /></Button>
               </div>
             </Card>
+            </>
           )}
 
           {error && (
@@ -1339,138 +1177,98 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 <div className="mt-1 text-xs opacity-90">{error}</div>
               </div>
             </div>
-          )}
+           )}
         </div>
+
+        {/* Tracking side panel */}
+        {showTrackingPanel && trackingPhases.length > 0 && (
+          <TrackingPanel
+            phases={trackingPhases}
+            progMap={progMap}
+            webhookUrl={`/api/webhooks/phase-complete`}
+          />
+        )}
       </div>
 
       {/* Loading modal overlay */}
-      {status[activeKey] === "running" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-2xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
-            {/* Header */}
-            <div className="mb-4 flex items-center gap-3">
-              <Loader2 size={24} className="animate-spin text-[var(--color-brand)]" />
-              <div className="flex-1">
-                <div className="text-lg font-semibold">
-                  Tahap {current + 1}/{stages.length}: {stages[current].label}
-                </div>
-                <div className="text-sm text-[var(--color-fg-muted)]">{stages[current].desc}</div>
-                {retryInfo && (
-                  <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600">
-                    <Loader2 size={12} className="animate-spin" />
-                    Percobaan ulang {retryInfo.attempt}{retryInfo.max ? `/${retryInfo.max}` : ""} — mencari minimal 5 pertanyaan
-                  </div>
-                )}
+      <Modal
+        open={status[activeKey] === "running"}
+        onClose={() => {}}
+        title={`Tahap ${current + 1}/${stages.length}: ${stages[current].label}`}
+        size="lg"
+        closeOnBackdrop={false}
+      >
+        {/* Header */}
+        <div className="mb-4 flex items-center gap-3">
+          <Loader2 size={24} className="animate-spin text-[var(--color-brand)]" />
+          <div className="flex-1">
+            <div className="text-sm text-[var(--color-fg-muted)]">{stages[current].desc}</div>
+            {retryInfo && (
+              <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-600">
+                <Loader2 size={12} className="animate-spin" />
+                Percobaan ulang {retryInfo.attempt}{retryInfo.max ? `/${retryInfo.max}` : ""} — mencari minimal 5 pertanyaan
               </div>
-            </div>
-
-            {/* Live output */}
-            <div
-              ref={outputRef}
-              className="max-h-80 min-h-[80px] overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] p-4"
-            >
-              <pre className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--color-fg)]">
-                {artifacts[activeKey] || "Menunggu hasil AI..."}
-                <span className="inline-block h-4 w-0.5 animate-pulse bg-[var(--color-brand)]" />
-              </pre>
-            </div>
-
-            {/* Progress */}
-            <div className="mt-4">
-              <div className="mb-1 flex items-center justify-between text-xs text-[var(--color-fg-muted)]">
-                <span>Progress</span>
-                <span>{stages.filter(s => status[s.key] === "done" || status[s.key] === "running").length}/{stages.length} tahap</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
-                <div
-                  className="h-full rounded-full bg-[var(--color-brand)] transition-all duration-500"
-                  style={{ width: `${(stages.filter(s => status[s.key] === "done").length / stages.length) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Cancel */}
-            <div className="mt-4 flex justify-end">
-              <Button variant="secondary" size="sm" onClick={cancelGeneration}>
-                <AlertCircle size={15} /> Batalkan
-              </Button>
-            </div>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Live output */}
+        <div
+          ref={outputRef}
+          className="max-h-80 min-h-[80px] overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] p-4"
+        >
+          <pre className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--color-fg)]">
+            {artifacts[activeKey] || "Menunggu hasil AI..."}
+            <span className="inline-block h-4 w-0.5 animate-pulse bg-[var(--color-brand)]" />
+          </pre>
+        </div>
+
+        {/* Progress */}
+        <div className="mt-4">
+          <div className="mb-1 flex items-center justify-between text-xs text-[var(--color-fg-muted)]">
+            <span>Progress</span>
+            <span>{stages.filter(s => status[s.key] === "done" || status[s.key] === "running").length}/{stages.length} tahap</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
+            <div
+              className="h-full rounded-full bg-[var(--color-brand)] transition-all duration-500"
+              style={{ width: `${(stages.filter(s => status[s.key] === "done").length / stages.length) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Cancel */}
+        <div className="mt-4 flex justify-end">
+          <Button variant="secondary" size="sm" onClick={() => setShowCancelConfirm(true)}>
+            <AlertCircle size={15} /> Batalkan
+          </Button>
+        </div>
+      </Modal>
 
       {/* Konfirmasi lanjut setelah master_web — tracking fase web belum selesai */}
-      {pendingConfirmMaster && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold">Tracking fase web belum selesai</h3>
-            <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
-              Ada fase web yang masih berjalan / belum ditandai selesai. Web kemungkinan belum selesai dibangun.
-              Yakin melanjutkan ke tahap berikutnya?
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setPendingConfirmMaster(false)}>Batal</Button>
-              <Button size="sm" onClick={proceedAfterMasterConfirm}>Tetap Lanjut <ArrowRight size={15} /></Button>
-            </div>
-          </div>
+      <Modal open={pendingConfirmMaster} onClose={() => setPendingConfirmMaster(false)} title="Tracking fase web belum selesai" size="sm">
+        <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
+          Ada fase web yang masih berjalan / belum ditandai selesai. Web kemungkinan belum selesai dibangun.
+          Yakin melanjutkan ke tahap berikutnya?
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setPendingConfirmMaster(false)}>Batal</Button>
+          <Button size="sm" onClick={proceedAfterMasterConfirm}>Tetap Lanjut <ArrowRight size={15} /></Button>
         </div>
-      )}
+      </Modal>
+
+      {/* Konfirmasi batalkan */}
+      <Modal open={showCancelConfirm} onClose={() => setShowCancelConfirm(false)} title="Batalkan pembuatan?" size="sm">
+        <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
+          Proses akan dihentikan dan stage saat ini ditandai error. Yakin membatalkan?
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setShowCancelConfirm(false)}>Lanjutkan</Button>
+          <Button variant="danger" size="sm" onClick={cancelGeneration}><AlertCircle size={15} /> Ya, Batalkan</Button>
+        </div>
+      </Modal>
     </div>
+    </ErrorBoundary>
   );
 }
 
-type ProgressItem = {
-  phase_key: string;
-  done: boolean;
-  status?: "pending" | "running" | "done" | "error";
-  output?: string | null;
-  started_at?: string | null;
-  finished_at?: string | null;
-};
-
-function TrackingPhases({ phases, progMap }: { phases: PhaseItem[]; progMap: Record<string, ProgressItem> }) {
-  const badge = (p?: ProgressItem) => {
-    const st = p?.status ?? "pending";
-    if (st === "running") return <Badge tone="brand"><Loader2 size={11} className="animate-spin" /> Running</Badge>;
-    if (st === "done") return <Badge tone="success">Selesai</Badge>;
-    if (st === "error") return <Badge tone="danger">Error</Badge>;
-    return <Badge tone="muted">Menunggu</Badge>;
-  };
-
-  return (
-    <div className="mb-4 overflow-hidden rounded-xl border border-[var(--color-border)]">
-      <div className="flex items-center justify-between bg-[var(--color-surface-2)] px-4 py-2">
-        <h4 className="text-sm font-semibold">Tracking Fase</h4>
-        <span className="text-xs text-[var(--color-fg-muted)]">
-          {phases.filter((p) => progMap[p.key ?? ""]?.status === "done").length}/{phases.length} selesai
-        </span>
-      </div>
-      <div className="divide-y divide-[var(--color-border)]">
-        {phases.length === 0 && (
-          <div className="px-4 py-3 text-xs text-[var(--color-fg-muted)]">Belum ada fase. Jalankan agent dengan master prompt untuk mulai tracking.</div>
-        )}
-        {phases.map((p) => {
-          const prog = progMap[p.key ?? ""];
-          return (
-            <div key={p.key} className="flex items-center justify-between gap-2 px-4 py-2">
-              <div className="min-w-0">
-                <div className="truncate text-sm">{p.title}</div>
-                {prog?.output ? (
-                  <div className="mt-0.5 truncate text-xs text-[var(--color-fg-muted)]">{prog.output}</div>
-                ) : prog?.started_at || prog?.finished_at ? (
-                  <div className="mt-0.5 text-xs text-[var(--color-fg-subtle)]">
-                    {prog.finished_at ? new Date(prog.finished_at).toLocaleString("id-ID") : prog.started_at ? new Date(prog.started_at).toLocaleString("id-ID") : ""}
-                  </div>
-                ) : null}
-              </div>
-              {badge(prog)}
-            </div>
-          );
-        })}
-      </div>
-      <p className="px-4 py-2 text-[10px] text-[var(--color-fg-subtle)]">
-        Status diperbarui real-time oleh AI agent via webhook (Authorization Bearer).
-      </p>
-    </div>
-  );
-}

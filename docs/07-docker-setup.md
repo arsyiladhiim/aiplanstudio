@@ -133,13 +133,13 @@ docker compose exec web wget -qO- http://api:8000/api/health  # internal OK
 ```
 
 ## Checklist Keamanan Infra
-- [x] Hanya `aiplanstudionginx_web` punya `ports:` (host `:5432`/`:8000`/`:3000`/`:9000` tertutup).
+- [x] Tidak ada service yang publish port ke host (`docker compose ps` — semua `0.0.0.0:xxx` kosong); akses publik via Cloudflare Tunnel.
 - [x] `aiplanstudio_db`, `aiplanstudionginx_api`, `aiplanstudio_apifpm`, `aiplanstudio_web`, `aiplanstudio_redis` tanpa `ports:` (glitchtip DISABLED — service di-comment).
 - [x] `migrate` one-shot (`restart: "no"`), depend `aiplanstudio_apifpm` menunggu `service_completed_successfully`.
 - [x] Healthcheck di `aiplanstudio_db` (`pg_isready`) & `aiplanstudionginx_api` (wget `/api/health`).
 - [x] `mem_limit` di semua service; `restart: unless-stopped` untuk daemon.
 - [x] Rahasia via env (`.env`/`.env.production`), tidak di-commit; `REDIS_PASSWORD` via compose.
-- [x] BFF: semua request masuk via nginx → Next.js, tidak ada route langsung ke Laravel.
+- [x] BFF removed (Phase 7): request publik masuk via Cloudflare Tunnel → `aiplanstudio_web:3000` (web) atau `aiplanstudionginx_api:8000` (API), tidak ada reverse-proxy di repo.
 - [x] Semua volume pakai bind mount ke `./docker/*/` (postgres, redis, glitchtip) — tidak ada named Docker volume.
 
 ### Host Permission (root-owned files)

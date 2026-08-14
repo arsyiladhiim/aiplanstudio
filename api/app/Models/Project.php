@@ -8,14 +8,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-#[Fillable(['title', 'idea', 'target', 'stack', 'is_favorite'])]
+#[Fillable(['title', 'idea', 'target', 'stack', 'is_favorite', 'is_pinned', 'archived_at'])]
 class Project extends Model
 {
     use HasFactory;
 
     protected function casts(): array
     {
-        return ['is_favorite' => 'boolean'];
+        return [
+            'is_favorite' => 'boolean',
+            'is_pinned' => 'boolean',
+            'archived_at' => 'datetime',
+        ];
     }
 
     public function user(): BelongsTo
@@ -25,7 +29,7 @@ class Project extends Model
 
     public function versions(): HasMany
     {
-        return $this->hasMany(Version::class)->orderByDesc('version_no')->take(50);
+        return $this->hasMany(Version::class)->orderByDesc('version_no');
     }
 
     public function versionsUnbounded(): HasMany

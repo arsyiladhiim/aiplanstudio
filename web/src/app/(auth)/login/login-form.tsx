@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui";
 import { fetchCsrfCookie } from "@/lib/api";
 
 export default function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const pendingNotice = searchParams.get("status") === "pending";
   const googleError = searchParams.get("error") === "google";
@@ -44,7 +45,7 @@ export default function LoginForm() {
         );
       }
 
-      window.location.href = "/dashboard";
+      router.push("/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login gagal.");
     } finally {
@@ -128,11 +129,9 @@ export default function LoginForm() {
         <div className="h-px flex-1 bg-[var(--color-border)]" />
       </div>
 
-      <Button
-        type="button"
-        variant="secondary"
-        className="mt-6 w-full"
-        onClick={() => (window.location.href = "/api/auth/google")}
+      <a
+        href="/api/auth/google"
+        className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--radius)] border border-[var(--color-border)] bg-[var(--color-surface-2)] text-sm font-medium text-[var(--color-fg)] transition hover:bg-[var(--color-surface)]"
         data-testid="login-google"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
@@ -154,7 +153,7 @@ export default function LoginForm() {
           />
         </svg>
         Masuk dengan Google
-      </Button>
+      </a>
 
       <p className="mt-6 text-center text-sm text-[var(--color-fg-muted)]">
         Belum punya akun?{" "}

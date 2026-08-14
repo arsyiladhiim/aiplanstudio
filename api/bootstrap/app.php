@@ -2,7 +2,9 @@
 
 use App\Http\Middleware\AuthenticateProjectToken;
 use App\Http\Middleware\EnsureUserIsAdmin;
+use App\Http\Middleware\RequestContext;
 use App\Http\Middleware\StartSessionIfStateless;
+use App\Http\Middleware\ThrottleCsrfCookie;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -24,6 +26,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             StartSessionIfStateless::class,
             EnsureFrontendRequestsAreStateful::class,
+            ThrottleCsrfCookie::class,
+            RequestContext::class,
+        ]);
+        $middleware->web(append: [
+            ThrottleCsrfCookie::class,
         ]);
         $middleware->trustProxies(
             at: ['api', 'nginx', 'localhost', '127.0.0.1'],

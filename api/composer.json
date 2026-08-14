@@ -13,6 +13,9 @@
         "laravel/tinker": "^3.0",
         "sentry/sentry-laravel": "^4.27"
     },
+    "extra": {
+        "app-version": "0.14.0"
+    },
     "require-dev": {
         "fakerphp/faker": "^1.23",
         "laravel/pail": "^1.2.5",

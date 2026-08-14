@@ -95,7 +95,7 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'aiplanstudio_master, aiplanstudio_project, aiplanstudio_settings',
+            'search_path' => 'public, aiplanstudio_master, aiplanstudio_project, aiplanstudio_settings',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 

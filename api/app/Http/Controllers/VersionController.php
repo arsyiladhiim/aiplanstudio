@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Activity;
 use App\Models\Project;
+use App\Models\TaskProgress;
 use App\Models\Version;
 use App\Services\AiClient;
 use Illuminate\Http\JsonResponse;
@@ -11,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\PipelineRunner;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use ZipArchive;
@@ -78,6 +80,84 @@ class VersionController extends Controller
         return response()->json($version);
     }
 
+    public function phaseProgressStream(Request $request, int $id): StreamedResponse
+    {
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
+            ->with('phaseProgress')
+            ->findOrFail($id);
+
+        $phases = array_merge(
+            is_array($version->phases) ? $version->phases : [],
+            is_array($version->mobile_phases) ? $version->mobile_phases : [],
+        );
+        $totalPhases = count($phases);
+
+        return new StreamedResponse(function () use ($version, $totalPhases) {
+            $emit = function (string $event, array $data): void {
+                echo "event: {$event}\n";
+                echo 'data: '.json_encode($data, JSON_UNESCAPED_UNICODE)."\n\n";
+                echo ": ping\n\n";
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
+            };
+
+            if ($totalPhases === 0) {
+                $emit('done', ['completed' => 0, 'total' => 0]);
+                return;
+            }
+
+            $lastSig = '';
+            $ticks = 0;
+            $maxTicks = 600; // 20 minutes max
+
+            while ($ticks < $maxTicks) {
+                if (connection_aborted()) break;
+                $ticks++;
+                $progress = $version->phaseProgress()->with('taskProgress')->get();
+                $sig = $progress->map(fn ($p) => $p->phase_key.':'.$p->status.':'.$p->done.':'.$p->output.'|'.$p->taskProgress->map(fn ($t) => $t->task_key.':'.$t->status)->implode(';'))->implode('|');
+
+                if ($sig !== $lastSig) {
+                    $lastSig = $sig;
+                    $doneCount = 0;
+                    foreach ($progress as $p) {
+                        $emit('phase_progress', [
+                            'phase_key' => $p->phase_key,
+                            'status' => $p->status,
+                            'done' => (bool) $p->done,
+                            'output' => $p->output,
+                            'started_at' => $p->started_at?->toIso8601String(),
+                            'finished_at' => $p->finished_at?->toIso8601String(),
+                            'tasks' => $p->taskProgress->map(fn ($t) => [
+                                'task_key' => $t->task_key,
+                                'task_type' => $t->task_type,
+                                'title' => $t->title,
+                                'status' => $t->status,
+                                'output' => $t->output,
+                                'started_at' => $t->started_at?->toIso8601String(),
+                                'finished_at' => $t->finished_at?->toIso8601String(),
+                            ])->toArray(),
+                        ]);
+                        if ($p->done) {
+                            $doneCount++;
+                        }
+                    }
+                    if ($doneCount >= $totalPhases) {
+                        $emit('done', ['completed' => $doneCount, 'total' => $totalPhases]);
+                        break;
+                    }
+                }
+
+                usleep(2_000_000); // 2 seconds
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
     public function togglePhase(Request $request, int $id, string $phaseKey): JsonResponse
     {
         $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
@@ -95,13 +175,58 @@ class VersionController extends Controller
         }
 
         $data = $request->validate(['done' => ['required', 'boolean']]);
+        $now = now();
 
-        $progress = $version->phaseProgress()->updateOrCreate(
-            ['phase_key' => $phaseKey],
-            ['done' => $data['done']]
-        );
+        $updateData = ['done' => $data['done']];
+        $updateData['status'] = $data['done'] ? 'done' : 'pending';
+        if ($data['done']) {
+            $updateData['finished_at'] = $now;
+        } else {
+            $updateData['finished_at'] = null;
+        }
+
+        $progress = $version->phaseProgress()->firstOrNew(['phase_key' => $phaseKey]);
+        if (! $progress->started_at && $data['done']) {
+            $updateData['started_at'] = $now;
+        }
+        $progress->fill($updateData);
+        $progress->save();
 
         return response()->json($progress);
+    }
+
+    public function toggleTask(Request $request, int $id, string $taskKey): JsonResponse
+    {
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
+            ->findOrFail($id);
+
+        $data = $request->validate([
+            'done' => ['required', 'boolean'],
+            'phase_key' => ['nullable', 'string'],
+        ]);
+
+        $query = $version->phaseProgress()->when(
+            $data['phase_key'] ?? null,
+            fn ($q, $pk) => $q->where('phase_key', $pk)
+        );
+
+        $progress = $query->whereHas('taskProgress', fn ($q) => $q->where('task_key', $taskKey))->firstOrFail();
+        $task = $progress->taskProgress()->where('task_key', $taskKey)->firstOrFail();
+
+        $now = now();
+        if ($data['done']) {
+            $task->status = 'done';
+            $task->finished_at = $now;
+            if (! $task->started_at) {
+                $task->started_at = $now;
+            }
+        } else {
+            $task->status = 'pending';
+            $task->finished_at = null;
+        }
+        $task->save();
+
+        return response()->json($task);
     }
 
     public function export(Request $request, int $id): JsonResponse|StreamedResponse|Response
@@ -152,6 +277,13 @@ class VersionController extends Controller
         return response()->json(['message' => 'Format tidak didukung.'], 422);
     }
 
+    public function buildMarkdownPublic(Version $v): string
+    {
+        $v->loadMissing('project');
+
+        return $this->buildMarkdown($v);
+    }
+
     private function buildMarkdown(Version $v): string
     {
         $lines = [
@@ -184,8 +316,28 @@ class VersionController extends Controller
             '## ERD',
             $v->erd ? '```json'.PHP_EOL.json_encode($v->erd, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL.'```' : '_Belum ada_',
             '',
-            '## Phase Breakdown',
         ]);
+
+        if ($v->api_contract) {
+            $lines[] = '## API Contract';
+            $lines[] = '```json'.PHP_EOL.json_encode($v->api_contract, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL.'```';
+            $lines[] = '';
+        }
+
+        if ($v->pertanyaan_mobile || $v->mobile_answers) {
+            $lines[] = '## Pertanyaan Mobile (klarifikasi)';
+            $lines[] = $v->pertanyaan_mobile ?? '_Belum ada_';
+            $lines[] = '';
+            if ($v->mobile_answers) {
+                $lines[] = '### Jawaban Mobile';
+                foreach ($v->mobile_answers as $q => $a) {
+                    $lines[] = "- **{$q}:** {$a}";
+                }
+                $lines[] = '';
+            }
+        }
+
+        $lines[] = '## Phase Breakdown';
 
         foreach (($v->phases ?? []) as $ph) {
             $lines[] = "### {$ph['title']}";
@@ -222,7 +374,7 @@ class VersionController extends Controller
     public function updateArtifact(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'stage' => ['required', 'string', 'in:pertanyaan,pertanyaan_mobile,analisa,prd,architecture,erd,master_web,master_mobile'],
+            'stage' => ['required', 'string', 'in:' . implode(',', Version::ALL_STAGES)],
             'content' => ['required', 'string'],
         ]);
 
@@ -236,8 +388,14 @@ class VersionController extends Controller
             'prd' => 'prd',
             'architecture' => 'architecture',
             'erd' => 'erd',
+            'api_contract' => 'api_contract',
+            'phases_web' => 'phases',
+            'standards_web' => 'standards',
             'master_web' => 'master_prompt',
+            'phases_mobile' => 'mobile_phases',
+            'standards_mobile' => 'mobile_standards',
             'master_mobile' => 'mobile_master_prompt',
+            'agents' => 'agents',
         ];
 
         $col = $colMap[$data['stage']];
@@ -270,17 +428,25 @@ class VersionController extends Controller
             ->with('project')
             ->findOrFail((int) $otherId);
 
-        $fields = ['pertanyaan', 'analysis', 'prd', 'architecture', 'erd', 'master_prompt', 'mobile_master_prompt', 'mobile_phases', 'mobile_standards', 'mobile_agents'];
+        $fields = ['pertanyaan', 'answers', 'analysis', 'prd', 'architecture', 'erd', 'api_contract', 'phases', 'standards', 'master_prompt', 'agents',
+            'pertanyaan_mobile', 'mobile_answers', 'mobile_phases', 'mobile_standards', 'mobile_master_prompt', 'mobile_agents'];
         $labels = [
             'pertanyaan' => 'Pertanyaan',
+            'answers' => 'Jawaban Klarifikasi',
             'analysis' => 'Analisa',
             'prd' => 'PRD',
             'architecture' => 'Arsitektur',
             'erd' => 'ERD',
+            'api_contract' => 'API Contract',
+            'phases' => 'Phase Breakdown',
+            'standards' => 'Standards',
             'master_prompt' => 'Master Prompt',
-            'mobile_master_prompt' => 'Mobile Master Prompt',
+            'agents' => 'Agents',
+            'pertanyaan_mobile' => 'Pertanyaan Mobile',
+            'mobile_answers' => 'Jawaban Mobile',
             'mobile_phases' => 'Mobile Phase Breakdown',
             'mobile_standards' => 'Mobile Standards',
+            'mobile_master_prompt' => 'Mobile Master Prompt',
             'mobile_agents' => 'Mobile Agents',
         ];
 
@@ -338,9 +504,9 @@ class VersionController extends Controller
     {
         $data = $request->validate([
             'answers' => ['required', 'array'],
-            'answers.*' => ['required', 'string'],
+            'answers.*' => ['required', 'string', 'max:10000'],
             'mobile_answers' => ['sometimes', 'array'],
-            'mobile_answers.*' => ['required', 'string'],
+            'mobile_answers.*' => ['required', 'string', 'max:10000'],
         ]);
 
         $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
@@ -474,8 +640,7 @@ class VersionController extends Controller
         }
     }
 
-    public function regenerateStandards(Request $request, AiClient $client, int $id): JsonResponse
-    {
+    public function regenerateStandards(Request $request, AiClient $client, int $id): JsonResponse    {
         try {
             $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
                 ->with('project')
@@ -535,6 +700,125 @@ class VersionController extends Controller
             return response()->json([
                 'ok' => false,
                 'message' => 'Gagal meregenerasi standar. Coba lagi nanti.',
+            ], 500);
+        }
+    }
+
+    public function restartFromAnalisa(Request $request, AiClient $client, int $id): JsonResponse
+    {
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
+            ->with('project')
+            ->findOrFail($id);
+
+        if (! $client->isConfigured()) {
+            return response()->json(['ok' => false, 'message' => 'AI Provider belum dikonfigurasi.'], 400);
+        }
+
+        try {
+            $status = $version->stage_status ?? [];
+            foreach (['pertanyaan', 'analisa'] as $skip) {
+                if (($status[$skip] ?? null) !== 'done') {
+                    $status[$skip] = 'done';
+                }
+            }
+            $version->update(['stage_status' => $status]);
+
+            $stream = fopen('php://memory', 'w+');
+            $runner = new PipelineRunner($version->fresh(['project']), $client, $stream);
+            $runner->run('prd', true);
+            rewind($stream);
+            $sse = stream_get_contents($stream);
+            fclose($stream);
+
+            $version->refresh();
+
+            $version->project->logActivity(
+                Activity::ACTION_REGENERATE_STAGE,
+                "Restart dari analisa di v{$version->version_no} (skip pertanyaan)",
+                $version->id,
+                ['mode' => 'skip_pertanyaan'],
+            );
+
+            return response()->json([
+                'ok' => true,
+                'mode' => 'skip_pertanyaan',
+                'skipped' => ['pertanyaan', 'analisa'],
+                'started_at' => 'prd',
+                'stream_tail' => mb_substr((string) $sse, -4096),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[restartFromAnalisa] Error: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Gagal restart pipeline. Coba lagi nanti.',
+            ], 500);
+        }
+    }
+
+    public function regenerateStage(Request $request, AiClient $client, int $id): JsonResponse
+    {
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
+            ->with('project')
+            ->findOrFail($id);
+
+        $data = $request->validate([
+            'stage' => ['required', 'string', 'in:' . implode(',', Version::ALL_STAGES)],
+        ]);
+        $stage = $data['stage'];
+
+        if (! $client->isConfigured()) {
+            return response()->json(['ok' => false, 'message' => 'AI Provider belum dikonfigurasi.'], 400);
+        }
+
+        $snapshot = $version->only([
+            'master_prompt', 'mobile_master_prompt', 'phases', 'mobile_phases',
+            'standards', 'mobile_standards', 'agents', 'mobile_agents',
+            'stage_status', 'updated_at',
+        ]);
+
+        try {
+            $stream = fopen('php://memory', 'w+');
+            $runner = new PipelineRunner($version->fresh(['project']), $client, $stream);
+            $runner->run($stage, true);
+            rewind($stream);
+            $sse = stream_get_contents($stream);
+            fclose($stream);
+
+            $version->refresh();
+            $finalStatus = $version->stage_status;
+            $hasError = ($finalStatus[$stage] ?? null) === 'error';
+
+            if ($hasError) {
+                $version->fill(array_intersect_key($snapshot, $version->getAttributes()));
+                $version->stage_status = $snapshot['stage_status'];
+                $version->save();
+            }
+
+            $version->project->logActivity(
+                Activity::ACTION_REGENERATE_STAGE,
+                "Regenerate stage {$stage} di v{$version->version_no}" . ($hasError ? ' (rolled back)' : ''),
+                $version->id,
+                ['stage' => $stage, 'status' => $finalStatus[$stage] ?? 'pending', 'rolled_back' => $hasError],
+            );
+
+            return response()->json([
+                'ok' => !$hasError,
+                'stage' => $stage,
+                'status' => $finalStatus[$stage] ?? 'pending',
+                'rolled_back' => $hasError,
+                'stream_tail' => mb_substr((string) $sse, -4096),
+            ]);
+        } catch (\Throwable $e) {
+            $version->fill(array_intersect_key($snapshot, $version->getAttributes()));
+            $version->stage_status = $snapshot['stage_status'];
+            $version->save();
+
+            Log::error('[regenerateStage] Error: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Gagal meregenerasi stage. State dikembalikan ke sebelum regenerate.',
             ], 500);
         }
     }

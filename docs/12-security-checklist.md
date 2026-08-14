@@ -4,8 +4,8 @@
 > Checklist dikerjakan per fase. Tandai `[x]` bila lulus + catat di [15-dev-log](15-dev-log.md).
 
 ## A. Infrastruktur & Docker
-- [x] Hanya `nginx` yang publish port ke host (`docker compose ps` → nginx:80 saja).
-- [x] `aiplanstudio_db`, `aiplanstudionginx_api`, `aiplanstudio_web`, `aiplanstudio_redis` **tanpa** `ports:` (host `:5432`/`:3000`/`:8000` tertutup).
+- [x] Tidak ada service yang publish port ke host (`docker compose ps` — semua port internal); akses publik sepenuhnya via Cloudflare Tunnel.
+- [x] `aiplanstudio_db`, `aiplanstudionginx_api`, `aiplanstudio_apifpm`, `aiplanstudio_web`, `aiplanstudio_redis` **tanpa** `ports:` (host `:5432`/`:3000`/`:8000`/`:9000` tertutup).
 - [x] Antar-service via nama container (`aiplanstudio_db`, `aiplanstudionginx_api`, `aiplanstudio_web`, `aiplanstudio_redis`), bukan IP/localhost.
 - [x] Volume DB baru (fresh `aistack_db` volume).
 - [x] `.env` tidak di-commit; hanya `.env.example` (tanpa rahasia).
@@ -46,7 +46,7 @@
 ## F. Transport & Header
 - [ ] (Produksi) HTTPS + redirect http→https.
 - [x] Header keamanan via nginx: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Content-Security-Policy`, `Strict-Transport-Security`, `Permissions-Policy`.
-- [x] CORS: karena same-origin via BFF, tidak perlu CORS.
+- [x] CORS: cross-origin karena BFF removed (Phase 7) — Next.js (`aiplanstudio.arsyiladm.my.id`) call API (`api-aiplanstudio.arsyiladm.my.id`) dengan Sanctum stateful domain + cookie `SameSite=None; Secure`.
 - [x] SSE header aman (`X-Accel-Buffering: no`) tanpa membocorkan info.
 - [x] Session cookie HttpOnly + SameSite=Lax.
 
@@ -55,11 +55,11 @@
 - [x] Tak ada dependency tak terpakai (VerifyServiceToken, SERVICE_TOKEN dihapus).
 - [x] `.dockerignore`/`.gitignore` mengecualikan `node_modules`, `vendor`, `.env`, volume.
 
-## H. Network Level (Laravel hanya accessible dari BFF)
+## H. Network Level (Laravel tidak reachable langsung dari host)
 - [x] Laravel expose port 8000 **internal** (tidak ada `ports:` di docker-compose).
-- [x] Docker network `aistack`: hanya service `aiplanstudio_web` dan `nginx` yang resolve ke `aiplanstudionginx_api`.
+- [x] Docker network `aiplanstudio`: hanya service `aiplanstudio_web` dan `cloudflare_tunnel-cloudflare-tunnel-1` (external, attached) yang resolve ke `aiplanstudionginx_api`.
 - [x] Dari host, `curl localhost:8000` → **connection refused** (tidak ada port mapping).
-- [x] Dari host ke Laravel harus lewat nginx → Next.js (BFF) → Laravel.
+- [x] Dari host ke Laravel harus lewat Cloudflare Tunnel → `api-aiplanstudio.arsyiladm.my.id` (HTTPS publik, lalu tunnel → `aiplanstudionginx_api:8000`).
 
 ## I. Error Monitoring (GlitchTip self-hosted) — **DISABLED**
 > Service GlitchTip di-comment di docker-compose.yml; `.env` DSN di-comment; route nginx `/glitchtip` di-comment. SDK (`sentry/sentry-laravel`, `@sentry/nextjs`) dipertahankan — DSN kosong → no-op. Aktifkan kembali dengan uncomment service + env + route nginx, lalu `docker compose build web`.

@@ -1,4 +1,6 @@
-export type Target = "web" | "both";
+export type { Target, Template } from './api';
+import type { Target } from './api';
+
 export type StageKey = "pertanyaan" | "analisa" | "prd" | "architecture" | "erd" | "api_contract" | "phases_web" | "standards_web" | "master_web" | "pertanyaan_mobile" | "phases_mobile" | "standards_mobile" | "master_mobile" | "agents";
 export type StageState = "pending" | "running" | "done" | "error";
 
@@ -19,9 +21,11 @@ const ALL_STAGES: { key: StageKey; label: string; desc: string }[] = [
   { key: "agents", label: "Agents", desc: "AGENTS.md — spesifikasi AI agent." },
 ];
 
+const WEB_STAGES = ALL_STAGES.filter(s => !s.key.includes('mobile'));
+
 export function getStages(target: Target): { key: StageKey; label: string; desc: string }[] {
   if (target === 'both') return ALL_STAGES;
-  return ALL_STAGES.filter(s => !s.key.includes('mobile'));
+  return WEB_STAGES;
 }
 
 export const STAGES = ALL_STAGES;
@@ -44,7 +48,7 @@ export const projects: Project[] = [
   { id: "p4", title: "Habit Tracker", idea: "Pelacak kebiasaan dengan streak & pengingat.", target: "both", updatedAt: "1 minggu lalu", versions: 4, progress: 100, tags: ["Mobile", "RN"] },
 ];
 
-export type Template = {
+type MockTemplate = {
   id: string;
   name: string;
   target: Target;
@@ -53,7 +57,7 @@ export type Template = {
   seed?: Record<string, string>;
 };
 
-export const templates: Template[] = [
+export const templates: MockTemplate[] = [
   { id: "t1", name: "SaaS Dashboard", target: "web", description: "Auth, billing, multi-tenant, dashboard analytics.", icon: "layout-dashboard" },
   { id: "t2", name: "E-Commerce", target: "both", description: "Katalog, keranjang, checkout, pembayaran.", icon: "shopping-cart" },
   { id: "t3", name: "Mobile CRUD", target: "both", description: "App data sederhana dengan sync offline.", icon: "smartphone" },
@@ -82,7 +86,25 @@ export const sampleErd = {
   ],
 };
 
-export const samplePhases = [
+export interface SubItem {
+  key: string;
+  title: string;
+  desc?: string;
+}
+
+export interface PhaseItem {
+  key: string;
+  title: string;
+  tasks: string[];
+  prompt?: string;
+  halaman?: SubItem[];
+  menu?: SubItem[];
+  fitur?: SubItem[];
+  flow?: SubItem[];
+  api?: SubItem[];
+}
+
+export const samplePhases: PhaseItem[] = [
   { key: "setup", title: "Fase 1 — Setup Proyek", tasks: ["Init repo", "Konfigurasi env", "CI dasar"] },
   { key: "auth", title: "Fase 2 — Autentikasi", tasks: ["Register/Login", "Session", "RBAC"] },
   { key: "core", title: "Fase 3 — Fitur Inti", tasks: ["CRUD produk", "Keranjang", "Checkout"] },

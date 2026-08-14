@@ -1,48 +1,56 @@
 @import "tailwindcss";
 
-/* ===== Design tokens (AI Planning Studio) ===== */
+/* ===== Design tokens (AI Planning Studio — Emerald-Teal, Light-First) ===== */
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  --color-bg: #0a0a0f;
-  --color-bg-soft: #101018;
-  --color-surface: #14141f;
-  --color-surface-2: #1b1b2a;
-  --color-border: #262636;
-  --color-border-soft: #1e1e2c;
-  --color-fg: #ececf1;
-  --color-fg-muted: #a1a1b5;
-  --color-fg-subtle: #6b6b82;
+  /* Light theme = default (no data-theme attr needed) */
+  --color-bg: #f8faf9;
+  --color-bg-soft: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-2: #f0f7f4;
+  --color-border: #e3ede8;
+  --color-border-soft: #ecf3ef;
+  --color-fg: #131915;
+  --color-fg-muted: #4a5a52;
+  --color-fg-subtle: #768a80;
 
-  --color-brand: #7c6cff;
-  --color-brand-2: #b06cff;
-  --color-accent: #22d3ee;
-  --color-success: #34d399;
-  --color-warning: #fbbf24;
-  --color-danger: #fb7185;
+  --color-brand: #10b981;
+  --color-brand-2: #14b8a6;
+  --color-accent: #06b6d4;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
 
   --radius: 0.9rem;
   --radius-lg: 1.25rem;
 }
 
-/* Light theme override */
-:root[data-theme="light"] {
-  --color-bg: #f6f6fb;
-  --color-bg-soft: #ffffff;
-  --color-surface: #ffffff;
-  --color-surface-2: #f1f1f8;
-  --color-border: #e3e3ee;
-  --color-border-soft: #ececf3;
-  --color-fg: #16161f;
-  --color-fg-muted: #565669;
-  --color-fg-subtle: #8a8a9c;
+/* Dark theme override — opt-in via [data-theme="dark"] */
+:root[data-theme="dark"] {
+  --color-bg: #0a1310;
+  --color-bg-soft: #0f1c17;
+  --color-surface: #0f1c17;
+  --color-surface-2: #162520;
+  --color-border: #1e3329;
+  --color-border-soft: #162520;
+  --color-fg: #e8f0ec;
+  --color-fg-muted: #94a89e;
+  --color-fg-subtle: #5a7268;
+
+  --color-brand: #10b981;
+  --color-brand-2: #14b8a6;
+  --color-accent: #06b6d4;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #fb7185;
 }
 
 * { border-color: var(--color-border); }
 
-html { color-scheme: dark; }
-:root[data-theme="light"] { color-scheme: light; }
+html { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 body {
   background: var(--color-bg);
@@ -51,7 +59,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Ambient gradient background */
+/* Ambient gradient background — emerald-teal Aurora */
 .bg-aurora { position: relative; isolation: isolate; }
 .bg-aurora::before {
   content: "";
@@ -59,9 +67,9 @@ body {
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(50rem 50rem at 15% -10%, color-mix(in oklab, var(--color-brand) 22%, transparent), transparent 60%),
-    radial-gradient(40rem 40rem at 90% 0%, color-mix(in oklab, var(--color-accent) 14%, transparent), transparent 55%),
-    radial-gradient(45rem 45rem at 60% 110%, color-mix(in oklab, var(--color-brand-2) 16%, transparent), transparent 60%);
+    radial-gradient(50rem 50rem at 15% -10%, color-mix(in oklab, var(--color-brand) 18%, transparent), transparent 60%),
+    radial-gradient(40rem 40rem at 90% 0%, color-mix(in oklab, var(--color-accent) 12%, transparent), transparent 55%),
+    radial-gradient(45rem 45rem at 60% 110%, color-mix(in oklab, var(--color-brand-2) 14%, transparent), transparent 60%);
   pointer-events: none;
 }
 

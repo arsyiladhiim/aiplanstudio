@@ -94,25 +94,30 @@ class AiClient
         if ($host === null || $host === '') {
             return 'URL tidak valid.';
         }
+        $blockedHosts = ['api', 'web', 'db', 'redis', 'nginx', 'localhost', '127.0.0.1', 'aiplanstudio_web', 'aiplanstudionginx_api', 'aiplanstudio_apifpm', 'aiplanstudio_db', 'aiplanstudio_redis', '0.0.0.0', '::1', 'host.docker.internal'];
+        if (in_array(strtolower($host), $blockedHosts, true)) {
+            return 'URL mengarah ke host internal. Hanya domain eksternal yang diizinkan.';
+        }
         // Check if host is already a literal IP (including IPv6)
         if (filter_var($host, FILTER_VALIDATE_IP)) {
             $ips = [$host];
         } else {
-            // Resolve both IPv4 and IPv6 addresses
-            $records = dns_get_record($host, DNS_A | DNS_AAAA);
+            // Resolve both IPv4 and IPv6 addresses; treat DNS errors as "unresolvable"
+            try {
+                $records = @dns_get_record($host, DNS_A | DNS_AAAA);
+                $records = is_array($records) ? $records : [];
+            } catch (\Throwable $e) {
+                $records = [];
+            }
             $ips = [];
             foreach ($records as $rec) {
                 if (isset($rec['ip'])) $ips[] = $rec['ip'];
                 if (isset($rec['ipv6'])) $ips[] = $rec['ipv6'];
             }
             if (empty($ips)) {
-                // Fallback: treat unresolvable host as potentially valid (not internal)
-                return null;
+                // Unresolvable host — reject as suspicious (DNS rebinding protection)
+                return 'Host tidak dapat diresolusi. Hanya domain eksternal yang diizinkan.';
             }
-        }
-        $allowedInternalHosts = ['api', 'web', 'db', 'redis', 'nginx', 'localhost', '127.0.0.1', 'aiplanstudionginx_web', 'aiplanstudio_web', 'aiplanstudionginx_api', 'aiplanstudio_apifpm', 'aiplanstudio_db', 'aiplanstudio_redis'];
-        if (in_array(strtolower($host), $allowedInternalHosts, true)) {
-            return null;
         }
         foreach ($ips as $ip) {
             $isInternal = filter_var($ip, FILTER_VALIDATE_IP) && (

@@ -4,8 +4,8 @@ import { request as pwRequest } from "@playwright/test";
 // Logs in once via the real BFF stack and saves session cookies so all
 // project/wizard tests share one authenticated state (avoids login throttle).
 const baseURL = process.env.E2E_BASE_URL || "http://localhost:4197";
-const adminEmail = process.env.E2E_ADMIN_EMAIL || "admin@aistack.dev";
-const adminPassword = process.env.E2E_ADMIN_PASSWORD || "password123";
+const adminEmail = process.env.E2E_ADMIN_EMAIL || "";
+const adminPassword = process.env.E2E_ADMIN_PASSWORD || "";
 const statePath = "./e2e/.auth/state.json";
 
 export default async function globalSetup() {

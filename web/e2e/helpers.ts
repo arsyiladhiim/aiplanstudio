@@ -1,7 +1,7 @@
 import { Page } from "@playwright/test";
 
-export const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@aistack.dev";
-export const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "password123";
+export const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "";
+export const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "";
 
 /** Check if the current browser session is authenticated (session cookie → /api/user). */
 async function isAuthed(page: Page): Promise<boolean> {

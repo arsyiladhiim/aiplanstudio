@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, Badge, Input, Label } from "@/components/ui";
+import { Card, Badge, Input, Label, Modal } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import {
   apiGet,
@@ -17,7 +17,6 @@ import {
   Shield,
   Lock,
   Loader2,
-  X,
   CheckCircle2,
   AlertCircle,
   Check,
@@ -229,111 +228,86 @@ export default function UsersSettings() {
         })}
       </div>
 
-      {/* Add User Modal */}
-      {showModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => setShowModal(false)}
-        >
-          <div
-            className="mx-4 w-full max-w-md"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Card className="p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-semibold">Tambah Pengguna</h3>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowModal(false)}
-                  aria-label="Tutup"
-                >
-                  <X size={18} />
-                </Button>
-              </div>
-
-              <form className="space-y-4" onSubmit={handleAdd}>
-                <div>
-                  <Label htmlFor="add-name">Nama</Label>
-                  <Input
-                    id="add-name"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder="Nama lengkap"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="add-email">Email</Label>
-                  <Input
-                    id="add-email"
-                    type="email"
-                    value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
-                    placeholder="user@email.com"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="add-password">Password</Label>
-                  <Input
-                    id="add-password"
-                    type="password"
-                    value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
-                    placeholder="Min. 8 karakter"
-                    required
-                    minLength={8}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="add-role">Role</Label>
-                  <select
-                    id="add-role"
-                    value={formRole}
-                    onChange={(e) =>
-                      setFormRole(e.target.value as "admin" | "member")
-                    }
-                    className="flex h-10 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]"
-                  >
-                    <option value="member">Member</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-
-                {submitSuccess && (
-                  <div className="flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-500">
-                    <CheckCircle2 size={16} /> Berhasil ditambahkan
-                  </div>
-                )}
-                {submitError && (
-                  <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-500">
-                    <AlertCircle size={16} /> {submitError}
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    type="submit"
-                    disabled={submitting}
-                    className="flex-1"
-                    data-testid="add-user-submit"
-                  >
-                    {submitting ? "Menyimpan…" : "Simpan"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setShowModal(false)}
-                  >
-                    Batal
-                  </Button>
-                </div>
-              </form>
-            </Card>
+      <Modal open={showModal} onClose={() => setShowModal(false)} title="Tambah Pengguna" size="sm">
+        <form className="space-y-4" onSubmit={handleAdd}>
+          <div>
+            <Label htmlFor="add-name">Nama</Label>
+            <Input
+              id="add-name"
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              placeholder="Nama lengkap"
+              required
+            />
           </div>
-        </div>
-      )}
+          <div>
+            <Label htmlFor="add-email">Email</Label>
+            <Input
+              id="add-email"
+              type="email"
+              value={formEmail}
+              onChange={(e) => setFormEmail(e.target.value)}
+              placeholder="user@email.com"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="add-password">Password</Label>
+            <Input
+              id="add-password"
+              type="password"
+              value={formPassword}
+              onChange={(e) => setFormPassword(e.target.value)}
+              placeholder="Min. 8 karakter"
+              required
+              minLength={8}
+            />
+          </div>
+          <div>
+            <Label htmlFor="add-role">Role</Label>
+            <select
+              id="add-role"
+              value={formRole}
+              onChange={(e) =>
+                setFormRole(e.target.value as "admin" | "member")
+              }
+              className="flex h-10 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]"
+            >
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+
+          {submitSuccess && (
+            <div className="flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-500">
+              <CheckCircle2 size={16} /> Berhasil ditambahkan
+            </div>
+          )}
+          {submitError && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-500">
+              <AlertCircle size={16} /> {submitError}
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="flex-1"
+              data-testid="add-user-submit"
+            >
+              {submitting ? "Menyimpan…" : "Simpan"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowModal(false)}
+            >
+              Batal
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </Card>
   );
 }

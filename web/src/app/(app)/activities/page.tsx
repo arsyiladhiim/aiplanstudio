@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/common";
 import { apiGet, type Activity } from "@/lib/api";
 import { History, User, ArrowRight, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { formatRelativeTime } from "@/lib/format";
 
 interface PaginatedResponse {
   data: Activity[];
@@ -39,21 +40,6 @@ export default function ActivitiesPage() {
     })();
     return () => { cancelled = true; };
   }, [page]);
-
-  function formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 60) return `${diffMins} menit lalu`;
-    if (diffHours < 24) return `${diffHours} jam lalu`;
-    if (diffDays === 1) return "kemarin";
-    if (diffDays < 7) return `${diffDays} hari lalu`;
-    return date.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
-  }
 
   const actionBadge = (action: string) => {
     const tones: Record<string, "brand" | "success" | "warning" | "danger" | "muted"> = {
@@ -115,7 +101,7 @@ export default function ActivitiesPage() {
                   <span className="inline-flex items-center gap-1">
                     <User size={11} /> {a.user.name}
                   </span>
-                  <span>{formatDate(a.created_at)}</span>
+                  <span>{formatRelativeTime(a.created_at)}</span>
                 </div>
               </div>
               {a.project_id && (

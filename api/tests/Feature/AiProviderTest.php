@@ -71,7 +71,7 @@ class AiProviderTest extends TestCase
 
     public function test_prompt_files_exist_for_all_stages(): void
     {
-        $stages = ['analisa', 'prd', 'architecture', 'erd', 'phases', 'master'];
+        $stages = ['analisa', 'prd', 'architecture', 'erd', 'api_contract', 'phases', 'standards', 'master', 'agents', 'pertanyaan', 'pertanyaan_mobile', 'phases_mobile'];
         foreach ($stages as $stage) {
             $path = __DIR__ . "/../../app/Prompts/{$stage}.php";
             $this->assertFileExists($path, "Prompt file untuk stage {$stage} tidak ditemukan");

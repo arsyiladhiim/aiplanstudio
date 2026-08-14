@@ -1,7 +1,8 @@
 // lib/api.ts — fetch wrapper with Sanctum SPA session auth.
 // Auth via HttpOnly session cookie + CSRF. No tokens in JS.
+// Direct call ke Laravel API (no BFF) — see docs/25-bypass-bff.md.
 
-const BASE = "";
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 const TIMEOUT_MS = 30_000;
 
 let csrfPromise: Promise<void> | null = null;
@@ -35,11 +36,20 @@ function csrfHeaders(method: string): HeadersInit {
     const token = getCsrfToken();
     if (token) h["X-XSRF-TOKEN"] = token;
   }
+  h["X-Request-ID"] = generateRequestId();
   return h;
+}
+
+let _reqCounter = 0;
+function generateRequestId(): string {
+  _reqCounter = (_reqCounter + 1) % 0xffff;
+  return `${Date.now().toString(36)}-${_reqCounter.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
+    // Forced logout from module-level fetcher: full reload to clear any cached client state.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     if (typeof window !== "undefined") window.location.href = "/login";
     throw new Error("Sesi telah berakhir. Silakan login ulang.");
   }
@@ -108,7 +118,12 @@ async function apiFetch<T>(
     if (err instanceof RetryableCsrfError) {
       csrfPromise = null;
       await ensureCsrf();
-      return doFetch();
+      const timer2 = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        return await doFetch();
+      } finally {
+        clearTimeout(timer2);
+      }
     }
     throw err;
   }
@@ -124,10 +139,6 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 
 export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
   return apiFetch<T>("PATCH", path, body);
-}
-
-export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
-  return apiFetch<T>("PUT", path, body);
 }
 
 export async function apiDelete(path: string): Promise<void> {
@@ -193,7 +204,16 @@ export function createSSE(
       console.error("SSE connection error. readyState:", es.readyState);
       onError?.(new Event("error"));
     }
-    // Do NOT close — let browser auto-reconnect for transient errors
+    if (es.readyState === EventSource.CLOSED) {
+      console.error("SSE connection closed permanently. Attempting manual reconnect...");
+      es.close();
+      setTimeout(() => {
+        if (finished) return;
+        const es2 = createSSE(path, onEvent, onError);
+        es2.addEventListener("done", () => { es2.close(); });
+        es2.addEventListener("fail", () => { es2.close(); });
+      }, 3000);
+    }
   };
 
   return es;
@@ -288,6 +308,7 @@ export type User = {
   email: string;
   role: "admin" | "member";
   status?: "active" | "pending";
+  accent_color?: string | null;
 };
 export type Project = {
   id: number;
@@ -302,6 +323,8 @@ export type Project = {
   stage_status?: Record<string, string>;
   latest_version_id?: number | null;
   is_favorite?: boolean;
+  is_pinned?: boolean;
+  archived_at?: string | null;
 };
 export interface ErdData {
   nodes?: Array<{ id: string; label: string; fields?: string[] }>;
@@ -320,6 +343,33 @@ export interface PhaseData {
   tasks?: string[];
   prompt?: string;
   ac?: string[];
+  halaman?: SubItem[];
+  menu?: SubItem[];
+  fitur?: SubItem[];
+  flow?: SubItem[];
+  api?: SubItem[];
+}
+
+export interface SubItem {
+  key: string;
+  title: string;
+  desc?: string;
+}
+
+export interface TaskProgressData {
+  id: number;
+  phase_progress_id: number;
+  task_key: string;
+  task_type: string;
+  title: string;
+  status: "pending" | "running" | "done" | "error";
+  output?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
+export async function toggleTask(versionId: number, taskKey: string, done: boolean, phaseKey?: string): Promise<TaskProgressData> {
+  return apiPatch<TaskProgressData>(`/versions/${versionId}/tasks/${taskKey}`, { done, phase_key: phaseKey });
 }
 
 export type Version = {
@@ -355,6 +405,7 @@ export type Version = {
     output?: string | null;
     started_at?: string | null;
     finished_at?: string | null;
+    tasks?: TaskProgressData[];
   }>;
 };
 
@@ -406,3 +457,21 @@ export type Template = {
   created_at: string;
   updated_at: string;
 };
+
+export type AppVersion = {
+  version: string;
+  name: string;
+};
+
+let _cachedVersion: AppVersion | null = null;
+
+export async function fetchAppVersion(): Promise<AppVersion | null> {
+  if (_cachedVersion) return _cachedVersion;
+  try {
+    const v = await apiGet<AppVersion>("/version");
+    _cachedVersion = v;
+    return v;
+  } catch {
+    return null;
+  }
+}

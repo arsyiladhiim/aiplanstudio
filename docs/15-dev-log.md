@@ -3,6 +3,33 @@
 > **Catat setiap proses development di sini** (aturan wajib [11-development-rules](11-development-rules.md)). Entri terbaru di atas.
  > Format tiap entri: tanggal · fase · apa yang dikerjakan · perintah/hasil · kendala · perbaikan · status.
 
+### 2026-08-14 · Phase 7 — Bypass BFF + Direct Domain Routing
+- Dikerjakan: per `docs/25-bypass-bff.md`. Migrasi dari arsitektur BFF ke direct call.
+- (E1) Backend: `api/.env` (`SESSION_SAME_SITE=none`, `SESSION_DOMAIN=null`), publish + edit `api/config/cors.php` (allowed_origins spesifik, supports_credentials, max_age 86400). CORS preflight test → 204 + full headers.
+- (E2) Frontend: `web/.env.production` + `.env.development`, `web/src/lib/api.ts` BASE → env var, hapus `web/src/lib/bff.ts` + `web/src/app/api/**` (40+ BFF routes), `web/src/middleware.ts` pass-through, `web/next.config.ts` CSP (connect-src API_URL, frame-ancestors none), `web/Dockerfile` ARG NEXT_PUBLIC_API_URL.
+- (E3) Tunnel: attach `cloudflare_tunnel-cloudflare-tunnel-1` ke `aiplanstudio_aiplanstudio` network, tambah `listen 80` di `docker/api-nginx/default.conf` agar service expose port 80 untuk tunnel.
+- (E4) Validation: backend test 246 pass, lint/tsc 0, CORS preflight verified, cookies verified (`secure; samesite=none`).
+- (E5) Rebuild api + web image, recreate containers.
+- Status: [x] Phase 7 selesai. Arsitektur: `aiplanstudio.arsyiladm.my.id` (Next.js) ↔ `api-aiplanstudio.arsyiladm.my.id` (Laravel) via Cloudflare Tunnel, no BFF.
+
+### 2026-08-13 · Phase 6 — Pertanyaan Stage Performance (A+B+C+D)
+- Dikerjakan: per `docs/24-pertanyaan-performance.md`. (A) `MAX_MCQ_RETRIES = 180 → 10` + exponential backoff (0.5s × 2^n cap 8s) + Log retry count. (B) Truncate `master_prompt` pertanyaan_mobile ke 2000 char + helper `truncateForContext()`. (C) Frontend spinner + retry counter inline untuk pertanyaan & pertanyaan_mobile loading state. (D) Validation: backend test 246 pass (+3 dari baseline 243), frontend lint/tsc clean.
+- Perintah/hasil: `php artisan test` → 246 passed, 1 pre-existing Socialite order fail, 1 skip (980 assertions). `npx tsc --noEmit` 0. `npm run lint` 0.
+- Dampak: pertanyaan retry attempts cap 180 → 10; pertanyaan_mobile token input -91% (~22KB → ~2KB master_prompt); observability via Log; UX lebih transparan.
+- Status: [x] Phase 6 selesai.
+
+### 2026-08-13 · MP0–MP13 — Monitoring + DX + UX Polish (final pass)
+- Dikerjakan: per `docs/23-monitoring-dx-polish.md`. (MP0–MP4 backend: `/api/version` + RequestContext + DemoSeeder + `/api/admin/health` + `/api/admin/migrations`). (MP5–MP7, MP9–MP11 frontend: footer+about, live progress widget, WhatsNew modal, onboarding tour, confetti, accent color picker). (MP8 backend: `/api/changelog`). (MP12 docs: E20–E25 ke `docs/22-e2e-test-plan.md`).
+- Perintah/hasil: `php artisan migrate --force` OK (accent_color migration). `php artisan test` → **243 passed, 1 skipped, 1 failed** (pre-existing Socialite test order issue, passes in isolation; exceeds 220+ target). `npx tsc --noEmit` 0 errors. `npm run lint` 0 errors / 0 warnings. `npm run build` exit 0 (semua route compile, AppShell + LiveProgressWidget + WhatsNewModal + OnboardingTour + Confetti lazy-loaded).
+- Kendala: (1) New `react-hooks/set-state-in-effect` rule fires on `useEffect → setState` pattern — refactored to `useState` initializer + `useRef` indirection. (2) `react/no-unescaped-entities` for `You're` → `You&apos;re`. (3) `useRouter().push` swap di 4 lokasi (`window.location.href` ESLint warning).
+- Perbaikan: hand-rolled替代 untuk `driver.js` + `canvas-confetti` (YAGNI, no new deps). Custom SVG mask + CSS keyframes — sudah cukup untuk UX spec.
+- Status: [x] MP0–MP13 selesai. Frontend lint/tsc/build 0. Backend test 243 pass. Production-ready.
+
+### 2026-08-08 · R2 — Konsistensi fasa master + export fields + dashboard progress (perbaikan)
+- Dikerjakan: (1) `master_web`/`master_mobile` menginjeksikan breakdown `phases`/`mobile_phases` (fase dari stages) + prompt `phased_master*` wajib pakai key fase dari konteks (konsistensi fase & webhook tracking — sebelumnya AI buat urutan baru). (2) `agents` stage + konteks standards & ERD/API contract. (3) Export `.md` tambah section `## API Contract` + klarifikasi mobile + jawaban mobile. (4) Dashboard `recent_projects` + `progress`/`stage_count`/`latest_version_id` + progress bar card.
+- Perintah/hasil: `php artisan test` → 152 passed. `tsc` 0. `lint` 0 (5 warning pre-existing). Build web OK.
+- Status: [x] Selesai.
+
 ### 2026-08-08 · R1 — Versi Baru clone baseline + docs sync + Q2/Q3 (ops)
 - Dikerjakan: (1) **Versi Baru `from_last`**: `VersionController::store({strategy})` — default salin artefak (`pertanyaan`, `analysis`, `prd`, `architecture`, `erd`, `api_contract`, `phases`, `standards`, `agents`, `master_prompt`, `mobile_*`, `answers`, `mobile_answers`) + `stage_status` dari versi terakhir; opsi `blank`. Kolom baru `source_version_id` + `baseline_notes` (migration `2026_08_08_130000`). Relasi `Version::source()`. UI dialog "Buat Versi Baru" (pilih strategi + catatan). (2) `dashboardStats.active_projects` = proyek dgn ≥1 stage `done` (sebelumnya asal punya version). (3) Docs: pivot pipeline 14/10 stage, `agents` (bukan agents_web/mobile), `api_contract` stage, no-auto-run align.
 - Perintah/hasil: `php artisan migrate --force` OK. `php artisan test` → 150 passed. `tsc` 0. `lint` 0 (5 warning pre-existing).

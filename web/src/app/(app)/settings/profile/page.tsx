@@ -5,11 +5,27 @@ import { Button } from "@/components/ui/Button";
 import { apiGet, apiPatch, fetchCsrfCookie } from "@/lib/api";
 import { Loader2, Check, AlertCircle, Eye, EyeOff } from "lucide-react";
 
+const PRESETS = [
+  { name: "Ungu", value: "#7c3aed" },
+  { name: "Cyan", value: "#06b6d4" },
+  { name: "Hijau", value: "#10b981" },
+  { name: "Oranye", value: "#f59e0b" },
+  { name: "Merah", value: "#ef4444" },
+  { name: "Pink", value: "#ec4899" },
+];
+
+function applyAccent(color: string | null) {
+  if (typeof document === "undefined") return;
+  if (color) document.documentElement.style.setProperty("--color-brand", color);
+  else document.documentElement.style.removeProperty("--color-brand");
+}
+
 export default function ProfilePage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [accentColor, setAccentColor] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -17,8 +33,13 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    apiGet<{ id: number; name: string; email: string; role: string }>("/settings/profile")
-      .then(data => { setName(data.name); setEmail(data.email); })
+    apiGet<{ id: number; name: string; email: string; role: string; accent_color: string | null }>("/settings/profile")
+      .then(data => {
+        setName(data.name);
+        setEmail(data.email);
+        setAccentColor(data.accent_color ?? "");
+        applyAccent(data.accent_color ?? null);
+      })
       .catch(err => setError(err instanceof Error ? err.message : "Gagal memuat profil"))
       .finally(() => setLoading(false));
   }, []);
@@ -28,14 +49,16 @@ export default function ProfilePage() {
     setMessage(null);
     try {
       await fetchCsrfCookie();
-      const body: Record<string, string> = {};
+      const body: Record<string, string | null> = {};
       if (name.trim()) body.name = name.trim();
       if (email.trim()) body.email = email.trim();
       if (password) {
         body.password = password;
         body.password_confirmation = passwordConfirmation;
       }
+      body.accent_color = accentColor.trim() || null;
       await apiPatch("/settings/profile", body);
+      applyAccent(accentColor.trim() || null);
       setMessage({ type: 'success', text: 'Profil berhasil diperbarui.' });
       setPassword("");
       setPasswordConfirmation("");
@@ -54,6 +77,47 @@ export default function ProfilePage() {
     <Card className="p-6">
       <h2 className="mb-4 text-lg font-semibold">Edit Profil</h2>
       <div className="space-y-4">
+        <div>
+          <Label>Warna Aksen</Label>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {PRESETS.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                aria-label={p.name}
+                title={p.name}
+                onClick={() => setAccentColor(p.value)}
+                className={`h-8 w-8 rounded-full border-2 transition ${
+                  accentColor.toLowerCase() === p.value.toLowerCase()
+                    ? "border-[var(--color-fg)] scale-110"
+                    : "border-transparent hover:scale-105"
+                }`}
+                style={{ background: p.value }}
+                data-testid={`accent-${p.value}`}
+              />
+            ))}
+            <input
+              type="color"
+              value={accentColor || "#7c3aed"}
+              onChange={(e) => setAccentColor(e.target.value)}
+              className="h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent"
+              aria-label="Pilih warna kustom"
+              data-testid="accent-custom"
+            />
+            <Input
+              type="text"
+              value={accentColor}
+              onChange={(e) => setAccentColor(e.target.value)}
+              placeholder="#7c3aed"
+              className="w-32 font-mono text-xs"
+              data-testid="accent-hex"
+            />
+            {accentColor && (
+              <Button variant="ghost" size="sm" onClick={() => setAccentColor("")}>Reset</Button>
+            )}
+          </div>
+        </div>
+        <hr className="border-[var(--color-border)]" />
         <div>
           <Label htmlFor="name">Nama</Label>
           <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />

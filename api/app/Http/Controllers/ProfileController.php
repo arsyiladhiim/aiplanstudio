@@ -11,7 +11,7 @@ class ProfileController extends Controller
 {
     public function show(Request $request): JsonResponse
     {
-        return response()->json($request->user()->only(['id', 'name', 'email', 'role']));
+        return response()->json($request->user()->only(['id', 'name', 'email', 'role', 'accent_color']));
     }
 
     public function update(Request $request): JsonResponse
@@ -22,6 +22,7 @@ class ProfileController extends Controller
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'password' => ['sometimes', 'string', 'min:8', 'confirmed'],
+            'accent_color' => ['sometimes', 'nullable', 'string', 'regex:/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/'],
         ]);
 
         if (isset($data['password'])) {
@@ -30,6 +31,6 @@ class ProfileController extends Controller
 
         $user->update($data);
 
-        return response()->json($user->fresh()->only(['id', 'name', 'email', 'role']));
+        return response()->json($user->fresh()->only(['id', 'name', 'email', 'role', 'accent_color']));
     }
 }

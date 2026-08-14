@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AiProvider;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\Version;
@@ -176,6 +177,9 @@ class VersionTest extends TestCase
             'project_id' => $this->project->id,
             'analysis' => '# Analysis',
             'prd' => '# PRD',
+            'api_contract' => [['method' => 'GET', 'path' => '/api/users', 'description' => 'List users', 'auth' => true]],
+            'pertanyaan_mobile' => '{"questions":[{"id":"qm1","question":"Q mobile?","options":[]}]}',
+            'mobile_answers' => ['qm1: Q mobile?' => 'A. Ya'],
             'mobile_phases' => [['key' => 'm-setup', 'title' => 'Mobile Setup', 'tasks' => [], 'prompt' => 'Build the Flutter app.']],
             'mobile_master_prompt' => '# Mobile Master Prompt',
             'mobile_standards' => '# Mobile Standards',
@@ -188,6 +192,10 @@ class VersionTest extends TestCase
         $response->assertStatus(200);
         $this->assertStringContainsString('text/markdown', $response->headers->get('Content-Type') ?? '');
         $content = $response->getContent();
+        $this->assertStringContainsString('## API Contract', $content);
+        $this->assertStringContainsString('/api/users', $content);
+        $this->assertStringContainsString('## Pertanyaan Mobile (klarifikasi)', $content);
+        $this->assertStringContainsString('### Jawaban Mobile', $content);
         $this->assertStringContainsString('## Mobile (Flutter)', $content);
         $this->assertStringContainsString('Mobile Setup', $content);
         $this->assertStringContainsString('## Mobile Standards', $content);
@@ -262,6 +270,38 @@ class VersionTest extends TestCase
         $response->assertStatus(404);
     }
 
+    public function test_delete_version(): void
+    {
+        $v1 = $this->project->versions()->create([
+            'version_no' => 1,
+            'stage_status' => Version::defaultStageStatus(),
+        ]);
+        $v2 = $this->project->versions()->create([
+            'version_no' => 2,
+            'stage_status' => Version::defaultStageStatus(),
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->deleteJson("/api/versions/{$v2->id}");
+
+        $response->assertStatus(204);
+        $this->assertDatabaseMissing('versions', ['id' => $v2->id]);
+    }
+
+    public function test_cannot_delete_last_version(): void
+    {
+        $version = $this->project->versions()->create([
+            'version_no' => 1,
+            'stage_status' => Version::defaultStageStatus(),
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->deleteJson("/api/versions/{$version->id}");
+
+        $response->assertStatus(422);
+        $this->assertDatabaseHas('versions', ['id' => $version->id]);
+    }
+
     public function test_diff_includes_mobile_artifacts(): void
     {
         $left = Version::factory()->create([
@@ -300,5 +340,371 @@ class VersionTest extends TestCase
         $this->assertTrue($diffs['mobile_master_prompt']['changed']);
         $this->assertTrue($diffs['mobile_standards']['changed']);
         $this->assertFalse($diffs['mobile_agents']['changed']);
+    }
+
+    public function test_update_artifact(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->patchJson("/api/versions/{$version->id}/artifacts", [
+                'stage' => 'analisa',
+                'content' => 'Updated analysis content',
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson(['ok' => true]);
+
+        $this->assertDatabaseHas('versions', [
+            'id' => $version->id,
+            'analysis' => 'Updated analysis content',
+        ]);
+    }
+
+    public function test_update_artifact_all_14_stages(): void
+    {
+        $stageContents = [
+            'pertanyaan' => ['pertanyaan', 'Pertanyaan klarifikasi web'],
+            'analisa' => ['analysis', 'Analisa konten'],
+            'prd' => ['prd', 'PRD content'],
+            'architecture' => ['architecture', 'Architecture content'],
+            'erd' => ['erd', '{"tables":[]}'],
+            'api_contract' => ['api_contract', '[{"method":"GET","path":"/api/users"}]'],
+            'phases_web' => ['phases', '[{"key":"setup","title":"Setup"}]'],
+            'standards_web' => ['standards', 'Standards content'],
+            'master_web' => ['master_prompt', 'Master prompt content'],
+            'pertanyaan_mobile' => ['pertanyaan_mobile', 'Pertanyaan mobile'],
+            'phases_mobile' => ['mobile_phases', '[{"key":"m-setup","title":"Setup"}]'],
+            'standards_mobile' => ['mobile_standards', 'Mobile standards content'],
+            'master_mobile' => ['mobile_master_prompt', 'Mobile master prompt'],
+            'agents' => ['agents', 'Agents content'],
+        ];
+
+        $versionNo = 1;
+        foreach ($stageContents as $stage => [$column, $content]) {
+            $version = Version::factory()->create([
+                'project_id' => $this->project->id,
+                'version_no' => $versionNo++,
+            ]);
+
+            $response = $this->actingAs($this->user, 'sanctum')
+                ->patchJson("/api/versions/{$version->id}/artifacts", [
+                    'stage' => $stage,
+                    'content' => $content,
+                ]);
+
+            $response->assertStatus(200, "Stage {$stage} failed");
+
+            $updated = Version::find($version->id);
+            if (in_array($stage, ['erd', 'api_contract', 'phases_web', 'phases_mobile'])) {
+                $this->assertNotNull($updated->{$column}, "Column {$column} is null for stage {$stage}");
+            } else {
+                $this->assertEquals($content, $updated->{$column}, "Column {$column} mismatch for stage {$stage}");
+            }
+        }
+    }
+
+    public function test_update_artifact_invalid_stage_returns_422(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->patchJson("/api/versions/{$version->id}/artifacts", [
+                'stage' => 'invalid_stage',
+                'content' => 'Some content',
+            ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_update_answers(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->patchJson("/api/versions/{$version->id}/answers", [
+                'answers' => ['q1' => 'Answer 1', 'q2' => 'Answer 2'],
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson(['ok' => true]);
+
+        $updated = Version::find($version->id);
+        $this->assertEquals(['q1' => 'Answer 1', 'q2' => 'Answer 2'], $updated->answers);
+    }
+
+    public function test_update_answers_with_mobile_answers(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->patchJson("/api/versions/{$version->id}/answers", [
+                'answers' => ['q1' => 'Web answer'],
+                'mobile_answers' => ['qm1' => 'Mobile answer'],
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson(['ok' => true]);
+
+        $updated = Version::find($version->id);
+        $this->assertEquals(['q1' => 'Web answer'], $updated->answers);
+        $this->assertEquals(['qm1' => 'Mobile answer'], $updated->mobile_answers);
+    }
+
+    public function test_download_standards(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+            'standards' => '# Web Standards content',
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->get("/api/versions/{$version->id}/standards");
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment', $response->headers->get('Content-Disposition') ?? '');
+        $this->assertStringContainsString('STANDARDS.md', $response->headers->get('Content-Disposition') ?? '');
+        $this->assertStringContainsString('# Web Standards content', $response->getContent());
+    }
+
+    public function test_download_agents(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+            'agents' => '# Web Agents content',
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->get("/api/versions/{$version->id}/agents");
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment', $response->headers->get('Content-Disposition') ?? '');
+        $this->assertStringContainsString('AGENTS.md', $response->headers->get('Content-Disposition') ?? '');
+        $this->assertStringContainsString('# Web Agents content', $response->getContent());
+    }
+
+    public function test_download_mobile_standards(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+            'mobile_standards' => '# Mobile Standards content',
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->get("/api/versions/{$version->id}/standards/mobile");
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment', $response->headers->get('Content-Disposition') ?? '');
+        $this->assertStringContainsString('STANDARDS-MOBILE.md', $response->headers->get('Content-Disposition') ?? '');
+        $this->assertStringContainsString('# Mobile Standards content', $response->getContent());
+    }
+
+    public function test_download_mobile_agents(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+            'mobile_agents' => '# Mobile Agents content',
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->get("/api/versions/{$version->id}/agents/mobile");
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment', $response->headers->get('Content-Disposition') ?? '');
+        $this->assertStringContainsString('AGENTS-MOBILE.md', $response->headers->get('Content-Disposition') ?? '');
+        $this->assertStringContainsString('# Mobile Agents content', $response->getContent());
+    }
+
+    public function test_regenerate_standards_returns_400_without_provider(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$version->id}/regenerate-standards");
+
+        $response->assertStatus(400)
+            ->assertJson(['ok' => false]);
+    }
+
+    public function test_regenerate_mobile_standards_returns_400_without_provider(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$version->id}/regenerate-standards/mobile");
+
+        $response->assertStatus(400)
+            ->assertJson(['ok' => false]);
+    }
+
+    public function test_cannot_update_artifact_other_users_version(): void
+    {
+        $otherUser = User::factory()->create();
+        $otherProject = Project::factory()->create(['user_id' => $otherUser->id]);
+        $version = Version::factory()->create(['project_id' => $otherProject->id]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->patchJson("/api/versions/{$version->id}/artifacts", [
+                'stage' => 'analisa',
+                'content' => 'Hijacked content',
+            ]);
+
+        $response->assertStatus(404);
+    }
+
+    public function test_cannot_download_other_users_version(): void
+    {
+        $otherUser = User::factory()->create();
+        $otherProject = Project::factory()->create(['user_id' => $otherUser->id]);
+        $version = Version::factory()->create([
+            'project_id' => $otherProject->id,
+            'standards' => 'Secret standards',
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->get("/api/versions/{$version->id}/standards");
+
+        $response->assertStatus(404);
+    }
+
+    public function test_diff_returns_422_without_compare(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->getJson("/api/versions/{$version->id}/diff");
+
+        $response->assertStatus(422)
+            ->assertJson(['message' => 'Parameter compare required.']);
+    }
+
+    public function test_diff_with_compare(): void
+    {
+        $v1 = Version::factory()->create([
+            'project_id' => $this->project->id,
+            'analysis' => 'Analysis v1',
+            'prd' => 'PRD v1',
+        ]);
+
+        $v2 = Version::factory()->create([
+            'project_id' => $this->project->id,
+            'version_no' => 2,
+            'analysis' => 'Analysis v2',
+            'prd' => 'PRD v1',
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->getJson("/api/versions/{$v1->id}/diff?compare={$v2->id}");
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'left' => ['id', 'version_no', 'project_title'],
+                'right' => ['id', 'version_no', 'project_title'],
+                'diffs' => [
+                    '*' => ['field', 'label', 'left', 'right', 'changed'],
+                ],
+            ]);
+
+        $diffs = collect($response->json('diffs'))->keyBy('field');
+        $this->assertTrue($diffs['analysis']['changed']);
+        $this->assertFalse($diffs['prd']['changed']);
+        $this->assertEquals('Analysis v1', $diffs['analysis']['left']);
+        $this->assertEquals('Analysis v2', $diffs['analysis']['right']);
+    }
+
+    public function test_regenerate_stage_requires_stage(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$version->id}/regenerate", []);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_regenerate_stage_rejects_invalid_stage(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$version->id}/regenerate", [
+                'stage' => 'bogus_stage',
+            ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_regenerate_stage_returns_400_without_provider(): void
+    {
+        AiProvider::query()->delete();
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$version->id}/regenerate", [
+                'stage' => 'analisa',
+            ]);
+
+        $response->assertStatus(400)
+            ->assertJson(['ok' => false]);
+    }
+
+    public function test_cannot_regenerate_other_users_version(): void
+    {
+        $otherProject = Project::factory()->create();
+        $otherVersion = Version::factory()->create([
+            'project_id' => $otherProject->id,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$otherVersion->id}/regenerate", [
+                'stage' => 'analisa',
+            ]);
+
+        $response->assertStatus(404);
+    }
+
+    public function test_restart_from_analisa_returns_400_without_provider(): void
+    {
+        AiProvider::query()->delete();
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+        ]);
+
+        $r = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$version->id}/restart-from-analisa");
+
+        $r->assertStatus(400)->assertJson(['ok' => false]);
+    }
+
+    public function test_cannot_restart_other_users_version(): void
+    {
+        $otherProject = Project::factory()->create();
+        $otherVersion = Version::factory()->create([
+            'project_id' => $otherProject->id,
+        ]);
+
+        $r = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$otherVersion->id}/restart-from-analisa");
+        $r->assertStatus(404);
     }
 }
