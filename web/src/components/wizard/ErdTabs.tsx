@@ -2,7 +2,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import type { ErdData } from "@/lib/api";
-import { ApiContractTable, type ApiContractItem } from "./ApiContractTable";
+import { ApiEndpointList, type ApiEndpoint } from "./ApiEndpointList";
 import { Card, Badge } from "@/components/ui";
 import { Database, Link2, ListTree } from "lucide-react";
 
@@ -17,7 +17,7 @@ const ErdDiagram = dynamic(() => import("./ErdDiagram").then((m) => m.ErdDiagram
 
 type Tab = "diagram" | "api" | "tables";
 
-export function ErdTabs({ erd, apiContract }: { erd?: ErdData; apiContract?: ApiContractItem[] }) {
+export function ErdTabs({ erd, apiContract }: { erd?: ErdData; apiContract?: ApiEndpoint[] }) {
   const [tab, setTab] = useState<Tab>("diagram");
   const hasApi = apiContract && apiContract.length > 0;
   const hasErd = erd && (erd.nodes?.length ?? 0) > 0;
@@ -51,7 +51,7 @@ export function ErdTabs({ erd, apiContract }: { erd?: ErdData; apiContract?: Api
         <ErdDiagram erd={erd} />
       )}
       {tab === "api" && hasApi && (
-        <ApiContractTable items={apiContract!} />
+        <ApiEndpointList items={apiContract!} />
       )}
       {tab === "tables" && hasErd && erd?.nodes && (
         <div className="space-y-2">
