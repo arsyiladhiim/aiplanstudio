@@ -492,3 +492,54 @@
 - Kendala: —
 - Perbaikan: —
 - Status: [x] F0 selesai. Berikutnya **F1 Skeleton Docker**.
+
+### 2026-08-14 · CP-6 — Tracking Flow Restore
+- Dikerjakan: Restore webhook tracking end-to-end. PipelineRunner::trackingBlock() di-rewrite untuk baca existing per-version ProjectApiToken (name=`auto-tracking-{md5(version,8)}`), drop auto-generate yang bocor plain token tapi discard secret. Webhook prompt body di-update dengan format HMAC yang benar (4 headers wajib). Bonus: hapus duplicate verifySignature() call di WebhookController.
+- File baru: `api/app/Http/Controllers/ProjectTokenController.php`, `web/src/components/wizard/SetupTrackingCard.tsx`, `api/tests/Feature/ProjectTokenControllerTest.php`, `api/tests/Feature/PipelineEndToEndSmokeTest.php`.
+- Frontend: TrackingPanel dapat Setup Tracking button (always-on) + Modal + curl example. 6 filter chips (All/Halaman/Menu/Fitur/Flow/API) dengan per-type counters. SetupTrackingCard embedded di master_web stage (auto-hide kalau token sudah dibuat via sessionStorage cache).
+- Perintah/hasil: `php artisan test --filter=PipelineRunnerTest` → 39 pass (1 updated assertion untuk CP-6 contract). `php artisan test --filter=WebhookTest` → 8 pass (+2 granular types tests). `php artisan test --filter=ProjectTokenControllerTest` → 4 pass. Full backend suite: 258 pass.
+- Test: tsc clean, lint clean (2 pre-existing CommandPalette errors).
+- Catatan: Konvensi token name `auto-tracking-{md5(version_id,8)}` agar deterministic per version. `pipelineEndToEndSmokeTest` jadi regression net untuk CP-6 + CP-10 sekaligus.
+- Status: [x] CP-6 complete. Commit `a400b4f` + sign-off `baf014b`.
+
+### 2026-08-14 · CP-7 — Prompt Quality Overhaul
+- Dikerjakan: Rewrite 11 AI prompts dengan explicit output templates + self-check instructions. FOCUS: `phased_master.php` dan `phased_master_mobile.php` jadi 1-paste-ready ke coding agent (8 sections: Meta/Context/Stack/Folder/Phases/Standards/Webhook/Self-Verify + correct HMAC format). Standards dapat React 19 Compiler rules + Pint formatting. Agents split jadi 5 roles dengan handoff eksplisit (web-frontend/backend/bff/db/test).
+- File modified: 11 prompt files di `api/app/Prompts/`. PipelineRunnerTest diupdate untuk match phrasing baru.
+- Convention locked: setiap prompt WAJIB ada VERIFY section di akhir + bahasa Indonesia untuk narasi, English untuk technical terms.
+- Perintah/hasil: `php artisan test` → 258 pass (1 Socialite pre-existing). All 12 prompts syntax-clean.
+- Catatan: phased_master sekarang punya 4-field HMAC webhook contract (Authorization Bearer + X-Token-Secret + X-Timestamp + X-Signature). CP-7 fix + CP-6 fix = webhook benar-benar usable end-to-end.
+- Status: [x] CP-7 complete. Commit `401205a` + sign-off `fb582c7`.
+
+### 2026-08-14 · CP-8 — Stage-Specific Viewer UX
+- Dikerjakan: 9 viewer components purpose-built per stage output shape. SectionRenderer (shared markdown section parser dengan collapsible cards). AnalysisView (persona grid + JTBD list). PrdView (story grouping + AC checkboxes). ArchitectureView (ASCII preservation + Trade-offs badge). StandardsView (per-snippet copy + language tag). PhasesView (dual JSON+markdown format + effort badges). AgentsView (role cards dengan handoff arrows). ErdTabs (Diagram|API|Tables orchestrator). CopyField (secret reveal mode).
+- File baru: 9 components di `web/src/components/wizard/`.
+- Wiring: `web/src/app/(app)/new/page.tsx` switch dari inline `<Markdown>` ke dedicated viewer per stage. `architecture` keeps legacy KOMPONEN/KONEKSI parse + tambah ArchitectureView. `erd` switch ke ErdTabs (replaces inline ErdDiagram + ApiContractTable).
+- Perintah/hasil: `npx tsc --noEmit` → clean. `npm run lint` → 2 pre-existing CommandPalette errors unrelated.
+- Catatan: PhasesView pakai safeParsePhases helper di luar render body (avoid react-hooks/error-boundaries lint warning). ArchitectureView pakai `extractAscii()` regex untuk detect ASCII diagram dengan box-drawing chars.
+- Status: [x] CP-8 complete. Commit `cdff6ee` + sign-off `f0d8f1f`.
+
+### 2026-08-14 · CP-9 — Master Prompt Showcase
+- Dikerjakan: MasterPromptViewer full-screen showcase dengan section accordion (Meta/Context/Stack/Folder/Phases/Standards/Webhook/Self-Verify/Output). Inline edit per-section + global fallback. Download as .md (uses edited version kalau ada). Copy All button. Setup Tracking convenience card embedded di top (auto-hide setelah token dibuat). `hasMasterPromptArtifact()` helper untuk guard render.
+- Auto-open modal trigger: SSE `done` event untuk `master_web` atau `master_mobile` → modal opens sekali per target via `masterAutoOpenedRef`. Reset on new pipeline start.
+- Wiring: master_web + master_mobile inline stages sekarang compact preview (600 char) + 'Buka Master Prompt' button.
+- File baru: `web/src/components/wizard/MasterPromptViewer.tsx`.
+- Perintah/hasil: `npx tsc --noEmit` → clean. `npm run lint` → clean (2 pre-existing unrelated). Backend 258 pass (unchanged).
+- Catatan: MasterPromptViewer dibikin untuk handle BOTH edited content + original via `fullText` useMemo. Cancel edit restores state dari editedSections={}.
+- Status: [x] CP-9 complete. Commit `115e43a` + sign-off `9692e26`.
+
+### 2026-08-14 · CP-10 — Granular Tracking UI + ERD Absorbs API Contract
+- Dikerjakan: api_contract wizard stage dihapus dari `ALL_STAGES` (mock.ts). Backend stage tetap jalan + artifact saved di DB. Viewer absorbed ke ErdTabs API tab. ApiEndpointList (NEW) upgrade dari flat ApiContractTable → resource-grouped dengan collapsible groups + collapsible per-endpoint request/response example. Method badges color-coded (GET/POST/PUT/PATCH/DELETE). Infer resource dari path segment untuk backward-compat dengan legacy api_contract output.
+- File baru: `web/src/components/wizard/ApiEndpointList.tsx`.
+- Audit: GET /api/versions/{id} returns full version row including api_contract field via $fillable (VersionController::show line 50). ErdTabs wires it from erdData.api_contract.
+- TrackingPanel filter chips + per-type counters sudah ada dari CP-6 (verified, no changes needed).
+- Perintah/hasil: `npx tsc --noEmit` → clean. `npm run lint` → 2 pre-existing unrelated. Backend 258 pass.
+- Catatan: apiContractItem IS assignable ke ApiEndpoint (extra optional fields = widening covariance). ErdTabs API tab sekarang grouped + collapsible + dengan request/response example untuk endpoint pertama per resource.
+- Status: [x] CP-10 complete. Commit `770b314` + sign-off `e8e1cce`.
+
+### 2026-08-14 · CP-11 — Verify + Polish + Docs
+- Dikerjakan: E2E smoke test (`PipelineEndToEndSmokeTest`) exercise full CP-6..10 flow programmatically: setup tracking → verify HMAC prompt spec → webhook dengan task_type='fitur' → assert task_progress + phase_progress persisted → verify api_contract fetchable. Update docs/15-dev-log.md (this entry), docs/05-wizard-flow.md (collapse api_contract + master prompt showcase UX), README.md (add Tracking Webhook section dengan curl example).
+- File baru: `api/tests/Feature/PipelineEndToEndSmokeTest.php` (3 tests).
+- KNOWN ISSUE: SocialiteControllerTest::test_first_google_login_creates_admin_and_logs_in fails pre-existing (sudah ada di CP-1..5). Punya dependency `Socialite::driver('google')` yang perlu mock config Google client — di luar scope CP-6..11.
+- Perintah/hasil: `php artisan test --filter=PipelineEndToEndSmokeTest` → 3 pass (18 assertions). Full suite 258 pass.
+- Status: [x] CP-11 complete. Final master-repair commit pending.
+

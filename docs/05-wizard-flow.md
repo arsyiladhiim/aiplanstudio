@@ -15,24 +15,31 @@ Sebelum tahap 1, user isi:
 
 ## 14 Tahap Pipeline
 
+> **CP-10 update:** Stage `api_contract` (#6) tetap dijalankan di backend dan disimpan ke DB, **tapi tidak muncul** di nav wizard. Viewer API Contract pindah ke tab "API" di dalam stage `erd` (lihat §Wizard Stages per Version).
+
 | # | Stage key | Nama | Input konteks | Output → DB column | Catatan |
 |---|-----------|------|---------------|-------------------|---------|
-| 1 | `pertanyaan` | Pertanyaan Klarifikasi (MCQ) | ide, target, stack | → `pertanyaan` (text) | MCQ A–D + E, minimal 5 pertanyaan. Jawaban user → `answers`. |
-| 2 | `analisa` | Analisa & Klarifikasi | ide, target, stack, jawaban | `analysis` | |
-| 3 | `prd` | PRD | analisa + jawaban, ide, target | `prd` | |
-| 4 | `architecture` | Arsitektur & Tech Stack | PRD, target | `architecture` | |
-| 5 | `erd` | ERD + API Contract | PRD, arsitektur | `erd` + `api_contract` (jsonb) | JSON `{nodes,edges,api_contract}` |
-| 6 | `api_contract` | API Contract | PRD, arsitektur, ERD | `api_contract` (jsonb, array endpoint) | Stage terpisah — daftar endpoint lengkap |
-| 7 | `phases_web` | Web Phases | standards, agents, PRD, arsitektur, ERD | `phases` (jsonb) | Breakdown fase web (format `FASE:`, `TASK:`, `PROMPT:`) |
-| 8 | `standards_web` | Web Standards | PRD, arsitektur, ERD | `standards` | STANDARDS.md web |
-| 9 | `master_web` | Master Prompt Web | standards, agents, analisa, PRD, arsitektur, ERD | `master_prompt` | Self-contained; auto-token tracking + webhook |
-| 10 | `pertanyaan_mobile` | Mobile Klarifikasi (MCQ) | master_web, api_contract, erd | `pertanyaan_mobile` + `mobile_answers` | **Hanya target both.** Gate `master_web` done. |
-| 11 | `phases_mobile` | Mobile Phases | mobile_standards, PRD, arsitektur, ERD, master_web | `mobile_phases` (jsonb) | **Hanya target both.** |
-| 12 | `standards_mobile` | Mobile Standards | PRD, arsitektur, ERD, master_web | `mobile_standards` | STANDARDS.md mobile |
-| 13 | `master_mobile` | Master Prompt Mobile | mobile_standards, mobile_agents, analisa, PRD, arsitektur, ERD, master_web | `mobile_master_prompt` | Self-contained master prompt mobile |
-| 14 | `agents` | AI Agent Spec | master_web (+ master_mobile jika both) | `agents` | AGENTS.md — spesifikasi agent |
+| 1 | `pertanyaan` | Pertanyaan Klarifikasi (MCQ) | ide, target, stack | → `pertanyaan` (text) | MCQ A–D + E, minimal 8 pertanyaan. Jawaban user → `answers`. |
+| 2 | `analisa` | Analisa & Klarifikasi | ide, target, stack, jawaban | `analysis` | Render via `AnalysisView` (persona grid + JTBD list). |
+| 3 | `prd` | PRD | analisa + jawaban, ide, target | `prd` | Render via `PrdView` (story grouping + AC Given/When/Then). |
+| 4 | `architecture` | Arsitektur & Tech Stack | PRD, target | `architecture` | Render via `ArchitectureView` (section cards + ASCII diagram preservation). |
+| 5 | `erd` | ERD + API Contract | PRD, arsitektur | `erd` + `api_contract` (jsonb) | Render via `ErdTabs` (3 tabs: Diagram \| API \| Tables). API tab pakai `ApiEndpointList`. |
+| ~~6~~ | ~~`api_contract`~~ | ~~API Contract~~ | ~~PRD, arsitektur, ERD~~ | `api_contract` (jsonb, array endpoint) | **DEPRECATED sebagai wizard stage (CP-10).** Backend tetap jalan, output tetap di-save, viewer absorbed ke tab API di stage `erd`. |
+| 6 | `phases_web` | Web Phases | standards, agents, PRD, arsitektur, ERD | `phases` (jsonb) | Render via `PhasesView` (dual JSON + markdown `FASE:` format + effort badges S/M/L). |
+| 7 | `standards_web` | Web Standards | PRD, arsitektur, ERD | `standards` | Render via `StandardsView` (code snippet cards dengan copy button). |
+| 8 | `master_web` | Master Prompt Web | standards, agents, analisa, PRD, arsitektur, ERD | `master_prompt` | Render via `MasterPromptViewer` (section accordion + inline edit + download .md). Auto-open modal setelah SSE `done` event. Embeds `SetupTrackingCard`. |
+| 9 | `pertanyaan_mobile` | Mobile Klarifikasi (MCQ) | master_web, api_contract, erd | `pertanyaan_mobile` + `mobile_answers` | **Hanya target both.** Gate `master_web` done. Skip rule: return empty JSON kalau target !== "both". |
+| 10 | `phases_mobile` | Mobile Phases | mobile_standards, PRD, arsitektur, ERD, master_web | `mobile_phases` (jsonb) | **Hanya target both.** |
+| 11 | `standards_mobile` | Mobile Standards | PRD, arsitektur, ERD, master_web | `mobile_standards` | STANDARDS.md mobile |
+| 12 | `master_mobile` | Master Prompt Mobile | mobile_standards, mobile_agents, analisa, PRD, arsitektur, ERD, master_web | `mobile_master_prompt` | Self-contained master prompt mobile. Auto-open modal setelah done. |
+| 13 | `agents` | AI Agent Spec | master_web (+ master_mobile jika both) | `agents` | Render via `AgentsView` (role cards dengan handoff arrows). |
 
-### Stage Keys (PipelineRunner ALL_STAGES)
+**Wizard Stages per Version** (frontend `getStages()`):
+- target `web` → 10 stages visible (1-8 + 13).
+- target `both` → 13 stages visible (1-12 + 13).
+- `api_contract` (CP-10) tidak visible di kedua target.
+
+### Stage Keys (PipelineRunner backend order)
 ```
 pertanyaan → analisa → prd → architecture → erd → api_contract → phases_web → standards_web → master_web
 → [target both] pertanyaan_mobile → phases_mobile → standards_mobile → master_mobile
@@ -41,6 +48,30 @@ pertanyaan → analisa → prd → architecture → erd → api_contract → pha
 - Nilai `stage_status`: `pending` | `running` | `done` | `error`
 - Kolom di DB untuk artifact: `pertanyaan`, `analysis`, `prd`, `architecture`, `erd`, `api_contract`, `standards`, `agents`, `phases`, `master_prompt`, `pertanyaan_mobile`, `mobile_phases`, `mobile_standards`, `mobile_agents`, `mobile_master_prompt`
 - Kolom JSONB: `answers`, `mobile_answers`, `erd`, `api_contract`, `phases`, `mobile_phases`
+
+## Tracking Webhook (CP-6 restore)
+
+**Token creation** — Setup Tracking UI (bukan auto-generate lagi):
+- Frontend `TrackingPanel` header → button "Setup Tracking" → Modal → `apiSetupAutoTracking(projectId, versionId)` → `POST /api/projects/{project}/versions/{version}/tokens/auto-tracking`.
+- Backend creates `ProjectApiToken` dengan `name = "auto-tracking-" + md5(version_id, 8 chars)` + per-token HMAC salt.
+- Response: `{token, secret, id, name, existing: false}` (first call) atau `{existing: true, token: null, secret: null}` (repeat).
+- Secret only shown ONCE di modal reveal step — user harus copy sekarang.
+- Token cached di sessionStorage keyed `tracking-token-{projectId}-{versionId}`.
+
+**Webhook call** (CP-6 corrected HMAC spec):
+```bash
+curl -X POST $APP_URL/api/webhooks/phase-complete \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Token-Secret: $SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
+  -H "X-Signature: $(echo -n "$TIMESTAMP.$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $2}')" \
+  -H "Content-Type: application/json" \
+  -d '{"version_id": 1, "phase_key": "fase1_setup", "task_key": "fase1_setup_fitur_1", "task_type": "fitur", "title": "Auth Login", "status": "done", "output": "completed"}'
+```
+
+**Granular task_type** (CP-6 T7 + CP-10 G-4): `halaman` | `menu` | `fitur` | `flow` | `api`. Filter chip di TrackingPanel header dengan per-type progress counters (`done/total`).
+
+**Prompt context** — `PipelineRunner::trackingBlock()` sekarang cek existing token by name pattern. Kalau ada → embed HMAC spec di prompt. Kalau tidak → instruksi "skip webhook until Setup Tracking creates one".
 
 ## Checkpoint (per-stage manual)
 Setelah tiap stage `done`, wizard berhenti (tanpa auto-run). User dapat:
@@ -68,8 +99,12 @@ Setelah tiap stage `done`, wizard berhenti (tanpa auto-run). User dapat:
 - UI: dialog "Buat Versi Baru" → pilih strategi + catatan revisi.
 - Diff antar versi kini bermakna: hanya stage yang benar-benar diubah tampil sebagai delta.
 
-## Tahap 8-11 — Kualitas Prompt (kunci nilai produk)
-Prompt tiap phase **harus membawa konteks** phase sebelumnya (ringkasan PRD + arsitektur + apa yang sudah dibangun), agar AI agent tidak kehilangan benang merah. Master prompt = instruksi menyeluruh + urutan menjalankan phase. Semua prompt **copy-ready** dan bisa di-export (lihat [04-api-contract](04-api-contract.md) export). Master prompt menyertakan **Webhook Tracking** (auto Bearer token) agar fase dieksekusi agent tercatat sebagai `phase_progress`.
+## Tahap 8-12 — Kualitas Prompt (kunci nilai produk)
+Prompt tiap phase **harus membawa konteks** phase sebelumnya (ringkasan PRD + arsitektur + apa yang sudah dibangun), agar AI agent tidak kehilangan benang merah. Master prompt = instruksi menyeluruh + urutan menjalankan phase. Semua prompt **copy-ready** dan 1-paste ke coding agent (Claude/Cursor/Claude Code) langsung jadi project skeleton.
+
+**CP-7 overhaul** — semua 11 prompt di `api/app/Prompts/` di-rewrite dengan explicit output templates + self-check instructions. FOCUS items: `phased_master.php` + `phased_master_mobile.php` jadi centerpiece dengan 8 sections (Meta/Context/Stack/Folder/Phases/Standards/Webhook/Self-Verify) + correct HMAC webhook contract dengan 4 headers wajib.
+
+Master prompt juga menyertakan **Webhook Tracking** spec (HMAC SHA-256) — bukan Bearer token auto-gen lagi. Token + Secret dibuat user via Setup Tracking UI. Webhook `phase_complete` adalah contract antara AI agent (yang eksekusi master prompt) dan AI Plan Studio (yang track progress).
 
 ## Progress
-Tiap phase punya entri `phase_progress` (status `pending|running|done|error` + output) → progress bar project. Lihat [03-database-schema](03-database-schema.md).
+Tiap phase punya entri `phase_progress` (status `pending|running|done|error` + output) → progress bar project. Sub-item `task_progress` (granular: halaman/menu/fitur/flow/api) → filter chips di TrackingPanel dengan per-type progress counters. Lihat [03-database-schema](03-database-schema.md).

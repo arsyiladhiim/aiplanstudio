@@ -1,58 +1,174 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# AI Plan Studio
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+> AI-powered planning platform that turns ideas into 1-paste-ready master build prompts for coding agents.
 
-## About Laravel
+**Stack:** Laravel 11 (PHP 8.4) · Next.js 15 (App Router) + React 19 + TypeScript · PostgreSQL 16 · Tailwind CSS v4 · Docker Compose
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## What it does
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+1. **Wizard "Buat Plan"** — 13-stage pipeline (10 for web-only target) that transforms a rough idea into a structured build plan: klarifikasi → analisa → PRD → arsitektur → ERD → phases → standards → master prompt → agents.
+2. **Master Prompt Showcase** — full-screen viewer with section accordion, inline edit, .md download, copy-all. Auto-opens modal saat master prompt selesai di-generate.
+3. **Tracking Webhook** — AI coding agent yang eksekusi master prompt kirim checkpoint per fase/sub-item via signed HTTP webhook ke AI Plan Studio.
+4. **Per-version regeneration** — buat versi baru dengan carry-over artifacts (revision, not from-scratch) atau blank start.
 
-## Learning Laravel
+Lihat [docs/05-wizard-flow.md](docs/05-wizard-flow.md) untuk flow detail.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+---
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Tracking Webhook
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+Setelah user generate master prompt, mereka Setup Tracking untuk dapat **Token** + **Secret**. Coding agent yang pakai master prompt akan kirim webhook checkpoint per fase + sub-item.
 
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Setup
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+# User dapat token via UI: TrackingPanel → "Setup Tracking" button → Modal
+# Atau programmatically:
+curl -X POST $APP_URL/api/projects/{project}/versions/{version}/tokens/auto-tracking \
+  -H "Cookie: aplanstudio_session=..." \
+  -H "X-XSRF-TOKEN: $CSRF" \
+  -H "Content-Type: application/json"
+# Response: { "token": "...", "secret": "...", "id": 123, "name": "auto-tracking-...", "existing": false }
+# Save secret SEKARANG — tidak akan ditampilkan lagi.
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### Webhook call
 
-## Contributing
+```bash
+TIMESTAMP=$(date +%s)
+BODY='{"version_id":1,"phase_key":"fase1_setup","task_key":"fase1_setup_fitur_1","task_type":"fitur","title":"Auth Login","status":"done","output":"completed"}'
+SIGNATURE=$(echo -n "$TIMESTAMP.$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $2}')
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+curl -X POST $APP_URL/api/webhooks/phase-complete \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Token-Secret: $SECRET" \
+  -H "X-Timestamp: $TIMESTAMP" \
+  -H "X-Signature: $SIGNATURE" \
+  -H "Content-Type: application/json" \
+  -d "$BODY"
+```
 
-## Code of Conduct
+### Headers (case-sensitive, semua wajib)
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| Header | Value |
+|--------|-------|
+| `Authorization` | `Bearer <token>` |
+| `X-Token-Secret` | `<secret>` (HMAC key) |
+| `X-Timestamp` | `<unix_seconds>` (max 300s skew) |
+| `X-Signature` | `hmac_sha256("<X-Timestamp>.<raw_body>", "<X-Token-Secret>")` |
 
-## Security Vulnerabilities
+### Body schema
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```typescript
+{
+  version_id: number;          // required
+  phase_key: string;           // required, MUST match fase key from phases artifact
+  status: "running" | "done" | "error";
+  output?: string;             // ringkasan
 
-## License
+  // Granular (opsional, untuk per sub-item tracking)
+  task_key?: string;           // sub-item key
+  task_type?: "halaman" | "menu" | "fitur" | "flow" | "api";
+  title?: string;
+}
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Response
+
+- `200` `{ ok: true, phase_key, task_key?, status }` — webhook accepted, persisted to `phase_progress` + `task_progress`.
+- `401` signature/secret missing/invalid.
+- `409` duplicate (replay protection, cache TTL 1 jam).
+- `422` validation error (unknown phase_key atau invalid task_type).
+
+---
+
+## Architecture
+
+```
+Browser (Next.js 15 + React 19)
+   │  HttpOnly session cookie + CSRF
+   ▼
+Next.js BFF (route handlers)
+   │  Proxy with session forwarding
+   ▼
+Laravel API (stateless)
+   │  Controllers → Services → Repositories → Models
+   ▼
+PostgreSQL 16 (3 schemas)
+   ├── aiplanstudio_master    (users, projects metadata, providers)
+   ├── aiplanstudio_project   (versions, artifacts, phase_progress, task_progress)
+   └── aiplanstudio_settings  (profile, preferences)
+```
+
+Lihat [docs/06-ai-pipeline.md](docs/06-ai-pipeline.md) dan [.graphify/GRAPH_REPORT.md](.graphify/GRAPH_REPORT.md).
+
+---
+
+## Local development
+
+```bash
+# Start full stack
+docker compose up
+
+# Backend (di dalam container)
+docker exec aiplanstudio_apifpm php artisan test           # 258 tests
+docker exec aiplanstudio_apifpm php artisan pint --test    # code style
+docker exec aiplanstudio_apifpm vendor/bin/pint app/Prompts # format prompts
+
+# Frontend
+cd web
+npm run lint         # ESLint
+npx tsc --noEmit     # TypeScript check
+npm run build        # production build
+npx playwright test  # e2e tests
+```
+
+### Ports
+
+| Service | Port | URL |
+|---------|------|-----|
+| Nginx (BFF gateway) | 80 | http://localhost |
+| Next.js (internal) | 3000 | (via nginx) |
+| Laravel (internal) | 9000 | (via nginx) |
+| PostgreSQL | 5432 | (internal only) |
+
+---
+
+## Pipeline stage outputs (DB columns)
+
+| Stage | Column | Type |
+|-------|--------|------|
+| `pertanyaan` | `pertanyaan` | text |
+| `analisa` | `analysis` | text |
+| `prd` | `prd` | text |
+| `architecture` | `architecture` | text |
+| `erd` | `erd` | jsonb |
+| `api_contract` | `api_contract` | jsonb |
+| `phases_web` | `phases` | jsonb |
+| `standards_web` | `standards` | text |
+| `master_web` | `master_prompt` | text |
+| `pertanyaan_mobile` | `pertanyaan_mobile`, `mobile_answers` | text, jsonb |
+| `phases_mobile` | `mobile_phases` | jsonb |
+| `standards_mobile` | `mobile_standards` | text |
+| `master_mobile` | `mobile_master_prompt` | text |
+| `agents` | `agents` | text |
+
+---
+
+## Known issues
+
+- **SocialiteControllerTest::test_first_google_login_creates_admin_and_logs_in** — pre-existing failure (sebelum CP-6). Punya dependency `Socialite::driver('google')` yang butuh mock Google OAuth config. Di luar scope master-repair CP-6..11. Track terpisah.
+
+---
+
+## Documentation
+
+- [docs/05-wizard-flow.md](docs/05-wizard-flow.md) — wizard flow + Tracking Webhook spec
+- [docs/06-ai-pipeline.md](docs/06-ai-pipeline.md) — pipeline architecture
+- [docs/12-security-checklist.md](docs/12-security-checklist.md) — security baseline
+- [docs/15-dev-log.md](docs/15-dev-log.md) — chronological dev log (CP-1..11 entries)
+- [docs/16-audit-fix-plan.md](docs/16-audit-fix-plan.md) — prior audit findings
+- [.graphify/GRAPH_REPORT.md](.graphify/GRAPH_REPORT.md) — codebase knowledge graph
+- [docs/plan/master-repair.md](docs/plan/master-repair.md) — CP-1..11 master plan with sign-offs
