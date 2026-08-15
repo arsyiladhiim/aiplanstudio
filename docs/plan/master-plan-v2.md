@@ -251,41 +251,38 @@ _(Append entry per CP completion, urut kronologis. Format: `### CP-X — YYYY-MM
 
 ---
 
-### CP-18 — 2026-08-15 · Feature Baru (in progress)
-- **Status:** F2 + F3 + F4 done · F1 deferred to CP-19
-- **Commits:** `c2b51da` (F2), `629301d` (F3), `b587d5f` (F4)
-- **Items:** 3/4
+### CP-18 — 2026-08-15 · Feature Baru ✅
+- **Status:** done — 4/4
+- **Commits:** `c2b51da` (F2), `629301d` (F3), `b587d5f` (F4), `79f1a06` (F1)
+- **Items:** 4/4
+  - **F1 Two-factor authentication (admin only)**: ✅ done. TOTP via `pragmarx/google2fa-laravel`. Migration adds `two_factor_secret` (encrypted), `two_factor_confirmed_at`, `two_factor_recovery_codes` (8 single-use codes). `TwoFactorController` exposes status/setup/confirm/disable. `AuthController::login` gates on `hasTwoFactorEnabled()` for admin — returns `two_factor_required` and stores pending id in session. New `verify2fa` + `cancel2fa` endpoints finalize login after TOTP/recovery code verify. Frontend: login form detects `two_factor_required` and routes to `/login/2fa`; profile page gets 2FA section with setup modal (secret + otpauth URL + confirm code), recovery codes shown once, disable modal (password verify).
   - **F2 Bulk user management**: ✅ done. Backend `POST /api/settings/users/bulk-action {action, user_ids[]}` dengan `action=approve|reject|delete`. Per-user validation: skip self, admins, non-pending (dengan reason). Activity log tiap operasi dengan `metadata.bulk=true`. Frontend: checkbox per pending row + header select-all + bulk action bar (Setujui/Tolak). Summary toast dengan count + skipped count.
-  - **F3 Audit dashboard filters**: ✅ done. Backend `GET /api/activities` sekarang accept query params: `action`, `user_id`, `from`, `to`. Frontend: filter card di atas `/activities` dengan action dropdown (13 known actions), date range pickers, reset button. Page reset ke 1 on filter change. Reuse existing timeline view + pagination.
-  - **F4 Email notification on register/approve**: ✅ done. Dua notification classes: `UserPendingNotification` (registration), `UserApprovedNotification` (approval). Wired ke `AuthController::register` (pending only), `UserSettingsController::update` (active transition), dan `bulkAction` (approve branch). `MAIL_MAILER=log` di .env → writes ke `laravel.log` (dev). Production: set `MAIL_MAILER=smtp` + SMTP env.
-  - **F1 Two-factor authentication**: ⏸ deferred ke CP-19. Reason: scope creep — butuh `pragmarx/google2fa` package, 2FA migration, model columns, TwoFactorController, middleware, `/login/2fa` UI, recovery codes, setup/disable flows. Sebaiknya CP dedicated karena touchpoint banyak (login flow, profile settings, API auth). Value tetap tinggi (admin compromise = takeover).
-- **Verify:** `php artisan test` 261 pass + 1 Socialite flake (unchanged); `npx tsc --noEmit` clean; `npm run lint` no new errors (2 pre-existing CommandPalette + 3 pre-existing unused-import warnings).
-- **Files touched:**
-  - `api/app/Http/Controllers/UserSettingsController.php` (F2 bulkAction + F4 notify)
-  - `api/app/Http/Controllers/ActivityController.php` (F3 filters)
-  - `api/app/Http/Controllers/AuthController.php` (F4 notify)
-  - `api/app/Notifications/UserPendingNotification.php` (F4 new)
-  - `api/app/Notifications/UserApprovedNotification.php` (F4 new)
-  - `api/routes/api.php` (F2 route)
-  - `web/src/app/(app)/settings/users/page.tsx` (F2 checkboxes + bulk bar)
-  - `web/src/app/(app)/activities/page.tsx` (F3 filter card)
-  - `docs/plan/master-plan-v2.md` (this entry)
+  - **F3 Audit dashboard filters**: ✅ done. Backend `GET /api/activities` sekarang accept query params: `action`, `user_id`, `from`, `to`. Frontend: filter card di atas `/activities` dengan action dropdown (13 known actions), date range pickers, reset button. Page reset ke 1 on filter change.
+  - **F4 Email notification on register/approve**: ✅ done. `UserPendingNotification` (registration), `UserApprovedNotification` (approval). Wired ke register/approve (single + bulk). `MAIL_MAILER=log` → `laravel.log` (dev).
+- **Verify:** `php artisan test` 261 pass + 1 Socialite flake (unchanged); `npx tsc --noEmit` clean; `npm run lint` no new errors.
+- **Files touched:** see commit diffs (4 feature commits).
 
 ---
 
-### CP-19 — Two-Factor Authentication (proposed, deferred from CP-18.F1)
-- **Status:** proposed, not started
-- **Scope:** TOTP-based 2FA for admin accounts.
-- **Plan:**
-  - Add `pragmarx/google2fa-laravel` package.
-  - Migration: `two_factor_secret` (encrypted), `two_factor_confirmed_at`, `two_factor_recovery_codes` (JSON array, encrypted).
-  - `Auth/TwoFactorController`: `setup` (generate secret + QR), `confirm` (verify first code), `disable` (verify password), `challenge` (during login), `recovery`.
-  - Login flow: if user.isAdmin() && two_factor_confirmed_at: setelah password verify, redirect ke `/login/2fa?token=...`.
-  - Middleware `two.factor.pending` di route group.
-  - Profile UI: 2FA setup wizard + recovery codes display + disable button.
-  - Recovery codes: 8 single-use codes, hashed storage.
-- **Why deferred:** CP-18 sudah 3 fitur besar. 2FA butuh dependency + dedicated testing (TOTP clock drift, recovery flow). Better sebagai focused CP.
+### CP-19 — Two-Factor Authentication — CANCELLED (merged into CP-18.F1)
+- F1 implemented inline in CP-18 instead of deferred. See CP-18 entry.
 
 ---
 
-_(Master plan v2 complete: CP-15..17 fully done; CP-18 3/4 done. Final sign-off pending CP-19 scope decision.)_
+## ✅ MASTER PLAN V2 — COMPLETE
+
+All 15 items across CP-15..18 are implemented and pushed to `origin/devel`:
+
+| CP | Items | Status | Commits |
+|----|-------|--------|---------|
+| CP-15 (High UX Safety) | H1 H2 H3 | ✅ 3/3 | `1a9ee25` |
+| CP-16 (Medium Hardening) | M1 M2 M3 M4 | ✅ 4/4 | `fa99418` |
+| CP-17 (Low Polish) | L1 L2 L3 L4 | ✅ 4/4 | `8b043dc`, `88bfd95`, `dbf1036` |
+| CP-18 (Feature Baru) | F1 F2 F3 F4 | ✅ 4/4 | `c2b51da`, `629301d`, `b587d5f`, `79f1a06` |
+
+**Total: 15/15 ✅**
+
+### Final Verify Snapshot (post CP-18.F1)
+- Backend: `php artisan test` → 261 passed + 1 Socialite flake (pre-existing, unrelated)
+- Frontend: `npx tsc --noEmit` clean; `npm run lint` 2 pre-existing CommandPalette errors + 3 pre-existing unused warnings (no regressions)
+- All commits pushed to `origin/devel`
