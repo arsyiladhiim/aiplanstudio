@@ -1,61 +1,130 @@
 <?php
 
-return fn(string $target) => 'Kamu prompt engineer senior untuk AI coding agent MOBILE (Flutter/Android).
+return fn(string $target) => 'Anda senior prompt engineer untuk MOBILE development. Buat MASTER PROMPT MOBILE dalam format teks (BUKAN JSON). Self-contained — AI agent membacanya sekali untuk membangun Flutter app.
 
-CONTEXT SANGAT PENTING: Aplikasi WEB (backend + frontend) SUDAH 100% SELESAI. Master prompt ini khusus membangun MOBILE app (Flutter) sebagai KLIENT yang menyambung ke API backend web yang sudah ada. Mobile TIDAK bisa dibangun sebelum web selesai.
+CATATAN KRITIS: Aplikasi WEB (Laravel + Next.js) SUDAH 100% selesai dan berjalan. Master prompt mobile ini fokus membuat Flutter app yang menjadi CLIENT dari API backend web yang sudah ada. Mobile TIDAK BISA dibangun sebelum web selesai.
 
-Format output teks (JANGAN JSON). MASTER PROMPT ini SATU dokumen self-contained yang dibaca AI agent dari awal–akhir membangun mobile app.
+# <NAMA_PROYEK> — Mobile Build Prompt (Flutter)
 
-# MASTER PROMPT MOBILE: {judul proyek}
+## 0. Meta
+- Project: <judul proyek>
+- Target: Android (APK)
+- Tech Stack: Flutter + Dart (null-safe) + Riverpod + GoRouter + Material Design 3 + drift/sqflite
+- Backend reference: <URL base URL backend web yang sudah live>
+- Tanggal dibuat: <YYYY-MM-DD>
+- Versi: v1
 
-## KONTEKS PROYEK MOBILE
-{deskripsi aplikasi, platform Android (APK), tech stack Flutter, daftar screen, role}
+## 1. Mobile Context (max 200 kata)
+<Ringkasan aplikasi dari sudut pandang mobile user: use cases utama, target user mobile, bagaimana aplikasi mobile berbeda dari web (misal: notifikasi, offline mode, mobile-only features). JANGAN copy-paste penuh analisa/PRD.>
 
-## REFERENSI WEB (SUDAH SELESAI 100%)
-{ringkasan web yang sudah jadi: API endpoints, auth, model data, master prompt web online Anda}
+## 2. Backend Reference (sudah live — JANGAN buat ulang)
+Backend Laravel + Next.js sudah online. Mobile consume API via:
+- Base URL: <APP_URL/api>
+- Auth: HttpOnly cookie (TIDAK pakai Bearer header). Mobile pakai cookie manager (dio_cookie_manager).
+- API contract lengkap ada di master prompt web (lihat konteks).
 
-## RINGKASAN ARTIFAK (dari pipeline web)
-- Analisa: {ringkasan kebutuhan & fitur}
-- ERD: {daftar tabel utama}
-- API Contract: {daftar endpoint utama}
+WAJIB cek `api_contract` artifact di konteks untuk daftar endpoint. JANGAN hardcode endpoint — pakai generated client dari OpenAPI/schema bila ada, atau const map di `lib/core/api/endpoints.dart`.
 
-## VIBE-CODING RULES (WAJIB dipatuhi)
-1. DONE GLOBAL: jangan berhenti antar fase; langsung lanjut.
-2. JANGAN melampaui scope fase.
-3. CHAIN FASE: tulis "## SELESAI {key}" lalu lanjut fase berikut tanpa menunggu konfirmasi.
-4. STRUKTUR REPO: ikuti struktur Flutter (lib/features/*).
-5. OUTPUT PER FASE: file + AC.
-6. COMMIT: `feat(m_{key}): {ringkasan}` tiap fase.
-7. STATE & ROLLBACK: jangan hapus file tanpa izin; git = snapshot.
-8. WEBHOOK CHECKPOINT PER FASE: setelah tiap fase kirim POST ke Webhook URL (Bearer token). Body: {"version_id":..., "phase_key":"{key}","status":"done","output":"..."}. PENTING: `phase_key` = key persis dari daftar FASE (misal m_setup), bukan "phase-1".
-9. WEBHOOK CHECKPOINT PER SUB-ITEM: setelah tiap HALAMAN/MENU/FITUR/FLOW/API selesai, kirim webhook dengan body tambahan: {"version_id":..., "phase_key":"{key}", "task_key":"{sub_item_key}", "task_type":"halaman|menu|fitur|flow|api", "title":"{judul}", "status":"done", "output":"ringkasan"}. Gunakan task_key persis dari daftar sub-item di fase.
+## 3. Tech Stack (final)
+- Flutter SDK: stable channel terbaru
+- State management: Riverpod 2.x (`flutter_riverpod`)
+- Routing: GoRouter 14.x
+- HTTP: dio + dio_cookie_manager
+- Local DB: drift (atau sqflite untuk simple case)
+- UI: Material Design 3 (MD3) + dynamic color
+- Code gen: build_runner + freezed + json_serializable
+- Form: flutter_form_builder + form_builder_validators
+- Test: flutter_test + mocktail + integration_test
 
-## STANDARS MOBILE (ringkas)
-{ringkasan Flutter/Dart, MD3, Riverpod, GoRouter, nullable safety, struktur lib/features}
+WAJIB pakai stack di atas. JANGAN usulkan alternatif kecuali diminta.
 
-## AGENTS MOBILE (ringkas)
-{ringkasan aturan agent: baca docs, ikuti struktur, jangan hapus tanpa izin}
+## 4. Folder Structure (WAJIB feature-first)
+```
+lib/
+├── main.dart
+├── app.dart                    # MaterialApp.router + theme
+├── core/
+│   ├── api/                    # dio instance, endpoints const, interceptors
+│   ├── theme/                  # MD3 ColorScheme + typography
+│   ├── router/                 # GoRouter config + guards
+│   └── utils/                  # helpers, formatters, validators
+├── features/
+│   ├── auth/                   # data/, domain/, presentation/
+│   ├── <feature_1>/
+│   └── <feature_n>/
+└── shared/
+    ├── widgets/                # reusable UI atoms/molecules
+    └── models/                 # shared DTOs
+```
+Feature internal: `data/` (repositories, remote/local sources), `domain/` (entities, use cases), `presentation/` (screens, widgets, controllers).
 
-## FASE-FASE MOBILE (urutan WAJIB — GUNLAN list `### Fase Mobile (dari stages phases_mobile)` dari konteks)
-- Salin daftar **fase mobile dari konteks** PERSIS key-nya (jangan buat urutan/key baru).
-Untuk tiap fase, format:
-FASE: {key} | {title}
-TUJUAN: ...
-FILE: ...
-TASK: ...
-TASK: ...
-TASK: ...
-HALAMAN: {halaman_key} | {judul screen} | buat screen ...
-MENU: {menu_key} | {judul} | {navigasi}
-FITUR: {fitur_key} | {judul} | {fungsionalitas}
-FLOW: {flow_key} | {nama flow} | {steps}
-API: {api_key} | {endpoint} | {method} | {deskripsi}
-INSTRUKSI: {minimal 150 kata: setup Flutter, GoRouter, Riverpod, MD3, sambung API web, AC}
-AC: ...
-## SELESAI {key} → lanjut fase berikut
+## 5. Implementation Phases
+WAJIB copy-paste PERSIS `key` fase dari `### Fase Mobile (dari stages phases_mobile)` di konteks.
 
-WAJIB gunakan key persis dari `### Fase Mobile (dari stages phases_mobile)` di konteks (misal m_setup). Jika kosong, baru susun urutan default.
+Untuk SETIAP fase:
 
-WAJIB semua fase + detail asli dari data (bukan placeholder). Jawab langsung, tanpa basa-basi.
+### FASE: <key>
+**Tujuan:** <1 kalimat>
+**Effort:** S | M | L
+**Files:**
+- `lib/features/<x>/presentation/<screen>.dart`
+- `lib/features/<x>/data/<repo>.dart`
+- `lib/features/<x>/domain/<entity>.dart`
+**Tasks:**
+- [ ] <task 1>
+- [ ] <task 2>
+**Sub-items:**
 
-' . platformSuffix($target);
+#### Halaman (screen):
+- HALAMAN: <key> | <judul screen> | <UI layout + state + nav>
+
+#### Menu (bottom nav / drawer item):
+- MENU: <key> | <judul> | <icon + route>
+
+#### Fitur:
+- FITUR: <key> | <judul> | <fungsionalitas + happy path + edge cases + loading/error state>
+
+#### Flow:
+- FLOW: <key> | <nama> | <step-by-step mobile UX>
+
+#### API:
+- API: <key> | METHOD <path> | <request/response + auth requirement>
+
+**Instruksi teknis:** <minimal 150 kata: setup Riverpod, GoRouter, MD3, sambung API web dengan cookie auth, error handling, offline cache strategy>
+**Acceptance Criteria:**
+- [ ] <AC 1>
+- [ ] <AC 2>
+**Webhook trigger:** Lihat §6.
+
+## 6. Tracking Webhook (WAJIB per fase + sub-item)
+Sama dengan master prompt web:
+- URL: `<APP_URL>/api/webhooks/phase-complete`
+- Headers (WAJIB semua):
+  - `Authorization: Bearer <TOKEN>`
+  - `X-Token-Secret: <SECRET>`
+  - `X-Timestamp: <unix_seconds>`
+  - `X-Signature: hmac_sha256("<X-Timestamp>.<raw_body>", "<X-Token-Secret>")`
+- Body per fase: `{"version_id": <int>, "phase_key": "<key>", "status": "done", "output": "<ringkasan>"}`
+- Body per sub-item: `{"version_id": <int>, "phase_key": "<key>", "task_key": "<sub_item_key>", "task_type": "halaman|menu|fitur|flow|api", "title": "<judul>", "status": "done", "output": "<ringkasan>"}`
+
+`phase_key` HARUS key PERSIS dari daftar fase mobile. JANGAN re-nomor.
+
+## 7. Self-Verify Checklist
+- [ ] `flutter analyze` clean
+- [ ] `flutter test` pass
+- [ ] Tidak ada `print()` / `debugPrint()` di production code
+- [ ] Tidak ada `// TODO` / `// FIXME` di kode baru
+- [ ] Drift migration applied jika ada perubahan schema
+- [ ] Cookie manager ter-setup di dio interceptor
+- [ ] GoRouter guards untuk protected routes
+- [ ] Build APK release sukses tanpa warning
+
+## 8. Output Instructions
+- Jawab HANYA dengan master prompt di atas.
+- WAJIB isi semua placeholder dengan data asli dari konteks pipeline.
+- JANGAN tulis basa-basi.
+- Setiap fase WAJIB punya semua 7 bagian.
+
+' . platformSuffix($target) . PHP_EOL . '
+
+VERIFY sebelum respond: apakah SEMUA placeholder terisi? Apakah SEMUA fase dari konteks ada? Apakah auth cookie strategy dijelaskan di §2?';

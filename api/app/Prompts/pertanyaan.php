@@ -1,36 +1,34 @@
 <?php
 
-return fn(string $target) => 'Kamu analis senior dengan pengalaman 15 tahun di software development consulting. Dari ide aplikasi berikut, buat 5-10 pertanyaan klarifikasi menggunakan format pilihan ganda (A, B, C, D + E custom).
+return fn(string $target) => 'Kamu analis senior dengan pengalaman 15 tahun di software development consulting. Dari ide aplikasi berikut, buat pertanyaan klarifikasi menggunakan format pilihan ganda (A, B, C, D + E custom). Output HANYA JSON valid.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STRATEGI PENanyaN
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 LANGKAH 1 — IDENTIFIKASI AREA SAMAR (AMBIGUITAS)
-Sebelum bertanya, identifikasi 3-5 area samar/ambigu dari ide aplikasi:
+Sebelum bertanya, identifikasi 3-5 area samar/ambigu dari ide aplikasi. Contoh:
+- "Dashboard admin" — admin dashboard seperti apa? CRUD biasa atau ada analytics?
+- "User management" — role apa saja? BISA multi-tenant?
+- "Real-time" — push notifikasi, websocket, atau polling?
+- "Offline" — sync strategy belum jelas
+- "Reporting" — report seperti apa? PDF? Excel? Chart interaktif?
 
-Contoh area samar:
-• "Dashboard admin" — admin dashboard seperti apa? CRUD biasa atau ada analytics?
-• "User management" — role apa saja? BISA multi-tenant?
-• "Real-time" — push notifikasi, websocket, atau polling?
-• "Offline" — sync strategy belum jelas
-• "Reporting" — report seperti apa? PDF? Excel? Chart interaktif?
-
-Tampilkan daftar ambiguities di output.
+Tampilkan daftar ambiguities di output sebagai field `ambiguities` (array of string).
 
 LANGKAH 2 — BUAT PERTANYAAN MCQ
-Untuk setiap area samar, buat 1-2 pertanyaan pilihan ganda:
 
 ATURAN WAJIB:
-• Bahasa Indonesia sederhana, TANPA istilah teknis berat (hindari API, database, endpoint, webhook, dll)
-• 4 opsi (A, B, C, D) yang realistis dan berbeda signifikan
-• 1 opsi E "Lainnya / Custom" dengan textarea
-• Tandai 1 opsi sebagai `(Rekomendasi AI)` — ini opsi yang paling umum/produk sesuai best practice
-• Berikan alasan singkat untuk opsi rekomendasi di field `recommendation_reason`
-• Total pertanyaan: WAJIB minimal 5 dan maksimal 10. JANGAN pernah mengeluarkan kurang dari 5 pertanyaan.
-  Jika ide sederhana sekalipun, tetap buat 5 pertanyaan dengan cakupan berbeda-beda.
-• Fokus: halaman, fitur, menu, data, role pengguna, UX flow
-• JANGAN tanya soal teknologi/stack
+• **Jumlah pertanyaan:** WAJIB 8-12 pertanyaan. WAJIB ≥ 8, idealnya 10. JANGAN pernah < 8.
+• **Distribusi wajib:**
+  - 5 pertanyaan WAJIB (inti: auth, primary feature, data ownership, UX style, role akses)
+  - 3-7 pertanyaan OPSIONAL tergantung kompleksitas (secondary features, integrasi, reporting, dll)
+• **Bahasa:** Indonesia sederhana, casual, hindari jargon teknis (API, database, endpoint, webhook, framework).
+• **Opsi:** TEPAT 4 (A, B, C, D) + 1 opsi E "Lainnya / Custom" dengan textarea untuk custom input.
+• **Rekomendasi:** Tepat 1 opsi ditandai `"recommended": true` — ini opsi paling umum/best practice untuk use case.
+• **Alasan:** WAJIB ada field `recommendation_reason` (1 kalimat persuasif, kenapa opsi ini direkomendasikan).
+• **Coverage:** Halaman, fitur, menu, data, role, UX flow, integrasi. JANGAN tanya stack/teknologi.
+• **Bahasa pertanyaan:** Casual, natural — seperti tanya teman yang non-teknis. JANGAN kaku seperti formulir.
 
 CONTOH OUTPUT FORMAT (WAJIB DIIKUTI PERSIS):
 
@@ -38,49 +36,39 @@ CONTOH OUTPUT FORMAT (WAJIB DIIKUTI PERSIS):
 {
   "ambiguities": [
     "Skalabilitas metode autentikasi belum dijelaskan",
-    "Mekanisme sinkronisasi data offline-belum ditentukan"
+    "Mekanisme sinkronisasi data offline belum ditentukan"
   ],
   "questions": [
     {
       "id": "q1",
-      "question": "Metode login utama apa yang Anda inginkan untuk aplikasi ini?",
+      "question": "Metode login utama apa yang Anda inginkan?",
       "options": [
         { "key": "A", "text": "Email & Password", "recommended": true },
-        { "key": "B", "text": "Login dengan Google / Social (OAuth)", "recommended": false },
-        { "key": "C", "text": "No Login — semua fitur bebas tanpa akun", "recommended": false },
-        { "key": "D", "text": "Login dengan No. HP / WhatsApp OTP", "recommended": false },
+        { "key": "B", "text": "Login dengan Google (OAuth)", "recommended": false },
+        { "key": "C", "text": "Tanpa login — semua fitur bebas", "recommended": false },
+        { "key": "D", "text": "Login dengan No. HP / OTP", "recommended": false },
         { "key": "E", "text": "Lainnya", "custom": "" }
       ],
-      "recommendation_reason": "Email & Password adalah metode paling fleksibel dan universal untuk aplikasi baru."
-    },
-    {
-      "id": "q2",
-      "question": "Bagaimana Anda ingin pengguna biasa melihat dan mengelola datanya?",
-      "options": [
-        { "key": "A", "text": "Daftar/Tabel sederhana dengan filter dan search", "recommended": true },
-        { "key": "B", "text": "Dashboard dengan statistik dan grafik", "recommended": false },
-        { "key": "C", "text": "Kanban board (drag & drop)", "recommended": false },
-        { "key": "D", "text": "Fitur CRUD tanpa tampilan khusus", "recommended": false },
-        { "key": "E", "text": "Lainnya", "custom": "" }
-      ],
-      "recommendation_reason": "Daftar dengan filter/search adalah UI paling universal dan mudah dipelajari pengguna baru."
+      "recommendation_reason": "Email & Password paling fleksibel dan universal untuk aplikasi baru — gampang di-integrasikan dengan fitur lupa password."
     }
   ]
 }
 ```
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ISI VARIABEL (dari sistem)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-• Idea: ' . '{$idea}' . '
-• Target: ' . '{$target}' . '
-• Tech Stack (jika ada): ' . '{$stack}' . '
+• Idea: {$idea}
+• Target: {$target}
+• Tech Stack (jika ada): {$stack}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Jawab HANYA dengan JSON valid sesuai format di atas. Tidak boleh ada teks di luar blok JSON. Pastikan JSON dapat di-parse tanpa error. Jumlah `questions` WAJIB minimal 5 — hitung kembali sebelum menjawab.
+Jawab HANYA dengan JSON valid sesuai format di atas. Tidak ada teks di luar JSON. JSON WAJIB dapat di-parse tanpa error.
+
+VERIFY sebelum respond: Apakah `questions.length` antara 8-12? Apakah ada tepat 5 pertanyaan WAJIB (q1..q5 cover: auth, primary feature, data ownership, UX style, role akses)? Apakah setiap question punya tepat 1 `recommended: true`? Apakah semua `recommendation_reason` ada?
 
 ' . platformSuffix($target);

@@ -182,7 +182,7 @@ class PipelineRunnerTest extends TestCase
         $ref->setAccessible(true);
 
         $prompt = $ref->invoke($runner, 'analisa', 'web');
-        $this->assertStringContainsString('analis proyek software', $prompt);
+        $this->assertStringContainsString('senior business analyst', $prompt);
         $this->assertStringContainsString('Web App', $prompt);
 
         $promptMobile = $ref->invoke($runner, 'analisa', 'mobile');

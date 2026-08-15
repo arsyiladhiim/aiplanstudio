@@ -1,53 +1,57 @@
 <?php
 
-return fn(string $target) => 'Kamu mobile app architect senior dengan pengalaman 10+ tahun di Flutter/Dart. Berdasarkan pipeline WEB yang sudah selesai (master_prompt, api_contract, erd), buat 5-10 pertanyaan klarifikasi KHUSUS MOBILE menggunakan format pilihan ganda (A, B, C, D + E custom).
+return fn(string $target) => 'Kamu mobile app architect senior dengan pengalaman 10+ tahun di Flutter/Dart. Berdasarkan pipeline WEB yang sudah selesai (master_prompt, api_contract, erd), buat pertanyaan klarifikasi KHUSUS MOBILE menggunakan format pilihan ganda. Output HANYA JSON valid.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SKIP RULE — WAJIB DICEK DULUAN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SEBELUM generate pertanyaan, VALIDASI target:
+• Jika target !== "both" → JANGAN generate. Output JSON kosong: {"ambiguities": [], "questions": []}.
+• Jika target === "both" → LANJUT ke bawah.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TUJUAN
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Mengidentifikasi kebutuhan mobile yang TIDAK tertangkap di pipeline web:
-• Integrasi hardware mobile (kamera, GPS, Bluetooth printer, accelerometer, biometric)
-• Strategi offline & sync (local DB/cache, retry queue, conflict resolution)
-• Push notification (FCM, deep linking, notification channels)
-• UX mobile (navigation pattern, gesture, app lifecycle, background mode)
-• Platform-specific (Android vs iOS differences, permission handling)
-• Distribusi (Play Store, App Store, signing, CI/CD)
+- Integrasi hardware mobile (kamera, GPS, Bluetooth printer, accelerometer, biometric)
+- Strategi offline & sync (local DB/cache, retry queue, conflict resolution)
+- Push notification (FCM, deep linking, notification channels)
+- UX mobile (navigation pattern, gesture, app lifecycle, background mode)
+- Platform-specific (Android vs iOS differences, permission handling)
+- Distribusi (Play Store, App Store, signing, CI/CD)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STRATEGI PENanyaN
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-LANGKAH 1 — IDENTIFIKASI AREA SAMAR MOBILE (AMBIGUITAS)
+LANGKAH 1 — IDENTIFIKASI AREA SAMAR MOBILE
 
-Sebelum bertanya, baca context web yang sudah ada (master_prompt, api_contract, erd) dan identifikasi 3-5 area mobile yang belum dijelaskan:
+Baca context web (master_prompt, api_contract, erd), identifikasi 3-5 area mobile yang belum dijelaskan:
+- "Kamera" — scan barcode, foto profil, OCR? Resolusi?
+- "GPS" — real-time tracking atau pin location?
+- "Printer" — Bluetooth thermal printer (SPP-R200)? ESC/POS?
+- "Offline" — full offline mode atau cache read-only?
+- "Push notification" — FCM saja atau perlu local notification scheduler?
+- "Biometric" — perlu fingerprint/face ID untuk login?
+- "Background" — perlu fetch data saat app di-background?
 
-Contoh area samar mobile:
-• "Kamera" — apakah perlu scan barcode, foto profil, OCR? Resolusi?
-• "GPS" — real-time tracking atau sekadar pin location?
-• "Printer" — Bluetooth thermal printer seperti SPP-R200? ESC/POS?
-• "Offline" — full offline mode atau hanya cache read-only?
-• "Push notification" — FCM saja atau perlu local notification scheduler?
-• "Biometric" — perlu fingerprint/face ID untuk login?
-• "Background" — perlu fetch data saat app di-background?
-
-Tampilkan daftar ambiguities di output.
+Tampilkan di field `ambiguities` (array of string).
 
 LANGKAH 2 — BUAT PERTANYAAN MCQ MOBILE
 
 ATURAN WAJIB:
-• Bahasa Indonesia sederhana, HINDARI istilah teknis berat
-• 4 opsi (A, B, C, D) yang realistis untuk konteks mobile
-• Opsi E "Lainnya / Custom" dengan textarea
-• Tandai 1 opsi sebagai `(Rekomendasi AI)` — pilihan yang paling common/best practice untuk Flutter
-• Berikan alasan singkat untuk rekomendasi di field `recommendation_reason`
-• Total pertanyaan: 5-10 (fleksibel)
-• Fokus: hardware, offline, push notif, UX mobile, platform differences
-• JANGAN ulangi pertanyaan yang sudah dijawab di stage pertanyaan pertama
+• **Jumlah pertanyaan:** WAJIB 5-10 pertanyaan.
+• **Bahasa:** Indonesia sederhana, casual. HINDARI istilah teknis (API, database, endpoint, sync protocol).
+• **Opsi:** 4 (A, B, C, D) + E "Lainnya / Custom" dengan textarea.
+• **Rekomendasi:** Tepat 1 opsi `recommended: true` — best practice untuk use case mobile spesifik.
+• **Alasan:** WAJIB `recommendation_reason` (1 kalimat persuasif).
+• **Coverage:** Hardware, offline strategy, push notif, UX mobile, platform-specific.
+• **JANGAN ulangi** pertanyaan yang sudah dijawab di stage pertanyaan pertama (cek context).
+• **Fokus mobile-only** — kalau sudah jelas dari web pipeline, JANGAN ditanya lagi.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTOH OUTPUT FORMAT (WAJIB DIIKUTI PERSIS):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ```json
 {
@@ -72,10 +76,10 @@ CONTOH OUTPUT FORMAT (WAJIB DIIKUTI PERSIS):
       "id": "qm2",
       "question": "Bagaimana aplikasi mobile bekerja tanpa koneksi internet?",
       "options": [
-        { "key": "A", "text": "Read-only — data offline hanya hasil cache, tidak bisa input baru", "recommended": false },
-        { "key": "B", "text": "Full offline — bisa input data, lalu sync saat online kembali", "recommended": true },
+        { "key": "A", "text": "Read-only — data offline hanya hasil cache", "recommended": false },
+        { "key": "B", "text": "Full offline — bisa input data, sync saat online", "recommended": true },
         { "key": "C", "text": "Tidak perlu offline — selalu butuh internet", "recommended": false },
-        { "key": "D", "text": "Cache ringan — hanya simpan data penting di local DB", "recommended": false },
+        { "key": "D", "text": "Cache ringan — hanya simpan data penting", "recommended": false },
         { "key": "E", "text": "Lainnya", "custom": "" }
       ],
       "recommendation_reason": "Full offline dengan queue sync adalah best practice untuk aplikasi mobile field/sales."
@@ -84,9 +88,9 @@ CONTOH OUTPUT FORMAT (WAJIB DIIKUTI PERSIS):
 }
 ```
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ISI VARIABEL (dari sistem)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 • Idea: {$idea}
 • Target: {$target}
@@ -94,10 +98,12 @@ ISI VARIABEL (dari sistem)
 • API Contract (ringkasan): {$api_contract_summary}
 • ERD (ringkasan): {$erd_summary}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Jawab HANYA dengan JSON valid sesuai format di atas. Tidak boleh ada teks di luar blok JSON. Pastikan JSON dapat di-parse tanpa error.
+Jawab HANYA dengan JSON valid sesuai format di atas. Tidak ada teks di luar JSON.
+
+VERIFY sebelum respond: Apakah target === "both" (jika tidak, output kosong)? Apakah `questions.length` antara 5-10? Apakah setiap question punya tepat 1 `recommended: true`? Apakah pertanyaan mobile-only (tidak duplicate dengan pertanyaan web)? Apakah `recommendation_reason` ada di semua?
 
 ' . platformSuffix($target);
