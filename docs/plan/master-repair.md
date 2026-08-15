@@ -19,7 +19,7 @@
 | CP-6 Tracking Flow Restore | 8 | ✅ done | `a400b4f` | 2026-08-14 | 2026-08-14 |
 | CP-7 Prompt Quality Overhaul | 11 | ✅ done | `401205a` | 2026-08-14 | 2026-08-14 |
 | CP-8 Stage-Specific Viewer UX | 9 | ✅ done | `cdff6ee` | 2026-08-14 | 2026-08-14 |
-| CP-9 Master Prompt Showcase | 5 | ⏳ pending | — | — | — |
+| CP-9 Master Prompt Showcase | 5 | ✅ done | `115e43a` | 2026-08-14 | 2026-08-14 |
 | CP-10 Granular Tracking UI + ERD Absorb | 6 | ⏳ pending | — | — | — |
 | CP-11 Verify + Polish + Docs | 5 | ⏳ pending | — | — | — |
 
@@ -748,15 +748,16 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - **Fix:** setelah `master_web` (atau `master_mobile`) status `done`, auto-open `MasterPromptViewer` Modal dengan full artifact. User bisa close + reopen via "View Master Prompt" button di stage row.
 - **Status:** ⏳ pending
 
-## CP-9 Sign-off (template)
+## CP-9 Sign-off
 
-- [ ] All 5 items ✅
-- [ ] `npm run lint && npx tsc --noEmit` clean
-- [ ] Manual: full pipeline → master prompt auto-opens → edit → copy → download → tracking setup → all working
-- [ ] Commit created on `devel`
-- **Date completed:** ____
-- **Commit SHA:** ____
-- **Notes:** ____
+- [x] All 5 items ✅
+- [x] `npm run lint && npx tsc --noEmit` clean (2 pre-existing CommandPalette errors unrelated)
+- [x] Manual: full pipeline → master prompt auto-opens on done → edit → copy → download → tracking setup → all working
+- [x] Backend 258 pass (unchanged)
+- [x] Commit created on `devel`
+- **Date completed:** 2026-08-14
+- **Commit SHA:** `115e43a`
+- **Notes:** MasterPromptViewer with section accordion, inline edit per-section, .md download, Setup Tracking embedded. Auto-open modal triggered by SSE 'done' event once per master_web/master_mobile target. Inline stage view now compact preview (600 char) + 'Buka Master Prompt' button.
 
 ---
 
@@ -885,10 +886,11 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - Plan: api_contract stage tetap jalan, viewer collapsed ke ERD tab API. TrackingPanel filter chips (5 task_types) + per-chip counters.
 - Items: G-1..G-6.
 
-### CP-9 — pending
-- Status: ⏳ pending
-- Plan: MasterPromptViewer full-screen showcase dengan inline edit + download .md + Setup Tracking convenience card. Auto-open setelah master_* done.
-- Items: M-1..M-5.
+### CP-9 — 2026-08-14
+- Status: ✅ done
+- Commit: `115e43a`
+- Items: 5/5 done (M-1..M-5)
+- Notes: MasterPromptViewer (section accordion + edit + download + Setup Tracking), auto-open modal via SSE done event (once per target), inline stage view = compact preview + button.
 
 ### CP-8 — 2026-08-14
 - Status: ✅ done
