@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, Badge, Input, Label, Modal } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import {
@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Check,
   Ban,
+  ShieldAlert,
 } from "lucide-react";
 
 export default function UsersSettings() {
@@ -37,14 +38,37 @@ export default function UsersSettings() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [actionError, setActionError] = useState("");
+  const previousPendingRef = useRef(0);
 
-  useEffect(() => {
-    apiGet<UserType[]>("/settings/users")
-      .then(setUsers)
+  const activeAdminCount = users.filter(
+    (u) => u.role === "admin" && u.status === "active",
+  ).length;
+
+  function loadUsers() {
+    return apiGet<UserType[]>("/settings/users")
+      .then((fresh) => {
+        const newPending = fresh.filter((u) => u.status === "pending").length;
+        if (
+          previousPendingRef.current > 0 &&
+          newPending > previousPendingRef.current
+        ) {
+          const added = newPending - previousPendingRef.current;
+          setActionError(
+            `🔔 ${added} permintaan persetujuan baru masuk. Segera tinjau di daftar.`,
+          );
+        }
+        previousPendingRef.current = newPending;
+        setUsers(fresh);
+      })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.status === 403) setDenied(true);
-      })
-      .finally(() => setLoading(false));
+      });
+  }
+
+  useEffect(() => {
+    loadUsers().finally(() => setLoading(false));
+    const interval = setInterval(loadUsers, 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   async function approve(id: number) {
@@ -149,6 +173,10 @@ export default function UsersSettings() {
                 </span>
               </>
             )}
+            {" · "}
+            <span>
+              {activeAdminCount} admin aktif
+            </span>
           </p>
         </div>
         <Button
@@ -171,6 +199,17 @@ export default function UsersSettings() {
           >
             Tutup
           </button>
+        </div>
+      )}
+
+      {activeAdminCount === 1 && (
+        <div className="flex items-center gap-2 border-b border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-5 py-3 text-sm text-[var(--color-warning)]">
+          <ShieldAlert size={16} />
+          <span>
+            Hanya ada <strong>1 admin aktif</strong>. Tidak bisa demote atau
+            hapus admin terakhir — promote admin lain dulu untuk mencegah
+            lockout sistem.
+          </span>
         </div>
       )}
 
@@ -265,7 +304,15 @@ export default function UsersSettings() {
                   variant="ghost"
                   size="icon"
                   aria-label="Hapus"
-                  disabled={u.role === "admin" || deleting === u.id}
+                  disabled={
+                    u.role === "admin" ||
+                    deleting === u.id
+                  }
+                  title={
+                    u.role === "admin" && activeAdminCount === 1
+                      ? "Tidak bisa hapus admin terakhir"
+                      : undefined
+                  }
                   onClick={() => remove(u.id)}
                 >
                   {deleting === u.id ? (
