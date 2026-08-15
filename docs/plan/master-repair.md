@@ -16,7 +16,7 @@
 | CP-3 UX Quick Wins | 4 | ✅ done | `24e92bd` | 2026-08-14 | 2026-08-14 |
 | CP-4 UX Heavy Lifts | 9 | ✅ done | `220040b` | 2026-08-14 | 2026-08-14 |
 | CP-5 Polish + Hardening | 16 | ✅ done | `4377758` | 2026-08-14 | 2026-08-14 |
-| CP-6 Tracking Flow Restore | 8 | 🚧 active | — | 2026-08-14 | — |
+| CP-6 Tracking Flow Restore | 8 | ✅ done | `a400b4f` | 2026-08-14 | 2026-08-14 |
 | CP-7 Prompt Quality Overhaul | 11 | ⏳ pending | — | — | — |
 | CP-8 Stage-Specific Viewer UX | 9 | ⏳ pending | — | — | — |
 | CP-9 Master Prompt Showcase | 5 | ⏳ pending | — | — | — |
@@ -518,17 +518,18 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - **Verify:** Manual: send 3 webhook dengan different task_type → chips filter correctly.
 - **Status:** ⏳ pending
 
-## CP-6 Sign-off (template)
+## CP-6 Sign-off
 
-- [ ] All 8 items ✅
-- [ ] `php artisan test` pass
-- [ ] `npm run lint && npx tsc --noEmit` clean
-- [ ] `php artisan pint --test` pass
-- [ ] Manual: full pipeline → setup tracking → webhook 200
-- [ ] Commit created on `devel`
-- **Date completed:** ____
-- **Commit SHA:** ____
-- **Notes:** ____
+- [x] All 8 items ✅
+- [x] `php artisan test` pass (258 pass, 1 pre-existing Socialite failure)
+- [x] `npm run lint` clean (2 pre-existing CommandPalette errors unrelated to CP-6)
+- [x] `npx tsc --noEmit` clean
+- [x] `php artisan pint --test` pass (no formatting issues)
+- [x] Manual: full pipeline run with per-version token → webhook accepted via HMAC
+- [x] Commit created on `devel`
+- **Date completed:** 2026-08-14
+- **Commit SHA:** `a400b4f`
+- **Notes:** PipelineRunner trackingBlock() rewritten — no longer auto-generates tokens. Per-version ProjectApiToken now created via Setup Tracking UI (button in TrackingPanel + SetupTrackingCard embed in master_web stage). Webhook prompt documents correct HMAC format with all 4 headers. Granular task_type filter chips (5+1) + per-type counters. WebhookController duplicate verifySignature() bug fixed. 7 new tests.
 
 ---
 
@@ -897,10 +898,13 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - Plan: rewrite 9 prompts dengan explicit output templates + self-check sections. Focus: phased_master untuk 1-paste-ready ke coding agent.
 - Items: P-P1..P-P11.
 
-### CP-6 — pending
-- Status: 🚧 active (next checkpoint to execute)
-- Plan: restore tracking webhook. Per-version ProjectApiToken. Drop broken auto-gen di `trackingBlock()`. Setup Tracking UX di TrackingPanel + master prompt viewer. Granular `task_type` filter chips.
-- Items: T-1..T-8.
+### CP-6 — 2026-08-14
+- Status: ✅ done
+- Commit: `a400b4f`
+- Items: 8/8 done (T-1..T-8)
+- Tests: 258 pass (+7: 4 ProjectTokenControllerTest, 2 WebhookTest granular types, 1 PipelineRunnerTest tracking block)
+- Lint/tsc: clean (2 pre-existing CommandPalette errors unrelated)
+- Notes: drop broken auto-gen, per-version token via UI, HMAC-correct prompt, filter chips, WebhookController dup-bug fixed.
 
 ### CP-5 — 2026-08-14
 - Status: ✅ done (15/16, P7 partial, P10 deferred)
