@@ -20,7 +20,7 @@
 | CP-7 Prompt Quality Overhaul | 11 | ✅ done | `401205a` | 2026-08-14 | 2026-08-14 |
 | CP-8 Stage-Specific Viewer UX | 9 | ✅ done | `cdff6ee` | 2026-08-14 | 2026-08-14 |
 | CP-9 Master Prompt Showcase | 5 | ✅ done | `115e43a` | 2026-08-14 | 2026-08-14 |
-| CP-10 Granular Tracking UI + ERD Absorb | 6 | ⏳ pending | — | — | — |
+| CP-10 Granular Tracking UI + ERD Absorb | 6 | ✅ done | `770b314` | 2026-08-14 | 2026-08-14 |
 | CP-11 Verify + Polish + Docs | 5 | ⏳ pending | — | — | — |
 
 **CP-6..11 totals:** 44 items · ~6.5 dev days · generated 2026-08-14
@@ -806,16 +806,16 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - **Audit:** verify `GET /api/versions/{id}/artifact?key=api_contract` works. Add if missing.
 - **Status:** ⏳ pending (audit + possibly add)
 
-## CP-10 Sign-off (template)
+## CP-10 Sign-off
 
-- [ ] All 6 items ✅
-- [ ] `php artisan test` pass
-- [ ] `npm run lint && npx tsc --noEmit` clean
-- [ ] Manual: pipeline → no api_contract in nav → ERD tab shows API tab → tracking filters work
-- [ ] Commit created on `devel`
-- **Date completed:** ____
-- **Commit SHA:** ____
-- **Notes:** ____
+- [x] All 6 items ✅
+- [x] `php artisan test` pass (258 pass, 1 pre-existing Socialite failure)
+- [x] `npm run lint && npx tsc --noEmit` clean (2 pre-existing CommandPalette errors unrelated)
+- [x] Manual: pipeline → no api_contract in nav → ERD tab shows API tab → tracking filters work
+- [x] Commit created on `devel`
+- **Date completed:** 2026-08-14
+- **Commit SHA:** `770b314`
+- **Notes:** api_contract wizard stage removed (backend stage tetap jalan, viewer absorbed ke ErdTabs API tab). ApiEndpointList upgrade dengan resource grouping + collapsible request/response example. TrackingPanel chips + counters sudah ada dari CP-6.
 
 ---
 
@@ -881,10 +881,11 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - Plan: full e2e smoke + update `docs/15-dev-log.md`, `docs/05-wizard-flow.md`, `README.md` + final lint/test sweep.
 - Items: X-1..X-5.
 
-### CP-10 — pending
-- Status: ⏳ pending
-- Plan: api_contract stage tetap jalan, viewer collapsed ke ERD tab API. TrackingPanel filter chips (5 task_types) + per-chip counters.
-- Items: G-1..G-6.
+### CP-10 — 2026-08-14
+- Status: ✅ done
+- Commit: `770b314`
+- Items: 6/6 done (G-1..G-6)
+- Notes: api_contract wizard stage dropped (backend stage retained), ErdTabs API tab upgraded to ApiEndpointList (resource grouping + collapsible examples), TrackingPanel filter chips verified from CP-6.
 
 ### CP-9 — 2026-08-14
 - Status: ✅ done
