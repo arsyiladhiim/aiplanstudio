@@ -203,7 +203,7 @@ _(Append entry per CP completion, urut kronologis. Format: `### CP-X — YYYY-MM
 
 ### CP-15 — 2026-08-15 · High Priority UX Safety ✅
 - **Status:** done
-- **Commit:** `<fill at commit>`
+- **Commit:** `1a9ee25`
 - **Items:** 3/3
   - **H1 Audit destructive confirm patterns**: ✅ no-op. `ConfirmDialog` component (`web/src/components/ui/ConfirmDialog.tsx`) sudah reusable dan dipakai di 5 tempat: `projects/page.tsx`, `projects/[id]/page.tsx`, `projects/archived/page.tsx`, `templates/page.tsx`, `ApiTokenSection.tsx`. Zero `window.confirm()` di codebase. Audit complete.
   - **H2 Last-admin warning banner**: ✅ done. Tambah `activeAdminCount` derived state + ShieldAlert banner (warning color) di header card. Disable button dengan title tooltip "Tidak bisa hapus admin terakhir" saat admin tersisa 1. Subtitle count admin aktif di header.
@@ -213,6 +213,22 @@ _(Append entry per CP completion, urut kronologis. Format: `### CP-X — YYYY-MM
   - `web/src/app/(app)/settings/users/page.tsx` (H2 + H3)
   - `docs/plan/master-plan-v2.md` (this entry)
 
+### CP-16 — 2026-08-15 · Medium Priority Production Hardening ✅
+- **Status:** done
+- **Commit:** `<fill at commit>`
+- **Items:** 4/4
+  - **M1 CSRF token expiry tracking**: ✅ done. `GET /api/csrf-token` return `{token, issued_at, expires_at, lifetime}`. Frontend `web/src/lib/api.ts` cache `csrfExpiresAt`; `ensureFreshCsrf()` refetch jika expired (30s before expiry). `apiFetch` + `createSSEPost` pakai `ensureFreshCsrf`. 419 retry path keep `ensureCsrf` (force fresh). Smoke verified: `{"token":"...","issued_at":1786791617,"expires_at":1786798817,"lifetime":7200}`.
+  - **M2 Per-user rate limit**: ✅ done. Custom limiters di `AppServiceProvider::boot()` keyed by email + IP fallback. Routes pakai named limiters: `throttle:register`, `throttle:login`, `throttle:forgot-password`, `throttle:reset-password`. Prevents bot on shared Cloudflare egress IP from locking out legit users.
+  - **M3 Audit log for user actions**: ✅ done. `UserSettingsController::update()` log `user_approved`/`user_rejected` saat status berubah. `destroy()` log `user_deleted`. New constants di `Activity` model. Includes actor name + target email + metadata.
+  - **M4 CSRF rotation on auth endpoints**: ✅ done. `handleResponse(res, path)` detect 419 from auth endpoints (`/login`, `/register`, `/logout`, `/forgot-password`, `/reset-password`) → throw `ApiError("Sesi berakhir. Silakan muat ulang halaman.")`. Non-auth 419 → retry as before.
+- **Verify:** `php artisan test` 261 pass + 1 Socialite flake (unchanged); `npx tsc --noEmit` clean; `npm run lint` no new errors.
+- **Files touched:**
+  - `api/routes/api.php` (M1 csrf-token shape, M2 named limiters)
+  - `api/app/Providers/AppServiceProvider.php` (M2 limiters)
+  - `api/app/Models/Activity.php` (M3 new action constants)
+  - `api/app/Http/Controllers/UserSettingsController.php` (M3 audit logs)
+  - `web/src/lib/api.ts` (M1 expiry cache, M4 auth-endpoint 419)
+
 ---
 
-_(Lanjut ke CP-16.)_
+_(Lanjut ke CP-17.)_

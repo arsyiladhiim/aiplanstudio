@@ -19,10 +19,10 @@ use App\Models\ProjectApiToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
-Route::post('/forgot-password', ForgotPasswordController::class)->middleware('throttle:5,1');
-Route::post('/reset-password', ResetPasswordController::class)->middleware('throttle:5,1');
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::post('/forgot-password', ForgotPasswordController::class)->middleware('throttle:forgot-password');
+Route::post('/reset-password', ResetPasswordController::class)->middleware('throttle:reset-password');
 Route::get('/auth/google/redirect', [SocialiteController::class, 'redirect'])->middleware('throttle:30,1');
 Route::get('/auth/google/callback', [SocialiteController::class, 'callback'])->middleware('throttle:10,1');
 Route::get('/health', fn() => response()->json(['status' => 'ok']));
@@ -32,7 +32,17 @@ Route::get('/changelog', [ChangelogController::class, 'index']);
 // Browser can't read XSRF-TOKEN cookie from api subdomain (host-only cookie).
 // Frontend fetches this GET (no CSRF check) and sends token via X-CSRF-TOKEN header.
 // Laravel CSRF check accepts raw session token in X-CSRF-TOKEN (no cookie decrypt needed).
-Route::get('/csrf-token', fn(Request $r) => response()->json(['token' => $r->session()->token()]))->middleware('throttle:60,1');
+// CP-16.M1: return issued_at + expires_at so frontend can cache + lazy refetch on expiry.
+// expires_at = session lifetime (config('session.lifetime') minutes from now).
+Route::get('/csrf-token', function (Request $r) {
+    $lifetimeMinutes = (int) config('session.lifetime', 120);
+    return response()->json([
+        'token' => $r->session()->token(),
+        'issued_at' => time(),
+        'expires_at' => time() + ($lifetimeMinutes * 60),
+        'lifetime' => $lifetimeMinutes * 60,
+    ]);
+})->middleware('throttle:60,1');
 
 // Webhook — external access via Project API Token (not session auth)
 Route::post('/webhooks/phase-complete', [WebhookController::class, 'phaseComplete'])

@@ -17,6 +17,9 @@ class Activity extends Model
     public const ACTION_REGENERATE_STAGE = 'regenerate_stage';
     public const ACTION_ARTIFACT_SNAPSHOT = 'artifact_snapshot';
     public const ACTION_WEBHOOK_RECEIVED = 'webhook_received';
+    public const ACTION_USER_APPROVED = 'user_approved';          // CP-16.M3
+    public const ACTION_USER_REJECTED = 'user_rejected';          // CP-16.M3
+    public const ACTION_USER_DELETED = 'user_deleted';            // CP-16.M3
 
     public const ACTIONS = [
         self::ACTION_CREATED_VERSION,
@@ -27,6 +30,9 @@ class Activity extends Model
         self::ACTION_REGENERATE_STAGE,
         self::ACTION_ARTIFACT_SNAPSHOT,
         self::ACTION_WEBHOOK_RECEIVED,
+        self::ACTION_USER_APPROVED,
+        self::ACTION_USER_REJECTED,
+        self::ACTION_USER_DELETED,
     ];
 
     protected function casts(): array

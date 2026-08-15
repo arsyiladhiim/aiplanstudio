@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Activity;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,18 +52,51 @@ class UserSettingsController extends Controller
             }
         }
 
+        $previousStatus = $user->status;
         $user->update($data);
+
+        // CP-16.M3: audit log for approve/reject status changes.
+        if (isset($data['status']) && $data['status'] !== $previousStatus) {
+            $action = $data['status'] === 'active'
+                ? Activity::ACTION_USER_APPROVED
+                : Activity::ACTION_USER_REJECTED;
+            Activity::create([
+                'user_id' => $request->user()?->id,
+                'action' => $action,
+                'description' => sprintf(
+                    '%s menyetujui/menolak user "%s" (%s → %s)',
+                    $request->user()?->name ?? 'system',
+                    $user->email,
+                    $previousStatus,
+                    $data['status'],
+                ),
+                'metadata' => ['target_user_id' => $user->id, 'target_email' => $user->email],
+            ]);
+        }
 
         return response()->json($user);
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy(Request $request, int $id): JsonResponse
     {
         $user = User::findOrFail($id);
         if ($user->isAdmin()) {
             return response()->json(['message' => 'Tidak bisa menghapus admin.'], 422);
         }
+        $deletedEmail = $user->email;
         $user->delete();
+
+        // CP-16.M3: audit log for user deletion.
+        Activity::create([
+            'user_id' => $request->user()?->id,
+            'action' => Activity::ACTION_USER_DELETED,
+            'description' => sprintf(
+                '%s menghapus user "%s"',
+                $request->user()?->name ?? 'system',
+                $deletedEmail,
+            ),
+            'metadata' => ['target_email' => $deletedEmail],
+        ]);
 
         return response()->json(null, 204);
     }

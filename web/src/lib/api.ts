@@ -11,6 +11,7 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? ""
 const TIMEOUT_MS = 30_000
 
 let csrfToken: string | null = null
+let csrfExpiresAt = 0
 let csrfPromise: Promise<void> | null = null
 
 /** Fetch CSRF token from Laravel. Returns raw session token for X-CSRF-TOKEN header. */
@@ -20,11 +21,17 @@ async function fetchCsrfToken(): Promise<void> {
     headers: { Accept: "application/json" },
   })
   if (!res.ok) throw new Error(`CSRF endpoint returned ${res.status}`)
-  const data = (await res.json()) as { token: string }
+  const data = (await res.json()) as {
+    token: string
+    issued_at: number
+    expires_at: number
+    lifetime: number
+  }
   csrfToken = data.token
+  csrfExpiresAt = data.expires_at
 }
 
-/** Ensure CSRF token is fetched (lazy, once per session; refetched on 419 retry) */
+/** Ensure CSRF token is fetched (lazy, once per session; refetched on 419 retry or expiry) */
 function ensureCsrf(): Promise<void> {
   if (!csrfPromise) {
     csrfPromise = fetchCsrfToken().catch((err) => {
@@ -33,6 +40,14 @@ function ensureCsrf(): Promise<void> {
     })
   }
   return csrfPromise
+}
+
+/** Check if cached token expired; refetch if so. Call before mutating request. */
+async function ensureFreshCsrf(): Promise<void> {
+  if (!csrfToken || Date.now() / 1000 >= csrfExpiresAt - 30) {
+    csrfPromise = null
+    await ensureCsrf()
+  }
 }
 
 /** Build fetch headers with CSRF token for state-changing requests */
@@ -53,7 +68,7 @@ function generateRequestId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
+async function handleResponse<T>(res: Response, path?: string): Promise<T> {
   if (res.status === 401) {
     // Simpan context penting agar /login?resume=1 bisa melanjutkan tanpa state hilang.
     try {
@@ -73,6 +88,19 @@ async function handleResponse<T>(res: Response): Promise<T> {
     throw new Error("Sesi telah berakhir. Silakan login ulang.")
   }
   if (res.status === 419) {
+    // CP-16.M4: 419 from auth endpoints means session rotated (login/logout changed token).
+    // Retrying with new token will fail again — surface the error instead.
+    const isAuthEndpoint = path
+      ? /^\/(login|register|logout|forgot-password|reset-password)(\/|$|\?)/.test(
+          path,
+        )
+      : false
+    if (isAuthEndpoint) {
+      throw new ApiError(
+        "Sesi berakhir. Silakan muat ulang halaman dan coba lagi.",
+        419,
+      )
+    }
     throw new RetryableCsrfError()
   }
   if (!res.ok) {
@@ -114,7 +142,7 @@ async function apiFetch<T>(
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
   if (method !== "GET") {
-    await ensureCsrf()
+    await ensureFreshCsrf()
   }
 
   const doFetch = async (): Promise<T> => {
@@ -125,7 +153,7 @@ async function apiFetch<T>(
       signal: controller.signal,
       body: body ? JSON.stringify(body) : undefined,
     })
-    return handleResponse<T>(res)
+    return handleResponse<T>(res, path)
   }
 
   try {
@@ -282,7 +310,7 @@ export async function createSSEPost(
   const controller = new AbortController()
   let finished = false
 
-  await ensureCsrf()
+  await ensureFreshCsrf()
 
   // Retry-once untuk transient network error (TypeError fetch) sebelum menyerah.
   let res: Response
