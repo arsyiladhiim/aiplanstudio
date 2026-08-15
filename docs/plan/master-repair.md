@@ -18,7 +18,7 @@
 | CP-5 Polish + Hardening | 16 | ✅ done | `4377758` | 2026-08-14 | 2026-08-14 |
 | CP-6 Tracking Flow Restore | 8 | ✅ done | `a400b4f` | 2026-08-14 | 2026-08-14 |
 | CP-7 Prompt Quality Overhaul | 11 | ✅ done | `401205a` | 2026-08-14 | 2026-08-14 |
-| CP-8 Stage-Specific Viewer UX | 9 | ⏳ pending | — | — | — |
+| CP-8 Stage-Specific Viewer UX | 9 | ✅ done | `cdff6ee` | 2026-08-14 | 2026-08-14 |
 | CP-9 Master Prompt Showcase | 5 | ⏳ pending | — | — | — |
 | CP-10 Granular Tracking UI + ERD Absorb | 6 | ⏳ pending | — | — | — |
 | CP-11 Verify + Polish + Docs | 5 | ⏳ pending | — | — | — |
@@ -702,15 +702,17 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - **Fix:** tambah `revealSecret` mode (CP-6 wire): copy only fires after explicit reveal click, secret cached in sessionStorage.
 - **Status:** ⏳ pending
 
-## CP-8 Sign-off (template)
+## CP-8 Sign-off
 
-- [ ] All 9 items ✅
-- [ ] `npm run lint && npx tsc --noEmit` clean
-- [ ] No React Compiler violations (`set-state-in-effect`, `refs` in render)
-- [ ] Commit created on `devel`
-- **Date completed:** ____
-- **Commit SHA:** ____
-- **Notes:** ____
+- [x] All 9 items ✅
+- [x] `npm run lint` clean (2 pre-existing CommandPalette errors unrelated to CP-8)
+- [x] `npx tsc --noEmit` clean
+- [x] No React Compiler violations
+- [x] Backend 258 pass (unchanged)
+- [x] Commit created on `devel`
+- **Date completed:** 2026-08-14
+- **Commit SHA:** `cdff6ee`
+- **Notes:** 9 viewer components created — each dedicated to its stage output shape. SectionRenderer shared helper. ErdTabs absorbs API Contract tab. PhasesView handles both JSON legacy + markdown FASE format. StandardsView per-snippet copy button.
 
 ---
 
@@ -888,10 +890,11 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - Plan: MasterPromptViewer full-screen showcase dengan inline edit + download .md + Setup Tracking convenience card. Auto-open setelah master_* done.
 - Items: M-1..M-5.
 
-### CP-8 — pending
-- Status: ⏳ pending
-- Plan: 9 viewer components (AnalysisView, PrdView, ArchitectureView, StandardsView, PhasesView, AgentsView, SectionRenderer, CopyField enhance, ErdDiagram tabs). Replace generic `<pre>` di wizard.
-- Items: V-1..V-9.
+### CP-8 — 2026-08-14
+- Status: ✅ done
+- Commit: `cdff6ee`
+- Items: 9/9 done (V-1..V-9)
+- Notes: AnalysisView (persona grid + JTBD list), PrdView (story grouping + AC checkboxes), ArchitectureView (ASCII diagram preservation), StandardsView (per-snippet copy), PhasesView (dual JSON+markdown), AgentsView (role cards with handoff arrows), ErdTabs (Diagram|API|Tables), CopyField (secret reveal mode), SectionRenderer (shared collapsible section helper).
 
 ### CP-7 — 2026-08-14
 - Status: ✅ done
