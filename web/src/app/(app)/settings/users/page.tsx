@@ -36,6 +36,7 @@ export default function UsersSettings() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     apiGet<UserType[]>("/settings/users")
@@ -48,11 +49,16 @@ export default function UsersSettings() {
 
   async function approve(id: number) {
     setUpdating(id);
+    setActionError("");
     try {
       const updated = await apiPatch<UserType>(`/settings/users/${id}`, {
         status: "active",
       });
       setUsers((u) => u.map((x) => (x.id === id ? updated : x)));
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error ? err.message : "Gagal menyetujui pengguna.",
+      );
     } finally {
       setUpdating(null);
     }
@@ -60,9 +66,14 @@ export default function UsersSettings() {
 
   async function remove(id: number) {
     setDeleting(id);
+    setActionError("");
     try {
       await apiDelete("/settings/users/" + id);
       setUsers((u) => u.filter((x) => x.id !== id));
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error ? err.message : "Gagal menghapus pengguna.",
+      );
     } finally {
       setDeleting(null);
     }
@@ -129,6 +140,15 @@ export default function UsersSettings() {
           <h3 className="font-semibold">Pengguna</h3>
           <p className="text-sm text-[var(--color-fg-muted)]">
             {users.length} pengguna terdaftar
+            {users.some((u) => u.status === "pending") && (
+              <>
+                {" · "}
+                <span className="text-[var(--color-warning)]">
+                  {users.filter((u) => u.status === "pending").length} menunggu
+                  persetujuan
+                </span>
+              </>
+            )}
           </p>
         </div>
         <Button
@@ -139,6 +159,41 @@ export default function UsersSettings() {
           <UserPlus size={15} /> Tambah
         </Button>
       </div>
+
+      {actionError && (
+        <div className="flex items-center gap-2 border-b border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 px-5 py-3 text-sm text-[var(--color-danger)]">
+          <AlertCircle size={16} />
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError("")}
+            className="ml-auto text-xs underline hover:no-underline"
+          >
+            Tutup
+          </button>
+        </div>
+      )}
+
+      {users.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 p-10 text-center">
+          <UserPlus size={28} className="text-[var(--color-fg-subtle)]" />
+          <p className="text-sm text-[var(--color-fg-muted)]">
+            Belum ada pengguna lain.
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowModal(true)}
+          >
+            Tambah Pengguna Pertama
+          </Button>
+        </div>
+      ) : users.every((u) => u.status !== "pending") ? (
+        <div className="flex items-center gap-2 px-5 py-3 text-sm text-[var(--color-fg-subtle)]">
+          <CheckCircle2 size={15} />
+          Tidak ada permintaan persetujuan saat ini.
+        </div>
+      ) : null}
 
       <div className="divide-y divide-[var(--color-border)]">
         {users.map((u) => {

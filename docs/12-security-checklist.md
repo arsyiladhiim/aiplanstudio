@@ -44,11 +44,11 @@
 - [x] (R1) Error handling: batasi error message exposure di `api.ts` — parse JSON response dulu, fallback generic (RS-5 ✅).
 
 ## F. Transport & Header
-- [ ] (Produksi) HTTPS + redirect http→https.
-- [x] Header keamanan via nginx: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Content-Security-Policy`, `Strict-Transport-Security`, `Permissions-Policy`.
-- [x] CORS: cross-origin karena BFF removed (Phase 7) — Next.js (`aiplanstudio.arsyiladm.my.id`) call API (`api-aiplanstudio.arsyiladm.my.id`) dengan Sanctum stateful domain + cookie `SameSite=None; Secure`.
+- [x] (Produksi) HTTPS + redirect http→https. **Handled by Cloudflare Tunnel edge** — semua traffic masuk HTTPS-only; HTTP (port 80) di Cloudflare otomatis redirect ke HTTPS. App-layer tidak perlu redirect logic karena tidak reachable langsung dari publik (no `ports:` di docker-compose, hanya tunnel).
+- [x] Header keamanan via nginx: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`.
+- [x] CORS: cross-origin karena BFF removed (Phase 7) — Next.js (`aiplanstudio.arsyiladm.my.id`) call API (`api-aiplanstudio.arsyiladm.my.id`) dengan Sanctum stateful domain + cookie `SameSite=None; Secure`. `allowed_origins` allowlist eksplisit (no `*`).
 - [x] SSE header aman (`X-Accel-Buffering: no`) tanpa membocorkan info.
-- [x] Session cookie HttpOnly + SameSite=Lax.
+- [x] Session cookie HttpOnly + SameSite=None (cross-origin). CSRF: `GET /api/csrf-token` (raw session token) → header `X-CSRF-TOKEN` (CP-13).
 
 ## G. Dependency & Build
 - [x] `composer audit` / `npm audit` bersih dari kerentanan kritikal.

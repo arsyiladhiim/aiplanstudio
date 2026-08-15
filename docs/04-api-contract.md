@@ -13,13 +13,16 @@
 ## Auth
 | Method | Path | Auth | Throttle | Body | Response |
 |--------|------|------|----------|------|----------|
-| GET | `/api/sanctum/csrf-cookie` | — | — | — | set `XSRF-TOKEN` cookie |
+| GET | `/api/csrf-token` | — | 60/menit | — | `200` `{token}` (raw session token, kirim via header `X-CSRF-TOKEN`) |
+| GET | `/api/sanctum/csrf-cookie` | — | — | — | set `XSRF-TOKEN` cookie (legacy, tidak dipakai frontend — cross-origin host-only unreadable) |
 | POST | `/api/register` | — | 5/menit | `{name,email,password,password_confirmation}` | `201` `{user, pending?}` |
 | POST | `/api/login` | — | 5/menit | `{email,password,remember?}` | `200` `{user}` |
 | POST | `/api/logout` | Session | — | — | `204` |
 | GET | `/api/user` | Session | — | — | user + role + status |
 
 > **Catatan:** Auth menggunakan **Sanctum SPA session** — Laravel mengirim HttpOnly session cookie. User non-pertama dibuat dengan `status: pending` dan tidak bisa login sebelum di-approve admin. Tidak ada Bearer token, tidak ada token di JavaScript.
+>
+> **CP-13:** Frontend pakai `GET /api/csrf-token` untuk raw session token, kirim via header `X-CSRF-TOKEN` di POST/PATCH/DELETE. Endpoint `/sanctum/csrf-cookie` masih ada (kompat legacy) tapi tidak dipakai browser modern karena cookie host-only pada api subdomain tidak terbaca JS frontend.
 
 ### Google OAuth
 | Method | Path | Auth | Response |
@@ -47,6 +50,11 @@
 | PATCH | `/api/projects/{id}` | Session (owner) | `{title?, idea?, target?}` | update project |
 | DELETE | `/api/projects/{id}` | Session (owner) | — | `204` |
 | PATCH | `/api/projects/{id}/favorite` | Session (owner) | — | toggle `is_favorite` |
+| PATCH | `/api/projects/{id}/pin` | Session (owner) | — | toggle `is_pinned` |
+| PATCH | `/api/projects/{id}/archive` | Session (owner) | — | toggle `archived_at` |
+| GET | `/api/projects/{id}/tasks` | Session (owner) | — | aggregated task progress across all versions (untuk tracking server) |
+| GET | `/api/projects/{id}/export-all` | Session (owner) | — | bulk export semua versi sebagai markdown/zip |
+| POST | `/api/projects/{project}/versions/{version}/tokens/auto-tracking` | Session (owner) | — | auto-create Project API Token khusus tracking server, return `{id,name,token,secret,existing,message}` |
 
 ### Activities
 | Method | Path | Auth | Response |
@@ -71,6 +79,10 @@
 | PATCH | `/api/versions/{id}/answers` | Session (owner) | `{answers: {key:value}}` | update jawaban pertanyaan |
 | GET | `/api/versions/{id}/diff` | Session (owner) | `?compare={otherId}` | structured diff semua artifact fields (incl. mobile: phases, standards, agents, master_prompt) |
 | PATCH | `/api/versions/{id}/phases/{phaseKey}` | Session (owner) | `{done:bool}` | toggle phase progress checklist |
+| PATCH | `/api/versions/{id}/tasks/{taskKey}` | Session (owner) | `{done:bool, phase_key?}` | toggle granular task progress (sub-task dari phase) |
+| GET | `/api/versions/{id}/phase-progress/stream` | Session (owner) | — | SSE realtime phase/task progress (untuk UI wizard) |
+| POST | `/api/versions/{id}/regenerate` | Session (owner) | `{stage, regenerate_token?}` | regenerate single stage artifact via AI |
+| POST | `/api/versions/{id}/restart-from-analisa` | Session (owner) | — | restart pipeline dari stage analisa (reset downstream stages) |
 | GET | `/api/versions/{id}/export` | Session (owner) | `?format=md\|zip` | file unduhan — md menyertakan analisa, PRD, arsitektur, ERD, **API Contract**, **clarifikasi mobile**, phases, master prompt, mobile artifacts; zip = `{project}-v{n}.md` + `erd.json` + `mobile-standards.md` + `mobile-agents.md` (jika ada) |
 
 ### Standards & Agents Download
@@ -146,7 +158,9 @@ Auth via `Authorization: Bearer {token}` header, di mana token = project API tok
 | Method | Path | Auth | Response |
 |--------|------|------|----------|
 | GET | `/api/templates` | Session | list template |
+| POST | `/api/templates/{id}/instantiate` | Session | buat project baru dari template (copy seed answers ke pertanyaan) |
 | POST | `/api/templates` | Session + admin | buat |
+| PATCH | `/api/templates/{id}` | Session + admin | update template |
 | DELETE | `/api/templates/{id}` | Session + admin | hapus |
 
 ## Health
