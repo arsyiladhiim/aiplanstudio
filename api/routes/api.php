@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::post('/login/2fa', [AuthController::class, 'verify2fa'])->middleware('throttle:login');
+Route::post('/login/2fa/cancel', [AuthController::class, 'cancel2fa']);
 Route::post('/forgot-password', ForgotPasswordController::class)->middleware('throttle:forgot-password');
 Route::post('/reset-password', ResetPasswordController::class)->middleware('throttle:reset-password');
 Route::get('/auth/google/redirect', [SocialiteController::class, 'redirect'])->middleware('throttle:30,1');
@@ -53,6 +55,11 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::get('/settings/profile', [ProfileController::class, 'show']);
     Route::patch('/settings/profile', [ProfileController::class, 'update']);
+    // CP-18.F1: 2FA management (admin only — enforced in controller).
+    Route::get('/settings/2fa', [TwoFactorController::class, 'status']);
+    Route::post('/settings/2fa/setup', [TwoFactorController::class, 'setup']);
+    Route::post('/settings/2fa/confirm', [TwoFactorController::class, 'confirm']);
+    Route::post('/settings/2fa/disable', [TwoFactorController::class, 'disable']);
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::get('/projects/search', [ProjectController::class, 'search']);
     Route::post('/projects', [ProjectController::class, 'store']);

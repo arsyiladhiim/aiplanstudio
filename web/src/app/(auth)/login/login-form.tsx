@@ -24,7 +24,11 @@ export default function LoginForm() {
     const password = fd.get("password") as string;
 
     try {
-      await apiPost("/login", { email, password });
+      const res = await apiPost<{ two_factor_required?: boolean }>("/login", { email, password });
+      if (res?.two_factor_required) {
+        router.push("/login/2fa");
+        return;
+      }
       router.push("/dashboard");
     } catch (err: unknown) {
       const msg =

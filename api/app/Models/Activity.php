@@ -24,6 +24,8 @@ class Activity extends Model
     public const ACTION_USER_LOGIN = 'user_login';                // CP-17.L3
     public const ACTION_USER_FAILED_LOGIN = 'user_failed_login';  // CP-17.L3
     public const ACTION_USER_PASSWORD_RESET = 'user_password_reset'; // CP-17.L3
+    public const ACTION_TWO_FACTOR_ENABLED = 'two_factor_enabled'; // CP-18.F1
+    public const ACTION_TWO_FACTOR_DISABLED = 'two_factor_disabled'; // CP-18.F1
 
     public const ACTIONS = [
         self::ACTION_CREATED_VERSION,
@@ -41,6 +43,8 @@ class Activity extends Model
         self::ACTION_USER_LOGIN,
         self::ACTION_USER_FAILED_LOGIN,
         self::ACTION_USER_PASSWORD_RESET,
+        self::ACTION_TWO_FACTOR_ENABLED,
+        self::ACTION_TWO_FACTOR_DISABLED,
     ];
 
     protected function casts(): array
