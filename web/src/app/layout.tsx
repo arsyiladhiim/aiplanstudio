@@ -12,7 +12,9 @@ export const metadata: Metadata = {
     "Ubah satu ide jadi dokumentasi & prompt lengkap untuk AI coding agent. Web & Mobile. Untuk solo developer.",
 };
 
-const themeScript = `try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}`;
+// CP-17.L1: theme script reads localStorage first, falls back to prefers-color-scheme.
+// Runs synchronously before React hydration to prevent FOUC.
+const themeScript = `try{var t=localStorage.getItem('theme');if(t==null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)t='dark';if(t==='dark')document.documentElement.setAttribute('data-theme','dark');else document.documentElement.removeAttribute('data-theme');}catch(e){}`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
