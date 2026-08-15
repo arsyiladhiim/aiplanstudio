@@ -215,7 +215,7 @@ _(Append entry per CP completion, urut kronologis. Format: `### CP-X — YYYY-MM
 
 ### CP-16 — 2026-08-15 · Medium Priority Production Hardening ✅
 - **Status:** done
-- **Commit:** `<fill at commit>`
+- **Commit:** `fa99418`
 - **Items:** 4/4
   - **M1 CSRF token expiry tracking**: ✅ done. `GET /api/csrf-token` return `{token, issued_at, expires_at, lifetime}`. Frontend `web/src/lib/api.ts` cache `csrfExpiresAt`; `ensureFreshCsrf()` refetch jika expired (30s before expiry). `apiFetch` + `createSSEPost` pakai `ensureFreshCsrf`. 419 retry path keep `ensureCsrf` (force fresh). Smoke verified: `{"token":"...","issued_at":1786791617,"expires_at":1786798817,"lifetime":7200}`.
   - **M2 Per-user rate limit**: ✅ done. Custom limiters di `AppServiceProvider::boot()` keyed by email + IP fallback. Routes pakai named limiters: `throttle:register`, `throttle:login`, `throttle:forgot-password`, `throttle:reset-password`. Prevents bot on shared Cloudflare egress IP from locking out legit users.
@@ -231,4 +231,22 @@ _(Append entry per CP completion, urut kronologis. Format: `### CP-X — YYYY-MM
 
 ---
 
-_(Lanjut ke CP-17.)_
+### CP-17 — 2026-08-15 · Low Priority Polish (in progress)
+- **Status:** L1 + L2 + L3 done · L4 pending
+- **Commits:** `8b043dc` (L1), `88bfd95` (L3)
+- **Items:** 3/4
+  - **L1 Theme script honor `prefers-color-scheme`**: ✅ done. Extend `themeScript` di `web/src/app/layout.tsx` (before hydration): read `localStorage.theme`; jika null → cek `window.matchMedia('(prefers-color-scheme: dark)')`; set `data-theme="dark"` accordingly. Runs synchronously, no FOUC.
+  - **L2 Settings tabs active state**: ✅ no-op audit. `web/src/app/(app)/settings/layout.tsx` sudah apply `border-b-2 border-[var(--color-brand)]` untuk `pathname === t.href` di SEMUA tabs (profile/provider/users/about). Tidak perlu fix — UI sudah konsisten.
+  - **L3 Activity log for register/login events**: ✅ done. 4 action constants baru di `Activity` model: `user_registered`, `user_login`, `user_failed_login`, `user_password_reset`. Inline `Activity::create()` di `AuthController::register`, `AuthController::login` (success + 2 failure paths), dan `ResetPasswordController`. `project_id` already nullable (CP-16 fix migration). Auth events log tanpa project context. **Simplified from listener-pattern**: tidak perlu `EventServiceProvider` + `app/Listeners/` (YAGNI — Laravel 13 auto-discovery tidak enable by default + butuh listener boilerplate yang tidak lebih clean dari inline call).
+  - **L4 Self-service password change**: ⏳ pending. Extend `PATCH /api/settings/profile` (frontend form di `profile/page.tsx`).
+- **Verify (after L3):** `php artisan test` 261 pass + 1 Socialite flake (unchanged); `npx tsc --noEmit` clean; `npm run lint` no new errors (2 pre-existing CommandPalette + 2 pre-existing unused-import warnings).
+- **Files touched:**
+  - `web/src/app/layout.tsx` (L1 theme script)
+  - `api/app/Models/Activity.php` (L3 4 new action constants)
+  - `api/app/Http/Controllers/AuthController.php` (L3 inline audit logs)
+  - `api/app/Http/Controllers/ResetPasswordController.php` (L3 inline audit log)
+  - `docs/plan/master-plan-v2.md` (this entry)
+
+---
+
+_(Lanjut ke CP-17.L4 → CP-18.)_
