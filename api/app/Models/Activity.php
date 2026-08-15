@@ -20,6 +20,10 @@ class Activity extends Model
     public const ACTION_USER_APPROVED = 'user_approved';          // CP-16.M3
     public const ACTION_USER_REJECTED = 'user_rejected';          // CP-16.M3
     public const ACTION_USER_DELETED = 'user_deleted';            // CP-16.M3
+    public const ACTION_USER_REGISTERED = 'user_registered';      // CP-17.L3
+    public const ACTION_USER_LOGIN = 'user_login';                // CP-17.L3
+    public const ACTION_USER_FAILED_LOGIN = 'user_failed_login';  // CP-17.L3
+    public const ACTION_USER_PASSWORD_RESET = 'user_password_reset'; // CP-17.L3
 
     public const ACTIONS = [
         self::ACTION_CREATED_VERSION,
@@ -33,6 +37,10 @@ class Activity extends Model
         self::ACTION_USER_APPROVED,
         self::ACTION_USER_REJECTED,
         self::ACTION_USER_DELETED,
+        self::ACTION_USER_REGISTERED,
+        self::ACTION_USER_LOGIN,
+        self::ACTION_USER_FAILED_LOGIN,
+        self::ACTION_USER_PASSWORD_RESET,
     ];
 
     protected function casts(): array

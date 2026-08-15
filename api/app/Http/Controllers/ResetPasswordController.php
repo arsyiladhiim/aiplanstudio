@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Activity;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,14 @@ class ResetPasswordController extends Controller
                 ])->save();
 
                 event(new PasswordReset($user));
+
+                // CP-17.L3: audit log for password reset.
+                Activity::create([
+                    'user_id' => $user->id,
+                    'action' => Activity::ACTION_USER_PASSWORD_RESET,
+                    'description' => sprintf('User "%s" reset password', $user->email),
+                    'metadata' => ['email' => $user->email],
+                ]);
             }
         );
 
