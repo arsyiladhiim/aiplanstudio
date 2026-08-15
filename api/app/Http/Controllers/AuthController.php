@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Activity;
 use App\Models\User;
+use App\Notifications\UserPendingNotification;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,6 +39,11 @@ class AuthController extends Controller
             'description' => sprintf('User baru "%s" mendaftar (%s)', $user->email, $user->status),
             'metadata' => ['email' => $user->email, 'role' => $user->role, 'is_first_user' => $isFirst],
         ]);
+
+        // CP-18.F4: notify user that registration is pending admin approval.
+        if (! $isFirst) {
+            $user->notify(new UserPendingNotification);
+        }
 
         // Non-first users wait for admin approval before they can log in.
         if (! $isFirst) {

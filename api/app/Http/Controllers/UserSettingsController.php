@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Activity;
 use App\Models\User;
+use App\Notifications\UserApprovedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -72,6 +73,11 @@ class UserSettingsController extends Controller
                 ),
                 'metadata' => ['target_user_id' => $user->id, 'target_email' => $user->email],
             ]);
+
+            // CP-18.F4: email user when status becomes active.
+            if ($data['status'] === 'active') {
+                $user->notify(new UserApprovedNotification);
+            }
         }
 
         return response()->json($user);
@@ -143,6 +149,7 @@ class UserSettingsController extends Controller
                         'description' => sprintf('%s menyetujui user "%s" (bulk)', $actor?->name ?? 'system', $user->email),
                         'metadata' => ['target_user_id' => $user->id, 'target_email' => $user->email, 'bulk' => true],
                     ]);
+                    $user->notify(new UserApprovedNotification);
                     $approved++;
                     break;
                 case 'reject':
