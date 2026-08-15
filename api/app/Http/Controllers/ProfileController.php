@@ -22,11 +22,18 @@ class ProfileController extends Controller
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'password' => ['sometimes', 'string', 'min:8', 'confirmed'],
+            'current_password' => ['required_with:password', 'string'],
             'accent_color' => ['sometimes', 'nullable', 'string', 'regex:/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/'],
         ]);
 
+        // CP-17.L4: verify current password before allowing password change.
+        if (isset($data['password']) && ! Hash::check($data['current_password'], $user->password)) {
+            return response()->json(['message' => 'Password saat ini salah.'], 422);
+        }
+
         if (isset($data['password'])) {
             $data['password'] = Hash::make($data['password']);
+            unset($data['current_password']);
         }
 
         $user->update($data);

@@ -23,6 +23,7 @@ function applyAccent(color: string | null) {
 export default function ProfilePage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [accentColor, setAccentColor] = useState<string>("");
@@ -52,13 +53,20 @@ export default function ProfilePage() {
       if (name.trim()) body.name = name.trim();
       if (email.trim()) body.email = email.trim();
       if (password) {
+        if (!currentPassword) {
+          setMessage({ type: 'error', text: 'Password saat ini wajib diisi untuk mengubah password.' });
+          setSaving(false);
+          return;
+        }
         body.password = password;
         body.password_confirmation = passwordConfirmation;
+        body.current_password = currentPassword;
       }
       body.accent_color = accentColor.trim() || null;
       await apiPatch("/settings/profile", body);
       applyAccent(accentColor.trim() || null);
       setMessage({ type: 'success', text: 'Profil berhasil diperbarui.' });
+      setCurrentPassword("");
       setPassword("");
       setPasswordConfirmation("");
       window.dispatchEvent(new CustomEvent('profile-updated'));
@@ -132,6 +140,7 @@ export default function ProfilePage() {
             <Input
               id="password" type={showPassword ? "text" : "password"}
               value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="Minimal 8 karakter"
             />
             <button
               type="button" onClick={() => setShowPassword(!showPassword)}
@@ -142,13 +151,24 @@ export default function ProfilePage() {
           </div>
         </div>
         {password && (
-          <div>
-            <Label htmlFor="password_confirmation">Konfirmasi Password Baru</Label>
-            <Input
-              id="password_confirmation" type="password"
-              value={passwordConfirmation} onChange={(e) => setPasswordConfirmation(e.target.value)}
-            />
-          </div>
+          <>
+            <div>
+              <Label htmlFor="current_password">Password Saat Ini (wajib untuk konfirmasi)</Label>
+              <Input
+                id="current_password" type="password"
+                value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            <div>
+              <Label htmlFor="password_confirmation">Konfirmasi Password Baru</Label>
+              <Input
+                id="password_confirmation" type="password"
+                value={passwordConfirmation} onChange={(e) => setPasswordConfirmation(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+          </>
         )}
         {message && (
           <div className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm ${
