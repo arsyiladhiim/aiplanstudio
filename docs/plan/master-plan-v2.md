@@ -232,21 +232,23 @@ _(Append entry per CP completion, urut kronologis. Format: `### CP-X — YYYY-MM
 ---
 
 ### CP-17 — 2026-08-15 · Low Priority Polish (in progress)
-- **Status:** L1 + L2 + L3 done · L4 pending
-- **Commits:** `8b043dc` (L1), `88bfd95` (L3)
-- **Items:** 3/4
+- **Status:** done ✅
+- **Commits:** `8b043dc` (L1), `88bfd95` (L3), `dbf1036` (L4)
+- **Items:** 4/4
   - **L1 Theme script honor `prefers-color-scheme`**: ✅ done. Extend `themeScript` di `web/src/app/layout.tsx` (before hydration): read `localStorage.theme`; jika null → cek `window.matchMedia('(prefers-color-scheme: dark)')`; set `data-theme="dark"` accordingly. Runs synchronously, no FOUC.
   - **L2 Settings tabs active state**: ✅ no-op audit. `web/src/app/(app)/settings/layout.tsx` sudah apply `border-b-2 border-[var(--color-brand)]` untuk `pathname === t.href` di SEMUA tabs (profile/provider/users/about). Tidak perlu fix — UI sudah konsisten.
   - **L3 Activity log for register/login events**: ✅ done. 4 action constants baru di `Activity` model: `user_registered`, `user_login`, `user_failed_login`, `user_password_reset`. Inline `Activity::create()` di `AuthController::register`, `AuthController::login` (success + 2 failure paths), dan `ResetPasswordController`. `project_id` already nullable (CP-16 fix migration). Auth events log tanpa project context. **Simplified from listener-pattern**: tidak perlu `EventServiceProvider` + `app/Listeners/` (YAGNI — Laravel 13 auto-discovery tidak enable by default + butuh listener boilerplate yang tidak lebih clean dari inline call).
-  - **L4 Self-service password change**: ⏳ pending. Extend `PATCH /api/settings/profile` (frontend form di `profile/page.tsx`).
-- **Verify (after L3):** `php artisan test` 261 pass + 1 Socialite flake (unchanged); `npx tsc --noEmit` clean; `npm run lint` no new errors (2 pre-existing CommandPalette + 2 pre-existing unused-import warnings).
+  - **L4 Self-service password change**: ✅ done. Backend: `ProfileController::update` require `current_password` (`required_with:password`) + `Hash::check` verify. Reject 422 "Password saat ini salah." if mismatch. Frontend: `profile/page.tsx` tampilkan field `current_password` + `password_confirmation` hanya saat password baru diisi. Client-side guard reject empty current_password. Tidak perlu endpoint baru — extend existing `PATCH /api/settings/profile`.
+- **Verify (after L4):** `php artisan test` 261 pass + 1 Socialite flake (unchanged); `npx tsc --noEmit` clean; `npm run lint` no new errors (2 pre-existing CommandPalette + 3 pre-existing unused-import warnings).
 - **Files touched:**
   - `web/src/app/layout.tsx` (L1 theme script)
   - `api/app/Models/Activity.php` (L3 4 new action constants)
   - `api/app/Http/Controllers/AuthController.php` (L3 inline audit logs)
   - `api/app/Http/Controllers/ResetPasswordController.php` (L3 inline audit log)
+  - `api/app/Http/Controllers/ProfileController.php` (L4 current_password verify)
+  - `web/src/app/(app)/settings/profile/page.tsx` (L4 current_password form)
   - `docs/plan/master-plan-v2.md` (this entry)
 
 ---
 
-_(Lanjut ke CP-17.L4 → CP-18.)_
+_(Lanjut ke CP-18.)_
