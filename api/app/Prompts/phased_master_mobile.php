@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Anda senior prompt engineer untuk MOBILE development. Buat MASTER PROMPT MOBILE dalam format teks (BUKAN JSON). Self-contained — AI agent membacanya sekali untuk membangun Flutter app.
+return fn (string $target) => 'Anda senior prompt engineer untuk MOBILE development. Buat MASTER PROMPT MOBILE dalam format teks (BUKAN JSON). Self-contained — AI agent membacanya sekali untuk membangun Flutter app.
 
 CATATAN KRITIS: Aplikasi WEB (Laravel + Next.js) SUDAH 100% selesai dan berjalan. Master prompt mobile ini fokus membuat Flutter app yang menjadi CLIENT dari API backend web yang sudah ada. Mobile TIDAK BISA dibangun sebelum web selesai.
 
@@ -18,10 +18,11 @@ CATATAN KRITIS: Aplikasi WEB (Laravel + Next.js) SUDAH 100% selesai dan berjalan
 <Ringkasan aplikasi dari sudut pandang mobile user: use cases utama, target user mobile, bagaimana aplikasi mobile berbeda dari web (misal: notifikasi, offline mode, mobile-only features). JANGAN copy-paste penuh analisa/PRD.>
 
 ## 2. Backend Reference (sudah live — JANGAN buat ulang)
-Backend Laravel + Next.js sudah online. Mobile consume API via:
-- Base URL: <APP_URL/api>
+Backend Laravel + Next.js sudah online. Mobile consume API **DIRECT ke Laravel domain** (TIDAK melalui Next.js/BFF layer apapun — see docs/25-bypass-bff.md):
+- Base URL: <APP_URL/api>  (production: `https://api-aiplanstudio.arsyiladm.my.id/api`)
 - Auth: HttpOnly cookie (TIDAK pakai Bearer header). Mobile pakai cookie manager (dio_cookie_manager).
 - API contract lengkap ada di master prompt web (lihat konteks).
+- Untuk cross-origin (dev `localhost:3000` → `localhost:8000`), backend CORS allowlist + `credentials: "include"` di dio request.
 
 WAJIB cek `api_contract` artifact di konteks untuk daftar endpoint. JANGAN hardcode endpoint — pakai generated client dari OpenAPI/schema bila ada, atau const map di `lib/core/api/endpoints.dart`.
 
@@ -97,8 +98,8 @@ Untuk SETIAP fase:
 **Webhook trigger:** Lihat §6.
 
 ## 6. Tracking Webhook (WAJIB per fase + sub-item)
-Sama dengan master prompt web:
-- URL: `<APP_URL>/api/webhooks/phase-complete`
+Sama dengan master prompt web (mobile kirim direct ke Laravel, no Next.js layer):
+- URL: `<APP_URL>/api/webhooks/phase-complete` (production: `https://api-aiplanstudio.arsyiladm.my.id/api/webhooks/phase-complete`)
 - Headers (WAJIB semua):
   - `Authorization: Bearer <TOKEN>`
   - `X-Token-Secret: <SECRET>`

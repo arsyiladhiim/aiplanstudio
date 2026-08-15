@@ -17,13 +17,13 @@ Saat memulai/melanjutkan sesi development, baca urut:
 | File | Isi |
 |------|-----|
 | [01-overview.md](01-overview.md) | Tujuan produk, target user, scope, non-scope |
-| [02-architecture.md](02-architecture.md) | Topologi Docker, service, jaringan, BFF, pipeline 14 stages |
+| [02-architecture.md](02-architecture.md) | Topologi Docker, service, jaringan, direct routing, pipeline 14 stages |
 | [03-database-schema.md](03-database-schema.md) | Tabel, kolom, relasi, versioning, 3 schemas |
 | [04-api-contract.md](04-api-contract.md) | Endpoint, payload, response, SSE, webhook |
 | [05-wizard-flow.md](05-wizard-flow.md) | Alur wizard 14 tahap (both) / 10 tahap (web) + per-stage manual |
 | [06-ai-pipeline.md](06-ai-pipeline.md) | AiClient, PipelineRunner, prompt template, SSE |
 | [07-docker-setup.md](07-docker-setup.md) | Compose, env, perintah build/migrate |
-| [08-frontend.md](08-frontend.md) | Struktur Next.js, halaman, auth flow, BFF |
+| [08-frontend.md](08-frontend.md) | Struktur Next.js, halaman, auth flow, direct API call |
 | [09-roadmap.md](09-roadmap.md) | Fase development + status checkbox |
 | [10-decision-log.md](10-decision-log.md) | Keputusan penting + alasan |
 | [11-development-rules.md](11-development-rules.md) | Aturan development wajib |
@@ -40,8 +40,8 @@ Saat memulai/melanjutkan sesi development, baca urut:
 - **Semua F0–F9, F10, R1, Phase 4 selesai** ✅
 - **Backend:** Laravel 100% ✅ (~150 test functions)
 - **Frontend:** Next.js UI 100% ✅ (17/17 pages, tsc 0 errors, lint 0 errors)
-- **BFF Pattern:** nginx → Next.js → Laravel ✅
-- **Docker:** 6 services (nginx, web, api, api-fpm, db, redis)
+- **Direct Routing (no BFF):** Browser → fetch `${NEXT_PUBLIC_API_URL}/api/*` direct (Cloudflare Tunnel → nginx_api → Laravel) ✅
+- **Docker:** 5 services (web, aiplanstudionginx_api, aiplanstudio_apifpm, db, redis) — no host nginx, reverse proxy via Cloudflare Tunnel
 - **Pipeline:** 14 stages aktif ✅ (target both; 10 untuk web)
 - **Audit findings:** 73 items R1 selesai (termasuk RS-9 FPM). 0 pending.
 - Next progress: lihat **[17-next-progress.md](17-next-progress.md)**

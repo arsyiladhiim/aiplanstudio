@@ -25,7 +25,7 @@ cd web && npx playwright test --ui          # mode UI (debug)
 cd web
 docker run --rm --network host -v "$PWD/web":/work -w /work \
   -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-  -e E2E_BASE_URL=http://localhost:4197 \
+  -e E2E_BASE_URL=http://localhost:3000 \
   mcr.microsoft.com/playwright:v1.62.0-noble \
   npx playwright test --config=playwright.e2e.config.ts
 ```

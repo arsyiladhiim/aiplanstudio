@@ -4,8 +4,8 @@
 > Status: `[ ]` todo · `[~]` in-progress · `[x]` done
 
 ## Status Global
-- **Terakhir diupdate:** 2026-08-08
-- **Kode aplikasi:** Backend 100% ✅, Frontend UI 100% ✅, **Full BFF 100% ✅**, **Error Monitoring 100% ✅** (P8 GlitchTip)
+- **Terakhir diupdate:** 2026-08-15
+- **Kode aplikasi:** Backend 100% ✅, Frontend UI 100% ✅, **Direct Routing (no BFF) 100% ✅** (Phase 7), **Error Monitoring 100% ✅** (P8 GlitchTip — DISABLED saat ini, SDK kept)
 - **Lint:** 0 errors ✅
 - **TypeScript:** 0 errors ✅
 - **Build:** 17/17 pages ✅
@@ -30,8 +30,9 @@ Setiap fase baru boleh ditandai `[x]` bila:
 - [x] 12-security-checklist, 13-backend-testing, 14-frontend-testing, 15-dev-log
 - [x] AUTH.md (root, auth flow lengkap)
 
-### [x] F1 — Skeleton Docker + Full BFF Pattern
+### [x] F1 — Skeleton Docker + Full BFF Pattern (DEPRECATED by Phase 7)
 - [x] `docker-compose.yml` dengan services: nginx, web, api, migrate, db, redis
+- **Update (Phase 7, 2026-08-14):** BFF pattern dihapus. Migrasi ke Direct Routing (Cloudflare Tunnel + nginx_api + CORS). See `docs/25-bypass-bff.md` untuk migration detail.
 - [x] **Full BFF:** nginx routes SEMUA ke Next.js → proxy `/api/*` ke Laravel internal
 - [x] **~60 BFF routes** di Next.js proxy ke Laravel
 - [x] Laravel (api:8000) HANYA accessible dari internal containers

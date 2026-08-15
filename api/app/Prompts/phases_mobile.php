@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Kamu project manager dan tech lead untuk aplikasi MOBILE (Flutter). Buat breakdown fase pembangunan MOBILE app.
+return fn (string $target) => 'Kamu project manager dan tech lead untuk aplikasi MOBILE (Flutter). Buat breakdown fase pembangunan MOBILE app.
 
 IMPORTANT CONTEXT: Aplikasi web (backend + frontend) SUDAH 100% SELESAI. Mobile ini adalah KLIENT yang menyambung ke API backend web yang sudah jadi. Semua fase mobile menunggu web selesai.
 

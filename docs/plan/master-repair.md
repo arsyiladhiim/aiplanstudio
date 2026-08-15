@@ -22,8 +22,9 @@
 | CP-9 Master Prompt Showcase | 5 | ✅ done | `115e43a` | 2026-08-14 | 2026-08-14 |
 | CP-10 Granular Tracking UI + ERD Absorb | 6 | ✅ done | `770b314` | 2026-08-14 | 2026-08-14 |
 | CP-11 Verify + Polish + Docs | 5 | ✅ done | `91164be` | 2026-08-14 | 2026-08-14 |
+| CP-12 Direct Routing Reconciliation | 26 | ✅ done | `<fill>` | 2026-08-15 | 2026-08-15 |
 
-**CP-6..11 totals:** 44 items · ~6.5 dev days · generated 2026-08-14
+**CP-6..12 totals:** 70 items · ~7 dev days · generated 2026-08-14/15
 **Scope changes vs prior plan:**
 - Backend: `trackingBlock()` no longer auto-generates tokens (was leaking secret). Token must be created explicitly via Setup Tracking wizard step.
 - Tracking granularity per sub-item: `task_type` = `halaman` | `menu` | `fitur` | `flow` | `api` (backend already accepts since CP-1, UI now exposes filter chips).
@@ -575,7 +576,8 @@ If blocked: mark ❌ with reason, do NOT proceed.
 ### P-P5 — `erd.php`
 - **File:** `api/app/Prompts/erd.php`
 - **Current score:** 8/10 (high, minor tweaks)
-- **Fix:** tambah instruction "Use Mermaid erDiagram syntax. Include indexes, FK relationships, soft-delete columns where applicable."
+- **Fix:** tambah instruction "Output JSON line-format dengan nodes (id/label/fields) + edges (from/to/relation) untuk React Flow rendering. Include indexes, FK relationships, soft-delete columns where applicable."
+- **Note (CP-12.b):** Sebelumnya prompt minta output DOUBLE FORMAT (Mermaid + line-format), tapi codebase sudah pakai React Flow (`ErdDiagram.tsx`) bukan Mermaid renderer. CP-12.b rewrite prompt jadi JSON only — single source of truth, no orphaned Mermaid block.
 - **Status:** ⏳ pending
 
 ### P-P6 — `api_contract.php` (still runs, viewer absorbed in CP-10)
@@ -862,6 +864,77 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - **Date completed:** 2026-08-14
 - **Commit SHA:** `91164be`
 - **Notes:** Final test gates green — 261 backend pass (1 pre-existing Socialite failure documented di README + dev-log). tsc + lint clean (2 pre-existing CommandPalette errors unrelated). Master-repair CP-1..11 complete. Total commits: 11 code + 11 sign-off + 1 docs.
+
+---
+
+# CHECKPOINT 12 — Direct Routing Reconciliation
+
+**Goal:** propagate no-BFF architecture (Phase 7, 2026-08-14) ke semua CP-1..11 outputs yang masih assume BFF. Reconcile codebase dengan direct routing reality. Plus ERD prompt cleanup (CP-12.b) — drop orphaned Mermaid block, JSON-only output untuk React Flow.
+**Estimate:** ~2.5h · 26 items (+3 ERD prompt fixes)
+**Branch:** `devel`
+**Commit msg template:** `chore(docs): cp12 direct routing + ERD cleanup — <summary>`
+
+**Context:** BFF code sudah dihapus (Phase 7) — `web/src/app/api/` + `web/src/lib/bff.ts` absent. Tapi CP-1..11 outputs (AI prompts + docs + components) masih reference BFF, misleading untuk AI agent. CP-12 fix ini tanpa code logic change.
+
+## Items
+
+### A — Legacy Cleanup
+- **A-1 · MASTER_PROMPT.md deleted.** Verified 0 references via grep (`MASTER_PROMPT` di `*.{ts,tsx,js,jsx,php,md}` → 0 match). File orphan sejak Phase 7. Root `AGENTS.md` + `api/README.md` cover current state.
+
+### B — AI Prompts (CP-7 output propagation)
+- **B-1 · `agents.php`:** rename `web-bff-agent` → `web-integration-agent`. Redistribute scope: `web/src/app/api/**` → `web/src/lib/api.ts` + `web/src/hooks/useAuth.ts` + `web/src/components/SetupTrackingCard.tsx`. Update handoff language di frontend + backend agent. Drop hard rule #8 "JANGAN panggil Laravel langsung dari browser" → ganti "Browser boleh panggil Laravel direct via NEXT_PUBLIC_API_URL dengan credentials include".
+- **B-2 · `phased_master.php`:** drop folder `api/` dari `web/src/app/` tree (BFF route handlers gone). Ganti dengan direct API client di `lib/api.ts`. Tech Stack line: tambah "Docker Compose + Cloudflare Tunnel (no BFF layer — see docs/25-bypass-bff.md)".
+- **B-3 · `phased_master_mobile.php`:** explicit note "Mobile consume API DIRECT ke Laravel domain (TIDAK melalui Next.js/BFF layer apapun)". Update §2 Backend Reference + §6 webhook URL dengan production domain example.
+- **B-4 · `standards.php`:** replace "BFF route handlers → fetch wrappers → components" → "Direct fetch wrappers (web/src/lib/api.ts dengan Sanctum cookie session + CSRF) → components".
+- **B-5 · `architecture.php`:** drop BFF module boundary layer dari ASCII diagram. Update Data Flow (steps 1-5 rewritten — direct call, bukan BFF proxy). Update Trade-offs table (BFF row → Direct routing). Fix Infra section: "nginx" → "aiplanstudionginx_api + Cloudflare Tunnel external".
+- **B-6 · `phases.php` (CP-7 fix extension):** update Fase 1 INSTRUKSI service names (db, aiplanstudio_apifpm, aiplanstudio_web, aiplanstudionginx_api — bukan generic `apifpm/web/nginx`).
+- **B-7 · `erd.php` (CP-12.b):** rewrite prompt — drop Mermaid block + double format. Output HANYA JSON `{nodes: [{id, label, fields}], edges: [{from, to, relation}]}` untuk React Flow (`ErdDiagram.tsx`). Rationale: codebase sudah pakai React Flow (CP-2 F6 uninstall mermaid 700KB), Mermaid block jadi orphaned artifact. Update CP-7 P-P5 sign-off note di docs/plan/master-repair.md line 579.
+
+### C — Frontend Components + Config
+- **C-1 · `web/src/lib/api.ts`:** update comment `// Fetch CSRF cookie from Laravel (sets XSRF-TOKEN cookie via BFF)` → `// Fetch CSRF cookie from Laravel (sets XSRF-TOKEN cookie on frontend origin via Sanctum stateful domain)`.
+- **C-2 · `web/src/components/wizard/AgentsView.tsx`:** no code change (parser-based — auto-regenerate dari prompt B-1). Verified parse dynamically dari markdown sections.
+- **C-3 · `web/src/components/wizard/ArchitectureView.tsx`:** no code change (parser-based, ASCII preserved).
+- **C-4 · `web/src/components/wizard/MasterPromptViewer.tsx`:** no code change (display-only, content dari prompt).
+- **C-5 · `web/src/app/(app)/settings/about/page.tsx`:** Badge "BFF Pattern" → "Direct Routing".
+- **C-6 · `web/e2e/global-setup.ts`:** comment "via the real BFF stack" → "via Next.js frontend (Docker compose stack, port 3000)". baseURL `:4197` → `:3000`.
+- **C-7 · `web/playwright.e2e.config.ts`:** comment "nginx :4197 → BFF → Laravel" → "Next.js :3000 direct → Laravel via nginx_api :8000". baseURL `:4197` → `:3000`.
+
+### D — Env Templates + AGENTS
+- **D-1 · `web/.env.production`:** add inline comment `# TODO: ganti ke public domain saat deploy`. Default URL tetap (`api-aiplanstudio.arsyiladm.my.id`).
+- **D-2 · `api/.env.example`:** `APP_URL` `:4197` → `:8000` (Opsi B per user direction — nginx_api direct port). TODO annotations di `SANCTUM_STATEFUL_DOMAINS`, `FRONTEND_URL`, `GOOGLE_REDIRECT_URI`. Add note "Arsitektur: direct routing (no BFF — see docs/25-bypass-bff.md)".
+- **D-3 · `web/AGENTS.md`:** section "API Rules (BFF)" → "API Rules (Direct Routing — no BFF)". Update 5 hard rules + tambah notes CORS + cross-origin.
+
+### E — Documentation Refresh
+- **E-1 · `api/README.md`:** Architecture diagram rewrite (drop "Next.js BFF (route handlers)" layer). Ports table updated. Stack mention Laravel 13 / Next.js. Setup curl cookie name fix.
+- **E-2 · `docs/02-architecture.md`:** line 96 (Dashboard Analytics BFF route) + line 116 (Project API Tokens "Three BFF routes") — drop BFF mentions.
+- **E-3 · `docs/04-api-contract.md`:** line 88 "Frontend konsumsi via BFF route" → "Frontend konsumsi direct via NEXT_PUBLIC_API_URL dengan credentials include".
+- **E-4 · `docs/05-wizard-flow.md`:** Target-aware table (Mobile Arsitektur: tambah "direct API call ke Laravel via dio + cookie manager"). CP-12 note eksplisit mobile direct. ERD row updated untuk React Flow.
+- **E-5 · `docs/07-docker-setup.md`:** rewrite Struktur Repo + Topologi (no host nginx). docker-compose.yml web service block. api-nginx section updated. Validation curl + akses curl updated.
+- **E-6 · `docs/08-frontend.md`:** Struktur Aktual (drop `api/` + `lib/bff.ts`). Stack mention "direct ke Laravel". Auth Flow section rewrite. Login page. SSE (tambah "no BFF buffering risk"). Projects Export.
+- **E-7 · `docs/14-frontend-testing.md`:** E2E_BASE_URL `:4197` → `:3000`.
+- **E-8 · `docs/18-production-readiness.md`:** E4 section (6 containers → 5 containers). nginx line removed. Validation curl `:4197` → `:8000`.
+- **E-9 · `docs/22-e2e-test-plan.md`:** Base URL `:4197` → `:3000` (+ note Next.js direct no BFF).
+- **E-10 · `docs/25-bypass-bff.md`:** Latar Belakang (status update). Final Ringkasan table restructured (sebelum/sesudah + Test Status + AI Agent Roles). New section "CP-12 — Direct Routing Reconciliation" dengan full scope + CP-12.b ERD note.
+- **E-11 · `AUTH.md`:** Arsitektur (drop BFF proxy mention, ganti direct routing). Google OAuth env vars (`localhost:4197` → `localhost:8000`). Checklist Docker section updated.
+
+### F — Historical Doc Preservation
+- **F-1 · `docs/15-dev-log.md`:** kept as-is. Pre-Phase-7 entries immutable history (Phase 7 entry itself kept). 13 BFF references = historical records.
+- **F-2 · `docs/17-next-progress.md`:** kept as-is. Historical records.
+- **F-3 · `docs/16-audit-fix-plan.md` + `docs/13-backend-testing.md` + `docs/03-database-schema.md`:** kept as-is. `parseErdText()` masih valid di PipelineRunner.
+- **F-4 · `docs/plan/master-repair.md`:** CP-7 P-P5 entry updated (Mermaid → JSON line-format note).
+
+## CP-12 Sign-off
+
+- [x] All 26 items ✅ (+ 3 ERD prompt fixes)
+- [x] `php artisan test` pass (261, no regression — prompt + doc changes only)
+- [x] `php artisan pint --test` pass (no new formatting issues)
+- [x] `npm run lint` clean (2 pre-existing CommandPalette errors unrelated)
+- [x] `npx tsc --noEmit` clean
+- [x] Manual: pipeline stage `pertanyaan → agents` generate proper artifact shape (verified ErdData JSON shape match `web/src/lib/api.ts:395-403`)
+- [x] Single commit created on `devel`
+- **Date completed:** 2026-08-15
+- **Commit SHA:** `<fill at commit>`
+- **Notes:** Pure text + parser-friendly updates. No backend logic change. No migration. No env change di production (only `.example` + `.production` annotations). CP-12 + CP-12.b propagate Phase 7 no-BFF architecture ke semua downstream artifacts. ERD prompt revert ke JSON-only (React Flow native, no Mermaid).
 
 ---
 

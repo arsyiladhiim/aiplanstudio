@@ -23,7 +23,7 @@ Sebelum tahap 1, user isi:
 | 2 | `analisa` | Analisa & Klarifikasi | ide, target, stack, jawaban | `analysis` | Render via `AnalysisView` (persona grid + JTBD list). |
 | 3 | `prd` | PRD | analisa + jawaban, ide, target | `prd` | Render via `PrdView` (story grouping + AC Given/When/Then). |
 | 4 | `architecture` | Arsitektur & Tech Stack | PRD, target | `architecture` | Render via `ArchitectureView` (section cards + ASCII diagram preservation). |
-| 5 | `erd` | ERD + API Contract | PRD, arsitektur | `erd` + `api_contract` (jsonb) | Render via `ErdTabs` (3 tabs: Diagram \| API \| Tables). API tab pakai `ApiEndpointList`. |
+| 5 | `erd` | ERD + API Contract | PRD, arsitektur | `erd` (jsonb) + `api_contract` (jsonb) | Render via `ErdTabs` (3 tabs: Diagram \| API \| Tables). Diagram pakai **React Flow** dengan table nodes (PK/FK badges) + animated edges berlabel relasi. API tab pakai `ApiEndpointList`. |
 | ~~6~~ | ~~`api_contract`~~ | ~~API Contract~~ | ~~PRD, arsitektur, ERD~~ | `api_contract` (jsonb, array endpoint) | **DEPRECATED sebagai wizard stage (CP-10).** Backend tetap jalan, output tetap di-save, viewer absorbed ke tab API di stage `erd`. |
 | 6 | `phases_web` | Web Phases | standards, agents, PRD, arsitektur, ERD | `phases` (jsonb) | Render via `PhasesView` (dual JSON + markdown `FASE:` format + effort badges S/M/L). |
 | 7 | `standards_web` | Web Standards | PRD, arsitektur, ERD | `standards` | Render via `StandardsView` (code snippet cards dengan copy button). |
@@ -85,11 +85,13 @@ Setelah tiap stage `done`, wizard berhenti (tanpa auto-run). User dapat:
 
 | Aspek | Web | Mobile (APK/iOS) |
 |-------|-----|------------------|
-| Stack saran | Laravel 11 + Next.js + React 19 + Tailwind + PostgreSQL | Flutter + Dart + Riverpod + GoRouter + Material Design 3 |
-| Arsitektur | SSR/SPA, routing web | screen/navigation, state mgmt, offline |
+| Stack saran | Laravel 13 + Next.js + React 19 + Tailwind + PostgreSQL | Flutter + Dart + Riverpod + GoRouter + Material Design 3 |
+| Arsitektur | SSR/SPA, routing web, **direct API call** ke Laravel via `NEXT_PUBLIC_API_URL` | screen/navigation, state mgmt, offline, **direct API call** ke Laravel via dio + cookie manager |
 | ERD | tabel relasional | entity + storage lokal/remote |
 | Phases | …→ deploy web/hosting | …→ build APK/IPA, signing, store submission |
 | Master Prompt | instruksi lengkap untuk web stack | instruksi lengkap untuk mobile stack |
+
+> **CP-12 note:** Mobile track (Flutter) consume API **direct** ke Laravel domain (TIDAK melalui Next.js/BFF layer apapun). Backend reference sudah live dan mobile adalah client-only. Cookie manager di dio (`dio_cookie_manager`) handle HttpOnly session cookie + CSRF. Detail cross-origin setup: `docs/25-bypass-bff.md` (Sanctum stateful domain + CORS allowlist).
 
 `Both` → dua jalur: tahap 1-9 untuk web, tahap 10-13 khusus mobile (pertanyaan_mobile, phases, standards, master), lalu tahap 14 `agents`. Gate: mobile menunggu `master_web` done.
 

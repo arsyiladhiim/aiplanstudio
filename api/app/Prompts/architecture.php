@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Anda senior software architect. Buat System Architecture Document dalam format Markdown (BUKAN JSON). Dokumen ini jadi single source of truth untuk technical decisions dan langsung dipakai AI coding agent sebagai acuan.
+return fn (string $target) => 'Anda senior software architect. Buat System Architecture Document dalam format Markdown (BUKAN JSON). Dokumen ini jadi single source of truth untuk technical decisions dan langsung dipakai AI coding agent sebagai acuan.
 
 # Architecture: <NAMA_PROYEK>
 
@@ -15,11 +15,11 @@ return fn(string $target) => 'Anda senior software architect. Buat System Archit
 - **Test:** PHPUnit + FeatureTest
 
 ### Frontend
-- **Framework:** Next.js 15 (App Router) + React 19 + TypeScript strict
-- **Why:** <reasoning — misal "SSR untuk SEO, RSC untuk perf, BFF pattern untuk hide Laravel">
+- **Framework:** Next.js (App Router) + React 19 + TypeScript strict
+- **Why:** <reasoning — misal "SSR untuk SEO, RSC untuk perf, direct API call untuk minimal latency">
 - **Styling:** Tailwind CSS v4 + custom design tokens
 - **State:** React built-in (useState/useReducer) + Server Components untuk data fetching
-- **BFF:** Semua `/api/*` di-proxy via Next.js route handlers — JANGAN direct ke Laravel dari browser
+- **API call:** Browser fetch DIRECT ke Laravel via `NEXT_PUBLIC_API_URL` dengan `credentials: "include"`. CORS allowlist + Sanctum stateful domain di backend. NO BFF layer (see docs/25-bypass-bff.md).
 
 ### Database
 - **Engine:** PostgreSQL 16
@@ -29,7 +29,8 @@ return fn(string $target) => 'Anda senior software architect. Buat System Archit
 
 ### Infra
 - **Containerization:** Docker Compose
-- **Services:** `web` (Next.js), `apifpm` (Laravel + PHP-FPM), `db` (Postgres), `nginx` (reverse proxy)
+- **Services:** `aiplanstudio_web` (Next.js standalone), `aiplanstudionginx_api` (nginx front Laravel), `aiplanstudio_apifpm` (Laravel + PHP-FPM), `aiplanstudio_db` (Postgres), `aiplanstudio_redis` (Redis). Tidak ada nginx host — Cloudflare Tunnel jadi reverse proxy eksternal.
+- **Reverse proxy:** Cloudflare Tunnel (external container `cloudflare_tunnel_default` network). 2 ingress: web origin + API origin.
 - **Deploy target:** Self-hosted VPS (no Kubernetes, no Lambda)
 
 ## 2. Module Boundaries
@@ -39,15 +40,10 @@ return fn(string $target) => 'Anda senior software architect. Buat System Archit
 │              Browser (Next.js SSR/CSR)          │
 └──────────────┬──────────────────────────────────┘
                │ HttpOnly cookie + CSRF
+               │ (cross-origin: SameSite=None; Secure)
                ▼
 ┌─────────────────────────────────────────────────┐
-│       Next.js BFF (route handlers)              │
-│   /api/auth/*  /api/projects/*  /api/versions/* │
-└──────────────┬──────────────────────────────────┘
-               │ session-auth proxy
-               ▼
-┌─────────────────────────────────────────────────┐
-│           Laravel API (stateless)                │
+│   Laravel API (stateless, direct call)          │
 │   Controllers → Services → Repositories → Models│
 └──────────────┬──────────────────────────────────┘
                │ Eloquent
@@ -59,17 +55,17 @@ return fn(string $target) => 'Anda senior software architect. Buat System Archit
 
 **Prinsip:**
 - Backend stateless — tidak ada session storage di Laravel selain Sanctum session di cookie.
-- Frontend tidak boleh panggil Laravel langsung (CORS + security).
+- Browser call Laravel direct via `NEXT_PUBLIC_API_URL` + `credentials: "include"` (CORS configured).
 - DB constraints > application validation (UNIQUE, FK, CHECK).
+- No BFF hop — minimal latency, native EventSource untuk SSE.
 
 ## 3. Data Flow (request lifecycle)
 Contoh flow "User buat project baru":
-1. Browser submit form → `POST /api/projects` (Next.js BFF route)
-2. BFF proxy ke Laravel `ProjectController::store`
-3. FormRequest validate → buat Project + Version pertama
+1. Browser submit form → `POST ${NEXT_PUBLIC_API_URL}/api/projects` (direct, `credentials: "include"`)
+2. Sanctum middleware validate session cookie (stateful domain match)
+3. Laravel `ProjectController::store` → FormRequest validate → buat Project + Version pertama
 4. Return JSON `{project, version}`
-5. BFF forward response ke browser
-6. Browser update state + redirect ke `/projects/{id}`
+5. Browser update state + redirect ke `/projects/{id}`
 
 ## 4. Folder Structure (high-level)
 ```
@@ -92,12 +88,12 @@ web/
 │   ├── app/
 │   │   ├── (auth)/           # login, register
 │   │   ├── (app)/            # dashboard, projects, new, settings
-│   │   └── api/              # BFF route handlers
+│   │   └── globals.css       # Tailwind v4 + design tokens
 │   ├── components/
 │   │   ├── ui/               # design system atoms
 │   │   ├── wizard/           # pipeline stage components
 │   │   └── layout/
-│   ├── lib/                  # api wrappers, utils, hooks
+│   ├── lib/                  # api.ts (direct client), utils, hooks
 │   └── types/                # shared types
 ├── tailwind.config.ts
 └── next.config.ts
@@ -106,8 +102,8 @@ web/
 ## 5. Deployment Topology
 - Single VPS (2 vCPU, 4GB RAM minimal)
 - Docker Compose up all services
-- Nginx reverse proxy: `:80` → Next.js (3000), `:80/api/*` → Laravel (9000)
-- Certbot untuk HTTPS (Let\'s Encrypt)
+- **Cloudflare Tunnel** (external reverse proxy) — 2 ingress: `aiplanstudio.arsyiladm.my.id → http://aiplanstudio_web:3000` (Next.js), `api-aiplanstudio.arsyiladm.my.id → http://aiplanstudionginx_api:8000` (Laravel via nginx → php-fpm)
+- TLS termination di Cloudflare; nginx di belakang tunnel tetap kasih defense-in-depth headers (CSP, HSTS, X-Frame-Options, Permissions-Policy)
 - DB backup harian via cron `pg_dump`
 
 ## 6. Trade-offs (eksplisit)
@@ -115,7 +111,7 @@ web/
 | Decision | Alternative | Why we chose this |
 |----------|-------------|-------------------|
 | Sanctum SPA | JWT Bearer | HttpOnly cookie + CSRF lebih aman untuk browser SPA |
-| Next.js BFF | Direct Laravel dari browser | Hide Laravel + tambah caching layer |
+| Direct routing (no BFF) | Next.js BFF proxy | Minimal latency + native SSE EventSource + simpler failure mode |
 | Single VPS | Kubernetes | Overkill untuk v1, biaya rendah |
 | PostgreSQL | MySQL | JSONB support untuk versioning + better concurrency |
 

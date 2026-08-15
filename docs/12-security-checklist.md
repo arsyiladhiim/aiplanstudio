@@ -74,12 +74,12 @@
 
 ## Verifikasi Cepat
 ```bash
-docker compose ps                       # hanya nginx publish (80:80)
-docker compose exec web wget -qO- http://api:8000/api/health   # internal OK
+docker compose ps                       # TIDAK ada service publish ke host (Cloudflare Tunnel reverse proxy)
+docker compose exec web wget -qO- http://aiplanstudionginx_api:8000/api/health   # internal OK
 # dari host, Laravel TIDAK reachable langsung:
-curl localhost:8000                     # connection refused ✅
+curl http://localhost:8000              # connection refused ✅
 psql -h localhost -p 5432               # connection refused ✅
-curl http://localhost/api/user           # 401 (no session) ✅
-# BFF bekerja:
-curl -c /tmp/cookies -b /tmp/cookies http://localhost/api/user  # harus login dulu ✅
+curl http://localhost:3000/api/user     # 401 (no session) ✅
+# Direct API call (no BFF) bekerja via Cloudflare Tunnel:
+curl -c /tmp/cookies -b /tmp/cookies https://api-aiplanstudio.arsyiladm.my.id/api/user  # harus login dulu ✅
 ```

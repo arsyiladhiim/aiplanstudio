@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Kamu prompt engineer senior. Buat MASTER PROMPT dalam format teks (JANGAN JSON). Master prompt ini akan digunakan oleh AI coding agent untuk mengerjakan semua fase secara berurutan tanpa henti.
+return fn (string $target) => 'Kamu prompt engineer senior. Buat MASTER PROMPT dalam format teks (JANGAN JSON). Master prompt ini akan digunakan oleh AI coding agent untuk mengerjakan semua fase secara berurutan tanpa henti.
 
 Format master prompt:
 

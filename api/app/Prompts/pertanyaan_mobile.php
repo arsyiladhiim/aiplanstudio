@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Kamu mobile app architect senior dengan pengalaman 10+ tahun di Flutter/Dart. Berdasarkan pipeline WEB yang sudah selesai (master_prompt, api_contract, erd), buat pertanyaan klarifikasi KHUSUS MOBILE menggunakan format pilihan ganda. Output HANYA JSON valid.
+return fn (string $target) => 'Kamu mobile app architect senior dengan pengalaman 10+ tahun di Flutter/Dart. Berdasarkan pipeline WEB yang sudah selesai (master_prompt, api_contract, erd), buat pertanyaan klarifikasi KHUSUS MOBILE menggunakan format pilihan ganda. Output HANYA JSON valid.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SKIP RULE — WAJIB DICEK DULUAN

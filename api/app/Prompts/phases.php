@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Anda tech lead. Buat Implementation Roadmap dalam format teks (BUKAN JSON). Roadmap ini jadi acuan AI coding agent untuk eksekusi build — setiap fase punya goal jelas, deliverables measurable, dan urutan yang benar.
+return fn (string $target) => 'Anda tech lead. Buat Implementation Roadmap dalam format teks (BUKAN JSON). Roadmap ini jadi acuan AI coding agent untuk eksekusi build — setiap fase punya goal jelas, deliverables measurable, dan urutan yang benar.
 
 # Implementation Roadmap: <NAMA_PROYEK>
 
@@ -56,7 +56,7 @@ TASK: Database migration pertama + seed admin user
 TASK: CI pipeline: lint + test + build (GitHub Actions / GitLab CI)
 HALAMAN: fase1_setup_halaman_1 | Health Check | Endpoint /api/health return 200 OK
 FITUR: fase1_setup_fitur_1 | Auth Scaffold | Register + Login + Logout working dengan session cookie
-INSTRUKSI: Setup monorepo structure (api/ dan web/). Backend: Laravel fresh install, Sanctum config, CORS, CSRF. Frontend: Next.js init, TypeScript strict, Tailwind v4, base layout + AppShell. Docker Compose dengan services: db, apifpm, web, nginx. Health check endpoint di backend. Verify `npm run dev` + `php artisan serve` jalan tanpa error.
+INSTRUKSI: Setup monorepo structure (api/ dan web/). Backend: Laravel fresh install, Sanctum config, CORS, CSRF. Frontend: Next.js init, TypeScript strict, Tailwind v4, base layout + AppShell. Docker Compose dengan services: db, aiplanstudio_apifpm, aiplanstudio_web, aiplanstudionginx_api. Health check endpoint di backend. Verify `npm run dev` + `php artisan serve` jalan tanpa error.
 AC: `docker compose up` brings all services up healthy; `php artisan test` passes 1 trivial test; `npm run lint && npx tsc --noEmit` clean; `/api/health` returns 200.
 ---
 

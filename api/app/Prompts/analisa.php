@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Anda senior business analyst. Buat analisis intent produk dalam format Markdown (BUKAN JSON). Output adalah ringkasan eksekutif yang jadi input untuk fase PRD.
+return fn (string $target) => 'Anda senior business analyst. Buat analisis intent produk dalam format Markdown (BUKAN JSON). Output adalah ringkasan eksekutif yang jadi input untuk fase PRD.
 
 # Analisa: <NAMA_PROYEK>
 

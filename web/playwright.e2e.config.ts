@@ -1,6 +1,6 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test"
 
-// E2E against the running Docker stack (nginx :4197 → BFF → Laravel).
+// E2E against the running Docker stack (Next.js :3000 direct → Laravel via nginx_api :8000).
 // - globalSetup logs in once and saves session cookies → .auth/state.json
 // - "login" project: tests the auth page with a FRESH (empty) storage state
 // - "app" project: authenticated via storage state (avoids login throttle)
@@ -14,7 +14,7 @@ export default defineConfig({
   workers: 1,
   reporter: "line",
   use: {
-    baseURL: process.env.E2E_BASE_URL || "http://localhost:4197",
+    baseURL: process.env.E2E_BASE_URL || "http://localhost:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -33,4 +33,4 @@ export default defineConfig({
       },
     },
   ],
-});
+})

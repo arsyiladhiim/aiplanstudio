@@ -85,9 +85,9 @@ $webAgents = '
 
 ## Project Context
 - Target Platform: Web App
-- Tech Stack: Laravel 11 (PHP 8.4) + Next.js 15 (App Router, React 19) + TypeScript + Tailwind CSS v4 + PostgreSQL 16
+- Tech Stack: Laravel 13 (PHP 8.3) + Next.js (App Router, React 19) + TypeScript + Tailwind CSS v4 + PostgreSQL 16
 - Auth: Sanctum SPA Session (HttpOnly cookie + CSRF, BUKAN Bearer token di browser)
-- API gateway: Next.js BFF route handlers proxy ke Laravel
+- API call: Browser fetch direct ke Laravel via `NEXT_PUBLIC_API_URL` (no BFF layer — see docs/25-bypass-bff.md)
 
 ## Agent Roles
 
@@ -96,21 +96,21 @@ $webAgents = '
 - **Owns:** `web/src/app/(app)/`, `web/src/components/`, `web/src/lib/hooks/`
 - **Tools:** Context7 (Next.js/React/Tailwind docs), web_search
 - **Constraint:** Server Components default, "use client" hanya kalau perlu interactivity. JANGAN hardcoded color — pakai design tokens. JANGAN setState di useEffect (React 19 Compiler rules).
-- **Handoff:** Setelah UI ready, lempar ke `web-api-agent` untuk wire ke BFF endpoint
+- **Handoff:** Setelah UI ready, lempar ke `web-integration-agent` untuk define API client contract
 
 ### ⚙️ web-backend-agent (Laravel API)
 - **Scope:** Controllers, FormRequest, Service, Repository, Migration, Model, Policy
 - **Owns:** `api/app/Http/`, `api/app/Services/`, `api/app/Models/`, `api/database/migrations/`, `api/routes/api.php`
 - **Tools:** Context7 (Laravel/Sanctum docs)
 - **Constraint:** Type hints WAJIB. FormRequest untuk validasi. Policy untuk authorization. Migration forward-only. Pint formatting.
-- **Handoff:** Setelah endpoint ready, update `routes/api.php` + lempar ke `web-frontend-agent` untuk consume via BFF
+- **Handoff:** Setelah endpoint ready, update `routes/api.php` + publish API contract ke `docs/api-contract.json` untuk consume dari `web-integration-agent`
 
-### 🔄 web-bff-agent (Next.js API Routes)
-- **Scope:** `web/src/app/api/**/route.ts` — proxy Laravel dengan session cookie forwarding
-- **Owns:** All `web/src/app/api/` route handlers
-- **Tools:** Context7 (Next.js route handlers docs)
-- **Constraint:** Handle 401 dengan redirect ke /login. Forward Set-Cookie header. JANGAN call Laravel langsung dari browser.
-- **Handoff:** BFF endpoint ready → consume dari `web-frontend-agent`
+### 🔌 web-integration-agent (Direct API Client)
+- **Scope:** `web/src/lib/api.ts` + `web/src/hooks/useAuth.ts` + `web/src/components/SetupTrackingCard.tsx` — direct API client dengan Sanctum cookie session
+- **Owns:** Direct fetch wrappers (`apiGet/apiPost/apiPatch/apiDelete`), CSRF cookie handling, error mapping (401 → redirect /login), retry logic, SSE streaming helpers
+- **Tools:** Context7 (Next.js fetch docs)
+- **Constraint:** Browser call Laravel DIRECT via `process.env.NEXT_PUBLIC_API_URL`. Set `credentials: "include"` untuk cookie session. Selalu panggil `fetchCsrfCookie()` sebelum state-changing request. Handle CORS preflight kalau cross-origin.
+- **Handoff:** Integration layer ready → consume dari `web-frontend-agent`
 
 ### 🗄️ web-db-agent (Schema + Migration)
 - **Scope:** Migration files, schema design, indexes, FK constraints
@@ -134,9 +134,9 @@ $webAgents = '
 5. **JANGAN asumsi** — kalau tidak yakin, TANYA user
 6. **Format:** PHP pakai Pint, TS/JS pakai Prettier
 7. **Pre-commit check:** `php artisan test` + `npm run lint` + `npx tsc --noEmit` harus pass
-8. **JANGAN panggil Laravel langsung dari browser** — selalu via BFF
-9. **CSRF WAJIB aktif** untuk semua POST/PATCH/DELETE dari browser
-10. **JANGAN pakai Bearer token di browser** — pakai session cookie
+8. **API call:** Browser boleh panggil Laravel DIRECT via `NEXT_PUBLIC_API_URL` dengan `credentials: "include"` (Sanctum cookie session aman, CORS configured di `api/config/cors.php`)
+9. **CSRF WAJIB aktif** untuk semua POST/PATCH/DELETE dari browser (panggil `fetchCsrfCookie()` dulu)
+10. **JANGAN pakai Bearer token di browser** — pakai session cookie (HttpOnly + SameSite=None; Secure untuk cross-origin)
 
 ## File Structure (WAJIB)
 
@@ -164,13 +164,12 @@ web/
 ├── src/
 │   ├── app/
 │   │   ├── (auth)/          # login, register
-│   │   ├── (app)/           # dashboard, projects, new, settings
-│   │   └── api/             # BFF route handlers
+│   │   └── (app)/           # dashboard, projects, new, settings
 │   ├── components/
 │   │   ├── ui/              # design system
 │   │   ├── wizard/          # pipeline components
 │   │   └── layout/
-│   ├── lib/                 # api wrappers, utils
+│   ├── lib/                 # api.ts (direct client), hooks, utils
 │   └── types/
 ```
 
@@ -195,7 +194,7 @@ web/
 - **docker:** Container management
 ';
 
-return fn(string $target) => 'Buat AGENTS.md untuk proyek ini. Output dalam format Markdown. AGENTS.md adalah panduan perilaku untuk AI coding agent — WAJIB berisi role definitions, hard rules, dan file structure.
+return fn (string $target) => 'Buat AGENTS.md untuk proyek ini. Output dalam format Markdown. AGENTS.md adalah panduan perilaku untuk AI coding agent — WAJIB berisi role definitions, hard rules, dan file structure.
 
 # AGENTS.md — AI Coding Agent Rules
 ' . ($target === 'mobile' || $target === 'both'

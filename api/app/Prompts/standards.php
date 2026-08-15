@@ -184,7 +184,7 @@ export function ProjectForm() {
 
 ## Architecture Patterns
 - **Backend:** Controllers → Services → Repositories → Models
-- **Frontend:** BFF route handlers → fetch wrappers → components
+- **Frontend:** Direct fetch wrappers (`web/src/lib/api.ts` dengan Sanctum cookie session + CSRF) → components
 - **State:** Server Components untuk data fetch, `useState`/`useReducer` untuk local, NO Redux/Zustand kecuali justified
 - **Validation:** DB constraints > FormRequest > client-side (defense in depth)
 
@@ -215,7 +215,7 @@ export function ProjectForm() {
 7. Ikuti struktur folder yang sudah ada di project
 ';
 
-return fn(string $target) => 'Buat STANDARDS.md untuk proyek ini. Output dalam format Markdown. STANDARDS adalah satu-satunya sumber kebenaran untuk coding conventions — setiap AI agent WAJIB baca sebelum menulis kode.
+return fn (string $target) => 'Buat STANDARDS.md untuk proyek ini. Output dalam format Markdown. STANDARDS adalah satu-satunya sumber kebenaran untuk coding conventions — setiap AI agent WAJIB baca sebelum menulis kode.
 
 # STANDARDS.md
 ' . ($target === 'mobile' || $target === 'both'

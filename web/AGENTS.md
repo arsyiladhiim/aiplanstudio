@@ -12,11 +12,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Use `/lint` and `/tsc` commands as shortcuts
 - Format with prettier before finalizing
 
-## API Rules (BFF)
-- All /api/* routes proxy to Laravel — never call Laravel directly
-- Session cookie auth only, no Bearer tokens
-- Always call fetchCsrfCookie() before state-changing requests
+## API Rules (Direct Routing — no BFF)
+- Browser fetch DIRECT ke Laravel via `NEXT_PUBLIC_API_URL` dengan `credentials: "include"` (no BFF layer — see docs/25-bypass-bff.md)
+- Backend dev: `http://localhost:8000` (nginx_api direct). Prod: `https://api-<your-domain>`.
+- Session cookie auth only (HttpOnly + `SameSite=None; Secure` cross-origin), no Bearer tokens
+- Always call `fetchCsrfCookie()` before state-changing requests
 - Handle 401 → redirect to /login
+- CORS configured untuk cross-origin (`api/config/cors.php` allowlist + `supports_credentials: true`)
 
 ## Pipeline Stages (14 stages, target both / 10 stages, target web)
 Questions (MCQ) → Analysis → PRD → Architecture → ERD → API Contract → Phases (web) → Standards (web) → Master Prompt (web) → Mobile Questions (MCQ) → Phases (mobile) → Standards (mobile) → Master Prompt (mobile) → Agents

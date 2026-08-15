@@ -238,10 +238,9 @@ Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dok
 - [ ] Data volume ter-map host (`./docker/postgres/data_`, `./docker/redis/data`, `./docker/glitchtip/uploads`)
 
 ### E4. Stack & Network
-- [ ] 6 containers aktif (nginx, web, api, api-fpm, db, redis) — glitchtip DISABLED; tanpa `aiplanstudio-migrate`
-- [ ] nginx endpoint dari host port `4197`
-- [ ] nginx join `cloudflare_tunnel_default` network (external)
-- [ ] `curl http://localhost:4197/api/health` → `{"status":"ok"}`
+- [ ] 5 containers aktif (web, api, api-fpm, db, redis) — glitchtip DISABLED; tanpa `aiplanstudio-migrate`
+- [ ] aiplanstudionginx_api reachable dari tunnel container (`docker network inspect aiplanstudio_aiplanstudio` confirm `cloudflare_tunnel-cloudflare-tunnel-1` attached)
+- [ ] `curl http://localhost:8000/api/health` → `{"status":"ok"}` (direct nginx_api, no BFF)
 
 ### E5. Auth & RBAC
 - [ ] Login session cookie (Sanctum) berhasil (login admin dev)

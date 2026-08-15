@@ -11,7 +11,7 @@
 
 ## Latar Belakang
 
-Arsitektur saat ini (BFF):
+Arsitektur sebelumnya (BFF — dihapus Phase 7 / 2026-08-14):
 
 ```
 Browser → aiplanstudio.arsyiladm.my.id (Next.js)
@@ -25,6 +25,8 @@ Browser → aiplanstudio.arsyiladm.my.id (Next.js)
 3. Single point of failure — BFF down = semua flow mati.
 4. Webhook tracking (`/api/webhooks/phase-complete`) tidak butuh BFF — server-to-server pakai Project API Token.
 5. Tidak ada kebutuhan transform/aggregate di tepi — BFF over-engineering untuk kasus ini.
+
+**Status saat ini:** `[x]` Arsitektur direct routing sudah production-ready (Cloudflare Tunnel + CORS + Sanctum stateful). CP-12 (2026-08-15) mereconcile semua CP-1..11 artifacts agar propagasi no-BFF ke AI prompts + docs.
 
 ## Arsitektur Target
 
@@ -191,18 +193,56 @@ _(Diisi per progres selesai, urut kronologis.)_
 
 ## Final Ringkasan
 
-| Aspek | Sebelum (BFF) | Sesudah (Direct) |
+### Arsitektur
+
+| Aspek | Sebelum (BFF — Phase 7-) | Sesudah (Direct — Phase 7+) |
 |---|---|---|
-| Frontend → API hop | Next.js BFF route handler → Laravel | Direct ke Laravel |
+| Frontend → API hop | Next.js BFF route handler → Laravel | Direct `${NEXT_PUBLIC_API_URL}/api/*` dengan `credentials: "include"` |
+| Mobile → API hop | Tidak ada (mobile belum dirancang) | Direct `${APP_URL}/api/*` via dio + cookie manager |
 | Webhook tracking latency | +BFF hop (~50-200ms) | Direct (server-to-server) |
 | SSE streaming | BFF buffering risk | Native EventSource ke API |
-| Config files | `web/src/lib/bff.ts` + 40+ BFF routes | Dihapus |
+| Config files | `web/src/lib/bff.ts` + 40+ BFF routes | Dihapus (CP-1..11 outputs sudah propagated no-BFF — CP-12) |
 | Middleware | Cookie session check (broken cross-origin) | Pass-through (401 client-side) |
 | Domain | `localhost:4197` (BFF exposed) | `aiplanstudio.arsyiladm.my.id` (Cloudflare) + `api-aiplanstudio.arsyiladm.my.id` |
 | CORS | tidak ada | allowlist + credentials |
 | Cookie attributes | SameSite=lax | SameSite=None; Secure (cross-origin) |
 | CSP | generic | `connect-src ${API_URL}`, `frame-ancestors 'none'` |
-| Backend test | 246 pass | 246 pass (no change) |
-| Frontend lint/tsc | clean | clean |
+
+### Test Status
+
+| Phase | Backend | Frontend |
+|---|---|---|
+| Sebelum BFF removal | 246 pass | clean |
+| Setelah BFF removal (Phase 7) | 246 pass (no change) | clean |
+| Setelah CP-1..11 | 261 pass | clean |
+| Setelah CP-12 (Direct Routing Reconciliation) | 261 pass (no change) | clean |
+
+### AI Agent Architecture Roles
+
+| Agent (CP-7 → CP-12) | Change |
+|---|---|
+| `web-bff-agent` | **REMOVED** — digabung ke `web-integration-agent` (direct API client scope) |
+| `web-frontend-agent` | Tetap. Handoff ke `web-integration-agent` (bukan `web-api-agent`) |
+| `web-backend-agent` | Tetap. Publish API contract → `web-integration-agent` |
+| `web-db-agent`, `web-test-agent` | Tetap. |
 
 **Status: Production-ready dengan arsitektur direct + Cloudflare Tunnel + CORS configured.**
+
+---
+
+## CP-12 — Direct Routing Reconciliation (2026-08-15)
+
+Follow-up CP-1..11 untuk propagate no-BFF architecture ke AI prompts, AI-generated components, dan docs yang masih reference BFF. BFF code sudah dihapus (Phase 7), tapi beberapa CP-1..11 outputs belum direconcile.
+
+**Scope utama:**
+- AI prompts (5 files di `api/app/Prompts/`): rename `web-bff-agent` → `web-integration-agent`, drop BFF module boundary dari architecture diagram.
+- **AI prompt `erd.php` (CP-12.b)**: sebelumnya minta output DOUBLE FORMAT (Mermaid block + line-format), tapi React Flow (`ErdDiagram.tsx`) consume JSON only — Mermaid block jadi orphaned artifact. Rewrite prompt jadi JSON only untuk single source of truth.
+- Frontend components: parser-based viewers (`AgentsView`, `ArchitectureView`, `MasterPromptViewer`) regenerate dari prompt baru.
+- Settings/About: badge "BFF Pattern" → "Direct Routing".
+- E2E baseURL: `:4197` → `:3000` (Next.js dev direct).
+- Env templates (`api/.env.example`, `web/.env.production`): `APP_URL` `:4197` → `:8000` (nginx_api direct), TODO annotations untuk public domain swap.
+- AGENTS.md (web): API Rules section rewrite (BFF → Direct Routing).
+- Docs (api/README, docs/02, 04, 05, 07, 08, 14, 18, 22 + AUTH.md): update semua reference BFF → direct routing.
+- Legacy cleanup: `MASTER_PROMPT.md` deleted (orphan, 0 references verified).
+
+Detail item-by-item: `docs/plan/master-repair.md` CP-12 section.

@@ -93,8 +93,7 @@ Setiap stage streaming via SSE. Stage berikutnya mendapat konteks dari output st
 ## Fitur Kunci
 ### Dashboard Analytics (`GET /api/dashboard/stats`)
 - Server-computed stats: total projects, versions, active projects, weekly counts, recent projects, favorite projects, recent activities.
-- BFF route: `web/src/app/api/dashboard/stats/route.ts`.
-- Frontend: `web/src/app/(app)/dashboard/page.tsx`.
+- Frontend: `web/src/app/(app)/dashboard/page.tsx` (fetch direct via `apiGet("/dashboard/stats")`).
 
 ### Activity Log
 - Setiap aksi bermakna (create version, delete version, toggle phase, update artifact) dicatat via `Project::logActivity()`.
@@ -113,7 +112,7 @@ Setiap stage streaming via SSE. Stage berikutnya mendapat konteks dari output st
 - Frontend: side-by-side diff view at `web/src/app/(app)/projects/[id]/diff/page.tsx`.
 
 ### Project API Tokens
-- Three BFF routes under `/api/projects/{id}/tokens`: GET (list), POST (create—shows once), DELETE (revoke).
+- Direct API: `GET /api/projects/{id}/tokens`, `POST /api/projects/{id}/tokens` (shows secret once), `DELETE /api/projects/{id}/tokens/{tokenId}` (revoke).
 - UI embedded as collapsible card in project detail page.
 - Tokens authenticate webhook callbacks (`POST /api/webhooks/phase-complete`) via middleware `auth.project-token`.
 

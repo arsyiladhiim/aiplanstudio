@@ -1,7 +1,7 @@
 # 07 — Docker Setup
 
 > Lihat juga: [02-architecture](02-architecture.md) · [09-roadmap](09-roadmap.md) · [11-development-rules](11-development-rules.md)
-> Aturan mutlak: **semua service di Docker**, antar-service via nama container, **hanya nginx expose ke host**. BFF pattern: nginx → Next.js → Laravel.
+> Aturan mutlak: **semua service di Docker**, antar-service via nama container, **tidak ada publish port ke host**. Reverse proxy = Cloudflare Tunnel (external). Arsitektur direct routing: `aiplanstudio_web:3000` (Next.js) + `aiplanstudionginx_api:8000` (Laravel via nginx → php-fpm). See [25-bypass-bff.md](25-bypass-bff.md).
 > Requirement: host Docker **Linux containers** (image php/node/postgres semuanya Linux; Windows-only daemon tidak bisa build).
 
 ## Struktur Repo
@@ -10,29 +10,29 @@ aiplanstudio/
   docker-compose.yml
   .dockerignore
   docker/
-    nginx/default.conf        # nginx utama (expose ke host, ke web)
-    api-nginx/default.conf    # nginx front untuk Laravel (php-fpm upstream)
+    api-nginx/default.conf    # nginx front untuk Laravel (php-fpm upstream) — di belakang Cloudflare Tunnel
     postgres/data_/           # bind mount data PostgreSQL
     redis/data/               # bind mount data Redis
   api/                        # Laravel
     Dockerfile                # php:8.3-fpm-alpine, CMD php-fpm -F (RS-9 ✅)
     .env.example              # template env (dokumentasi; salin jadi .env untuk dev/produksi)
-  web/                        # Next.js (BFF)
+  web/                        # Next.js (standalone, direct API call)
     Dockerfile                # 3-stage build → standalone output
   docs/                       # dokumentasi ini
 ```
 
 ## Topologi Service
 ```
-Host :4197
-  └─ nginx (nginx:alpine) ── / → web:3000 (Next.js standalone, BFF)
-                                └─ /api/* → Laravel via BFF route handler
-  web (Next.js) ── LARAVEL_URL=http://api:8000 ──> api
-  api (nginx:alpine :8000, root /app/public) ── fastcgi ──> api-fpm:9000
-  api-fpm (php:8.3-fpm-alpine, php-fpm -F, /app) ──> db / redis
-  migrate (one-shot, image yang sama dengan api)
-  db (postgres:16-alpine) · redis (redis:alpine)
-  glitchtip (glitchtip/glitchtip:6, :8000 internal) ──> db (DB `glitchtip`) / redis (DB 2) — **DISABLED** (service di-comment, lihat catatan di bawah)
+Cloudflare Tunnel (external reverse proxy)
+  ├─ aiplanstudio.arsyiladm.my.id      → http://aiplanstudio_web:3000       (Next.js standalone)
+  └─ api-aiplanstudio.arsyiladm.my.id  → http://aiplanstudionginx_api:8000 (Laravel via nginx → php-fpm)
+
+aiplanstudio_web       (Next.js standalone)            :3000 internal — tidak publish ke host
+aiplanstudionginx_api  (nginx:alpine, root /app/public):8000 internal — tidak publish ke host
+aiplanstudio_apifpm    (php-fpm -F)                    :9000 internal
+aiplanstudio_db        (postgres:16-alpine)            :5432 internal
+aiplanstudio_redis     (redis:alpine)                  :6379 internal
+glitchtip              (glitchtip/glitchtip:6, :8000)  — **DISABLED** (service di-comment)
 ```
 
 ## docker-compose.yml (ringkas)
@@ -44,10 +44,10 @@ services:
     volumes: [./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro, ./api/storage/logs:/var/log/nginx]
     depends_on: { web: { condition: service_started }, api: { condition: service_healthy } }
 
-  web:                      # Next.js (BFF) — standalone, user nextjs
-    build: { context: ./web, dockerfile: Dockerfile }
+  web:                      # Next.js — standalone, user nextjs
+    build: { context: ./web, dockerfile: Dockerfile, args: { NEXT_PUBLIC_API_URL } }
     expose: ["3000"]
-    environment: [LARAVEL_URL=http://api:8000]
+    # Browser fetch direct ke Laravel via NEXT_PUBLIC_API_URL (no BFF).
 
   api:                      # nginx front untuk Laravel
     image: nginx:alpine
@@ -91,10 +91,12 @@ services:
 networks: { aiplanstudio: { driver: bridge } }
 ```
 
-## nginx/default.conf (nginx utama)
-- gzip, `client_max_body_size 20m`, security headers (CSP, HSTS, X-Frame-Options).
-- Semua request `location /` → `proxy_pass http://web:3000`, `proxy_buffering off`, `proxy_read_timeout 86400` (SSE).
-- Semua `/api/*` dan `/sanctum/*` ditangani Next.js BFF (route `src/app/api/**`).
+## api-nginx/default.conf (nginx front Laravel — di belakang Cloudflare Tunnel)
+- gzip, `client_max_body_size 20m`, security headers (CSP `frame-ancestors 'none'`, HSTS, X-Frame-Options DENY, Permissions-Policy, Referrer-Policy, X-Content-Type-Options).
+- Rate limiting: `limit_req_zone api_limit 30r/s`, `csrf_limit 5r/s`.
+- Block hidden files (`.env`, `composer.json`, dll) sebagai defense-in-depth.
+- Listen 8000 (local dev) + 80 (Cloudflare Tunnel default).
+- Semua `/api/*` + `/sanctum/*` → `fastcgi_pass aiplanstudio_apifpm:9000`.
 
 ## docker/api-nginx/default.conf (nginx api)
 - `root /app/public; index index.php` → `fastcgi_pass api-fpm:9000`, `fastcgi_buffering off` (SSE).
@@ -127,10 +129,17 @@ docker compose run --rm migrate
 # 4. Cek tabel
 docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\dt'
 
-# 5. Antar-service via hostname (uji BFF)
-curl http://localhost:4197/api/health                 # nginx → web → api → "ok"
-docker compose exec web wget -qO- http://api:8000/api/health  # internal OK
+# 5. Antar-service via hostname (uji direct routing, no BFF)
+curl http://localhost:8000/api/health                 # nginx_api → api-fpm → "ok" (direct)
+docker compose exec web wget -qO- http://aiplanstudionginx_api:8000/api/health  # internal OK
 ```
+
+## Catatan Arsitektur Direct Routing
+- **Tidak ada BFF layer.** Browser fetch langsung ke `NEXT_PUBLIC_API_URL` (= `http://localhost:8000` dev / `https://api-aiplanstudio.arsyiladm.my.id` prod).
+- `web/src/lib/api.ts` pakai `fetch(url, { credentials: "include" })` untuk cookie session + CSRF.
+- Sanctum stateful domain (`SANCTUM_STATEFUL_DOMAINS`) di backend allowlist frontend origin.
+- CORS allowlist (`api/config/cors.php`) + `supports_credentials: true` untuk cross-origin.
+- Detail lengkap migration BFF → direct: `docs/25-bypass-bff.md`.
 
 ## Checklist Keamanan Infra
 - [x] Tidak ada service yang publish port ke host (`docker compose ps` — semua `0.0.0.0:xxx` kosong); akses publik via Cloudflare Tunnel.
@@ -209,10 +218,10 @@ php artisan serve --port=8000
 cd web
 npm run dev
 
-# 4. Akses
+# 4. Akses (direct routing, no BFF)
 # Frontend: http://localhost:3000
 # API:      http://localhost:8000/api/health → {"status":"ok"}
-# BFF:      http://localhost:3000/api/health → {"status":"ok"} (via proxy Next.js)
+# Browser → fetch(`${NEXT_PUBLIC_API_URL}/api/...`) dengan credentials: "include"
 ```
 
 ### Catatan

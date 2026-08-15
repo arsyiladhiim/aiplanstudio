@@ -2,7 +2,7 @@
 
 > AI-powered planning platform that turns ideas into 1-paste-ready master build prompts for coding agents.
 
-**Stack:** Laravel 11 (PHP 8.4) · Next.js 15 (App Router) + React 19 + TypeScript · PostgreSQL 16 · Tailwind CSS v4 · Docker Compose
+**Stack:** Laravel 13 (PHP 8.3) · Next.js (App Router) + React 19 + TypeScript · PostgreSQL 16 · Tailwind CSS v4 · Docker Compose + Cloudflare Tunnel (direct routing, no BFF)
 
 ---
 
@@ -25,14 +25,16 @@ Setelah user generate master prompt, mereka Setup Tracking untuk dapat **Token**
 
 ```bash
 # User dapat token via UI: TrackingPanel → "Setup Tracking" button → Modal
-# Atau programmatically:
+# Atau programmatically (cookies + CSRF dari session browser):
 curl -X POST $APP_URL/api/projects/{project}/versions/{version}/tokens/auto-tracking \
-  -H "Cookie: aplanstudio_session=..." \
+  -H "Cookie: ai-planning-studio-session=..." \
   -H "X-XSRF-TOKEN: $CSRF" \
   -H "Content-Type: application/json"
 # Response: { "token": "...", "secret": "...", "id": 123, "name": "auto-tracking-...", "existing": false }
 # Save secret SEKARANG — tidak akan ditampilkan lagi.
 ```
+
+> **Direct routing (no BFF):** Browser fetch `$APP_URL/api/...` langsung dari Next.js. Tidak ada hop BFF.
 
 ### Webhook call
 
@@ -87,13 +89,12 @@ curl -X POST $APP_URL/api/webhooks/phase-complete \
 ## Architecture
 
 ```
-Browser (Next.js 15 + React 19)
-   │  HttpOnly session cookie + CSRF
+Browser (Next.js + React 19)
+   │  HttpOnly session cookie + CSRF (credentials: "include")
    ▼
-Next.js BFF (route handlers)
-   │  Proxy with session forwarding
+   Direct fetch → ${NEXT_PUBLIC_API_URL}/api/* (cross-origin via Cloudflare Tunnel)
    ▼
-Laravel API (stateless)
+nginx_api (docker/api-nginx) → php-fpm (Laravel, stateless)
    │  Controllers → Services → Repositories → Models
    ▼
 PostgreSQL 16 (3 schemas)
@@ -101,6 +102,8 @@ PostgreSQL 16 (3 schemas)
    ├── aiplanstudio_project   (versions, artifacts, phase_progress, task_progress)
    └── aiplanstudio_settings  (profile, preferences)
 ```
+
+> **No BFF layer.** Browser fetch direct ke Laravel via `NEXT_PUBLIC_API_URL`. CORS + Sanctum stateful domain handle cross-origin. See [docs/25-bypass-bff.md](docs/25-bypass-bff.md) untuk migration rationale.
 
 Lihat [docs/06-ai-pipeline.md](docs/06-ai-pipeline.md) dan [.graphify/GRAPH_REPORT.md](.graphify/GRAPH_REPORT.md).
 
@@ -129,10 +132,13 @@ npx playwright test  # e2e tests
 
 | Service | Port | URL |
 |---------|------|-----|
-| Nginx (BFF gateway) | 80 | http://localhost |
-| Next.js (internal) | 3000 | (via nginx) |
-| Laravel (internal) | 9000 | (via nginx) |
+| Cloudflare Tunnel | external | `https://aiplanstudio.arsyiladm.my.id` (web) + `https://api-aiplanstudio.arsyiladm.my.id` (API) |
+| Next.js (internal) | 3000 | (via Cloudflare Tunnel) |
+| nginx_api (Laravel front) | 8000 | (via Cloudflare Tunnel) |
+| php-fpm | 9000 | (internal only) |
 | PostgreSQL | 5432 | (internal only) |
+
+Dev local: `http://localhost:3000` (Next.js) + `http://localhost:8000` (nginx_api direct). Set di `web/.env.development` dan `api/.env.example`.
 
 ---
 

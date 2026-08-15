@@ -6,7 +6,7 @@
 - Next.js (App Router) + Tailwind CSS v4.
 - **React Flow** — render ERD diagram.
 - **react-markdown** — terdaftar di dependency (belum dipakai; artefak dirender sebagai `<pre>` plain text).
-- Client SPA; semua data lewat REST `/api` same-origin via BFF.
+- Client SPA; semua data lewat REST `/api` direct ke Laravel via `NEXT_PUBLIC_API_URL` dengan `credentials: "include"` (no BFF layer).
 
 ## Struktur Aktual
 ```
@@ -31,7 +31,6 @@ web/
         settings/page.tsx          # redirect ke /settings/provider
         settings/provider/page.tsx # admin — CRUD AI provider
         settings/users/page.tsx    # admin — manajemen user
-      api/                         # BFF route handlers (17 file)
     components/
       ui/                          # UI kit (Button, Card, Badge, Input, Label)
       wizard/
@@ -40,35 +39,33 @@ web/
       ThemeToggle.tsx              # dark/light toggle
       common.tsx                   # PageHeader, ProgressBar, TargetBadge
     lib/
-      api.ts                       # fetch wrapper + CSRF + SSE helpers
-      bff.ts                       # BFF proxy helpers (cookie forwarding)
+      api.ts                       # direct fetch wrapper + CSRF + SSE helpers
       mock.ts                      # mock data (fallback — tidak dipakai di production)
     proxy.ts                       # route guard (Next.js 16) — redirect unauthenticated ke /login
 ```
 
 > **Catatan:** Dokumentasi awal menyebut struktur komponen yang lebih granular (`landing/Nav`, `wizard/IdeaInput`, `project/ProjectList`, `settings/ProviderForm`, `e2e/`). Saat ini kode masih inline di page files dan hanya komponen umum yang diekstrak.
 
-## Auth Flow (Sanctum SPA Session)
-1. Login/register POST ke `/api/login` atau `/api/register` → Laravel set session cookie (HttpOnly).
-2. Semua fetch otomatis menyertakan cookie (`credentials: 'include'`).
+## Auth Flow (Sanctum SPA Session — Direct Routing)
+1. Login/register POST ke `${NEXT_PUBLIC_API_URL}/api/login` atau `/api/register` → Laravel set session cookie (HttpOnly, `SameSite=None; Secure` untuk cross-origin).
+2. Semua fetch otomatis menyertakan cookie (`credentials: "include"`).
 3. Untuk non-GET request, ambil `XSRF-TOKEN` dari cookie → kirim sebagai `X-XSRF-TOKEN` header.
 4. Jika 401 → redirect ke `/login`.
 5. Logout → `POST /api/logout` → invalidate session → redirect ke `/login`.
 6. Guard: halaman `/settings/*` hanya untuk `role === 'admin'` (dicek via `/api/user`).
    Halaman app lain butuh login. **Guard route via `web/src/proxy.ts`** (Next.js 16 rename `middleware.ts` → `proxy.ts`): redirect unauthenticated users ke `/login?redirect={path}` untuk protected paths (`/dashboard`, `/projects`, `/new`, `/templates`, `/settings`, `/activities`, `/help`).
 
-`lib/api.ts` menyediakan `apiGet/apiPost/...` yang otomatis menyertakan cookies + CSRF headers.
-`lib/bff.ts` menyediakan helper untuk BFF route handler (proxy ke Laravel dengan cookie forwarding).
+`lib/api.ts` menyediakan `apiGet/apiPost/...` yang otomatis menyertakan cookies + CSRF headers + `credentials: "include"` untuk cross-origin.
 
-## Auth flow detail (BFF proxy):
-1. Browser → fetch `/api/...` dengan cookie session
-2. Next.js menerima request, forward Cookie + XSRF headers ke Laravel
-3. Laravel memvalidasi session → return response
-4. Next.js return response ke browser
+## Auth flow detail (Direct Routing):
+1. Browser → fetch `${NEXT_PUBLIC_API_URL}/api/...` dengan `credentials: "include"` (cookie session otomatis)
+2. Browser kirim CSRF: ambil `XSRF-TOKEN` dari cookie → header `X-XSRF-TOKEN`
+3. Laravel validasi session cookie (stateful domain match) + CSRF → return response
+4. Browser handle response (success / 401 redirect / error)
 
 ## Login page (`/login`)
-- Form submit → fetch POST `/api/login` ← langsung via BFF, bukan API client
-- Laravel set session cookie (HttpOnly) via Set-Cookie response
+- Form submit → fetch POST `${NEXT_PUBLIC_API_URL}/api/login` ← direct call, bukan via BFF
+- Laravel set session cookie (HttpOnly + `SameSite=None; Secure` cross-origin) via Set-Cookie response
 - Redirect ke `/dashboard`
 
 ## Logout
@@ -76,14 +73,15 @@ web/
 - Redirect ke `/login`
 
 ## Konsumsi SSE (`createSSE()`)
-- `new EventSource('/api/generate/stream?version=..&stage=..&auto=..', { withCredentials: true })`
+- `new EventSource(`${NEXT_PUBLIC_API_URL}/api/generate/stream?version=..&stage=..&auto=..`, { withCredentials: true })`
 - Handle event: `status`, `token` (append streaming), `artifact` (set final), `done`, `error`.
 - Auth via **cookies** (`withCredentials: true`), bukan Bearer token.
+- Native EventSource (no BFF buffering risk — Phase 7).
 
 ## Projects
 - `/projects`: daftar project + buat baru.
 - `/projects/[id]`: versi selector, artifact tabs (analysis, PRD, architecture, ERD, standards, agents, phases, master prompt, mobile phases/standards/agents/master), progress checklist, export.
-- **Export** `.md`/`.zip` → BFF proxy → Laravel generate.
+- **Export** `.md`/`.zip` → direct fetch ke Laravel generate.
 
 ## Settings (admin)
 - **Provider**: form untuk name, base_url, provider type, API key (masked), model, test connection, test prompt, set active.

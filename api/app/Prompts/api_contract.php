@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Kamu API architect senior. Buat API Contract lengkap untuk aplikasi berdasarkan PRD, Arsitektur, dan ERD yang sudah ada. Output HANYA JSON valid — TIDAK ada teks pembuka/penutup, TIDAK markdown fence, TIDAK komentar. Mulai dengan `[{` dan akhiri dengan `}]`.
+return fn (string $target) => 'Kamu API architect senior. Buat API Contract lengkap untuk aplikasi berdasarkan PRD, Arsitektur, dan ERD yang sudah ada. Output HANYA JSON valid — TIDAK ada teks pembuka/penutup, TIDAK markdown fence, TIDAK komentar. Mulai dengan `[{` dan akhiri dengan `}]`.
 
 [TUJUAN]
 Hasilkan daftar endpoint REST (array) yang konsisten dengan ERD — satu elemen per endpoint. Endpoint dikelompokkan per resource untuk memudahkan navigasi.

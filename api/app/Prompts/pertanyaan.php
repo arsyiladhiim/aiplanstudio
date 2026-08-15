@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Kamu analis senior dengan pengalaman 15 tahun di software development consulting. Dari ide aplikasi berikut, buat pertanyaan klarifikasi menggunakan format pilihan ganda (A, B, C, D + E custom). Output HANYA JSON valid.
+return fn (string $target) => 'Kamu analis senior dengan pengalaman 15 tahun di software development consulting. Dari ide aplikasi berikut, buat pertanyaan klarifikasi menggunakan format pilihan ganda (A, B, C, D + E custom). Output HANYA JSON valid.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STRATEGI PENanyaN

@@ -14,7 +14,7 @@
 - **Pendekatan:** Spec Playwright di `web/e2e/<area>.spec.ts` + Playwright MCP untuk eksplorasi awal.
 - **Mode AI pipeline:** Skip tahap AI real (pakai pola `wizard.spec.ts:33-43` — assert pipeline screen render, jangan tunggu full AI run).
 - **Login throttle mitigasi:** Pakai `web/e2e/.auth/state.json` dari global-setup, **JANGAN** login per test (throttle `5,1`).
-- **Base URL:** `http://localhost:4197` (`E2E_BASE_URL`).
+- **Base URL:** `http://localhost:3000` (`E2E_BASE_URL` — Next.js dev server direct, no BFF).
 
 ## Daftar Progres
 

@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Anda senior prompt engineer. Buat MASTER PROMPT dalam format teks (BUKAN JSON). Dokumen ini self-contained — AI coding agent membacanya sekali dari awal sampai akhir untuk membangun seluruh aplikasi web. Tidak ada iterasi, tidak ada pertanyaan balik.
+return fn (string $target) => 'Anda senior prompt engineer. Buat MASTER PROMPT dalam format teks (BUKAN JSON). Dokumen ini self-contained — AI coding agent membacanya sekali dari awal sampai akhir untuk membangun seluruh aplikasi web. Tidak ada iterasi, tidak ada pertanyaan balik.
 
 # <NAMA_PROYEK> — Master Build Prompt
 
@@ -15,12 +15,12 @@ return fn(string $target) => 'Anda senior prompt engineer. Buat MASTER PROMPT da
 <Ringkasan padat dari analisa + PRD: apa masalahnya, untuk siapa, bagaimana aplikasi menyelesaikannya. Singkat dan tajam — JANGAN copy paste penuh analisa/PRD di sini.>
 
 ## 2. Tech Stack (final, tidak bisa diubah)
-- Backend: Laravel 11 (PHP 8.4) + Sanctum SPA Session
+- Backend: Laravel 13 (PHP 8.3) + Sanctum SPA Session
 - Frontend: Next.js (App Router) + React 19 + TypeScript + Tailwind CSS v4
 - DB: PostgreSQL 16 (3 schemas: master/project/settings)
-- Infra: Docker Compose
+- Infra: Docker Compose + Cloudflare Tunnel (no BFF layer — see docs/25-bypass-bff.md)
 - Auth: HttpOnly cookie + CSRF (JANGAN Bearer token di browser)
-- API gateway: semua /api/* via Next.js BFF route handlers
+- API gateway: browser fetch DIRECT ke Laravel via `NEXT_PUBLIC_API_URL` (cross-origin, `credentials: "include"`)
 
 WAJIB gunakan stack di atas. JANGAN usulkan alternatif kecuali diminta eksplisit.
 
@@ -36,16 +36,12 @@ app/
 │   ├── projects/[id]/page.tsx
 │   ├── new/page.tsx
 │   └── settings/page.tsx
-├── api/                       # BFF route handlers
-│   ├── auth/[...]/route.ts
-│   ├── projects/[...]/route.ts
-│   └── webhooks/[...]/route.ts
 components/
 ├── ui/                        # Button, Card, Modal, Badge, Input, Textarea
 ├── wizard/                    # Pipeline stage components
 └── layout/                    # AppShell, Sidebar, Topbar
 lib/
-├── api.ts                     # fetch wrappers + types
+├── api.ts                     # direct fetch wrappers + Sanctum cookie session + CSRF
 ├── auth.ts
 └── utils.ts
 ```
@@ -61,7 +57,7 @@ Untuk SETIAP fase, gunakan template ini:
 **Effort:** S | M | L
 **Files:**
 - `app/(app)/<path>` — <fungsi>
-- `app/api/<path>/route.ts` — <fungsi>
+- `lib/api.ts` — <fungsi> (jika ada endpoint integration baru)
 - `app/Http/Controllers/<X>Controller.php` — <fungsi>
 **Tasks:**
 - [ ] <task 1>

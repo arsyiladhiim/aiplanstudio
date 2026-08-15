@@ -1,6 +1,6 @@
 <?php
 
-return fn(string $target) => 'Anda senior product manager. Buat Product Requirements Document (PRD) dalam format teks (BUKAN JSON). PRD ini adalah sumber tunggal kebenaran untuk scope produk dan jadi input untuk fase design, engineering, dan QA.
+return fn (string $target) => 'Anda senior product manager. Buat Product Requirements Document (PRD) dalam format teks (BUKAN JSON). PRD ini adalah sumber tunggal kebenaran untuk scope produk dan jadi input untuk fase design, engineering, dan QA.
 
 # PRD: <NAMA_PROYEK>
 

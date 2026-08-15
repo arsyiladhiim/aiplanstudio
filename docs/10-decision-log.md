@@ -57,10 +57,11 @@
 - **Alasan:** React 19 `set-state-in-effect` rule mencegah `setQuestions` di dalam effect. Nilai questions selalu derivatif dari artifact, jadi useMemo lebih tepat.
 - **Ditolak:** Menyimpan questions di ref; memparsing di event handler.
 
-### D-026 · Project API tokens: BFF routes + UI in project detail
+### D-026 · Project API tokens: API routes + UI in project detail
 - **Keputusan:** Tokens are managed via 3 routes (GET/POST/DELETE) under `/api/projects/{id}/tokens`. UI embedded as a collapsible card in the project detail page.
 - **Alasan:** Tokens are project-scoped, not user-scoped. Embedding in project detail keeps UX simple without a separate page.
 - **Ditolak:** Separate tokens management page.
+- **Update (CP-12):** Originally described as "BFF routes". Post Phase 7 BFF removal, these are direct Laravel API routes — frontend consume via `apiGet/apiPost/apiDelete` (`web/src/lib/api.ts`).
 
 ### D-027 · Fallback artifact fetcher: single batch request instead of per-stage loop
 - **Keputusan:** Changed the `useEffect` fallback fetcher to collect all missing stages first, then make a single `/versions/{id}` call and set all artifacts at once.
@@ -72,6 +73,7 @@
 ### D-016 · Kembali ke Sanctum SPA Session Auth (Cookies + CSRF)
 - **Keputusan:** Batalkan D-012 (Migrasi ke Bearer Token). Kembali ke Sanctum SPA Session auth (HttpOnly cookies + CSRF).
 - **Alasan:** Audit sinkronisasi menemukan bahwa implementasi Bearer Token hanya ada di dokumentasi & decision log — kode aktual masih menggunakan SPA Session Auth. Alih-alih migrasi ulang, yang lebih efisien adalah sinkronisasi dokumentasi dengan kode aktual. Ini menghindari rewrite besar-besaran di frontend, backend, dan BFF.
+- **Update (CP-12):** "BFF" di sini adalah historic terminology — codebase pakai direct API call sejak Phase 7 (2026-08-14). 17 endpoint API routes (bukan BFF route handlers) yang dipakai frontend.
 - **Ditolak:** Migrasi paksa ke Bearer Token (banyak kerja ulang di 17 BFF routes + frontend auth flow + backend middlewares).
 
 ### D-017 · Decision Log D-012/D-013 dianggap tidak berlaku
