@@ -14,6 +14,7 @@ import { StandardsView } from "@/components/wizard/StandardsView";
 import { PhasesView } from "@/components/wizard/PhasesView";
 import { AgentsView } from "@/components/wizard/AgentsView";
 import { ErdTabs } from "@/components/wizard/ErdTabs";
+import { MasterPromptViewer, hasMasterPromptArtifact } from "@/components/wizard/MasterPromptViewer";
 import type { ProgressItem } from "@/components/wizard/TrackingPhases";
 import { TrackingPanel } from "@/components/wizard/TrackingPanel";
 import { SetupTrackingCard } from "@/components/wizard/SetupTrackingCard";
@@ -114,6 +115,10 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [pendingConfirmMaster, setPendingConfirmMaster] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  // CP-9 M-5: auto-open MasterPromptViewer modal saat stage master_web/mobile baru selesai.
+  const [masterModalOpen, setMasterModalOpen] = useState(false);
+  const [masterModalTarget, setMasterModalTarget] = useState<"web" | "mobile" | null>(null);
+  const masterAutoOpenedRef = useRef<{ web: boolean; mobile: boolean }>({ web: false, mobile: false });
 
   // Fase web (phases) + status tracking — untuk gate: web belum selesai bangun
   // bila ada fase `phases_web` dengan phase_progress belum semua done.
@@ -271,6 +276,16 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           if (data.state === 'done') {
             setRetryInfo(null);
             chime();
+            // CP-9 M-5: auto-open MasterPromptViewer saat master_* selesai (sekali per target).
+            if (stage === 'master_web' && !masterAutoOpenedRef.current.web) {
+              masterAutoOpenedRef.current.web = true;
+              setMasterModalTarget('web');
+              setMasterModalOpen(true);
+            } else if (stage === 'master_mobile' && !masterAutoOpenedRef.current.mobile) {
+              masterAutoOpenedRef.current.mobile = true;
+              setMasterModalTarget('mobile');
+              setMasterModalOpen(true);
+            }
           }
         }
         break;
@@ -696,6 +711,9 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     setCurrent(0);
     setStatus(initStatus(target));
     setArtifacts({} as Record<StageKey, string>);
+    masterAutoOpenedRef.current = { web: false, mobile: false };
+    setMasterModalOpen(false);
+    setMasterModalTarget(null);
     setAnswers({});
     setMcqAnswers({});
     setMobileMcqAnswers({});
@@ -1169,36 +1187,31 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.api_contract}</Markdown>;
                   }
                 })()}
-                {activeKey === "master_web" && artifacts.master_web && projectId && versionId && (
-                  <div className="mb-3">
-                    <SetupTrackingCard projectId={projectId} versionId={versionId} />
-                  </div>
-                )}
-                {activeKey === "master_web" && artifacts.master_web && (() => {
-                  const masterPrompt = artifacts.master_web;
+                {(activeKey === "master_web" || activeKey === "master_mobile") && (() => {
+                  const isWeb = activeKey === "master_web";
+                  const artifact = isWeb ? artifacts.master_web : artifacts.master_mobile;
+                  const label = isWeb ? "Master Prompt Web" : "Master Prompt Mobile";
+                  const target = isWeb ? "web" : "mobile";
+                  if (!artifact || !hasMasterPromptArtifact(artifact)) return null;
                   return (
                     <Card className="p-4">
                       <div className="mb-3 flex items-center justify-between">
-                        <h3 className="font-semibold">Master Prompt Web</h3>
-                        <Button variant="secondary" size="sm" onClick={() => copyToClipboard(masterPrompt)}>
-                          <Copy size={13} /> Salin Master Prompt
+                        <h3 className="font-semibold">{label}</h3>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => {
+                            setMasterModalTarget(target as "web" | "mobile");
+                            setMasterModalOpen(true);
+                          }}
+                          data-testid={`open-master-${target}`}
+                        >
+                          Buka Master Prompt
                         </Button>
                       </div>
-                      <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</Markdown>
-                    </Card>
-                  );
-                })()}
-                {activeKey === "master_mobile" && artifacts.master_mobile && (() => {
-                  const masterPrompt = artifacts.master_mobile;
-                  return (
-                    <Card className="p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <h3 className="font-semibold">Master Prompt Mobile</h3>
-                        <Button variant="secondary" size="sm" onClick={() => copyToClipboard(masterPrompt)}>
-                          <Copy size={13} /> Salin Master Prompt
-                        </Button>
-                      </div>
-                      <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{masterPrompt}</Markdown>
+                      <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
+                        {artifact.slice(0, 600) + (artifact.length > 600 ? "…" : "")}
+                      </Markdown>
                     </Card>
                   );
                 })()}
@@ -1374,6 +1387,27 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           <Button variant="secondary" size="sm" onClick={() => setPendingConfirmMaster(false)}>Batal</Button>
           <Button size="sm" onClick={proceedAfterMasterConfirm}>Tetap Lanjut <ArrowRight size={15} /></Button>
         </div>
+      </Modal>
+
+      {/* CP-9 M-5: Master Prompt showcase modal */}
+      <Modal
+        open={masterModalOpen}
+        onClose={() => setMasterModalOpen(false)}
+        title={masterModalTarget === "mobile" ? "Master Prompt — Mobile" : "Master Prompt — Web"}
+        size="xl"
+      >
+        {masterModalTarget && projectId && versionId && (() => {
+          const artifact = masterModalTarget === "web" ? artifacts.master_web : artifacts.master_mobile;
+          if (!artifact) return <p className="text-sm text-[var(--color-fg-muted)]">Master prompt belum tersedia.</p>;
+          return (
+            <MasterPromptViewer
+              projectId={projectId}
+              versionId={versionId}
+              versionLabel={masterModalTarget === "web" ? "Web" : "Mobile"}
+              artifact={artifact}
+            />
+          );
+        })()}
       </Modal>
 
       {/* Konfirmasi batalkan */}
