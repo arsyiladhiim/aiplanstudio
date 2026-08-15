@@ -38,6 +38,8 @@ export default function UsersSettings() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const previousPendingRef = useRef(0);
 
   const activeAdminCount = users.filter(
@@ -134,6 +136,55 @@ export default function UsersSettings() {
     }
   }
 
+  // CP-18.F2: bulk selection + action.
+  const selectableIds = users.filter((u) => u.status === "pending").map((u) => u.id);
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
+
+  function toggleOne(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(selectableIds));
+  }
+
+  async function runBulk(action: "approve" | "reject") {
+    if (selectedIds.size === 0) return;
+    setBulkBusy(true);
+    setActionError("");
+    try {
+      const res = await apiPost<{ affected: { approved: number; rejected: number; deleted: number }; skipped: Array<{ id: number; reason: string }> }>(
+        "/settings/users/bulk-action",
+        { action, user_ids: Array.from(selectedIds) },
+      );
+      const { approved, rejected, deleted } = res.affected;
+      const skipped = res.skipped;
+      const summary = [
+        approved && `${approved} disetujui`,
+        rejected && `${rejected} ditolak`,
+        deleted && `${deleted} dihapus`,
+      ].filter(Boolean).join(", ");
+      setActionError(
+        (summary || "Selesai") +
+          (skipped.length ? ` · ${skipped.length} dilewati` : ""),
+      );
+      setSelectedIds(new Set());
+      await loadUsers();
+    } catch (err: unknown) {
+      setActionError(
+        err instanceof Error ? err.message : `Gagal bulk-${action}`,
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-40 items-center justify-center">
@@ -213,6 +264,54 @@ export default function UsersSettings() {
         </div>
       )}
 
+      {selectableIds.length > 0 && (
+        <div className="flex items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface-2)]/40 px-5 py-2 text-sm">
+          <label className="flex items-center gap-2 text-[var(--color-fg-muted)]">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleAll}
+              data-testid="user-select-all"
+              className="h-4 w-4 rounded border-[var(--color-border)]"
+            />
+            <span>
+              {allSelected ? "Batal pilih semua" : "Pilih semua pending"}{" "}
+              <span className="text-[var(--color-fg-subtle)]">
+                ({selectableIds.length})
+              </span>
+            </span>
+          </label>
+          {selectedIds.size > 0 && (
+            <>
+              <span className="text-[var(--color-fg-subtle)]">·</span>
+              <span className="font-medium">{selectedIds.size} dipilih</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={bulkBusy}
+                  onClick={() => runBulk("approve")}
+                  data-testid="user-bulk-approve"
+                >
+                  {bulkBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} className="text-[var(--color-success)]" />}
+                  Setujui
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={bulkBusy}
+                  onClick={() => runBulk("reject")}
+                  data-testid="user-bulk-reject"
+                >
+                  {bulkBusy ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} className="text-[var(--color-danger)]" />}
+                  Tolak
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {users.length === 0 ? (
         <div className="flex flex-col items-center gap-2 p-10 text-center">
           <UserPlus size={28} className="text-[var(--color-fg-subtle)]" />
@@ -243,6 +342,18 @@ export default function UsersSettings() {
               className="flex items-center gap-4 p-4"
               data-testid={"user-" + u.id}
             >
+              {isPending ? (
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(u.id)}
+                  onChange={() => toggleOne(u.id)}
+                  data-testid={"user-check-" + u.id}
+                  className="h-4 w-4 rounded border-[var(--color-border)]"
+                  aria-label={`Pilih ${u.name}`}
+                />
+              ) : (
+                <span className="inline-block h-4 w-4" />
+              )}
               <div className="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-surface-2)] text-sm font-semibold">
                 {u.name.charAt(0).toUpperCase()}
               </div>

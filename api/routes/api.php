@@ -127,6 +127,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::post('/settings/provider/{id}/test-prompt', [ProviderSettingsController::class, 'testPrompt'])->middleware('throttle:10,1');
         Route::get('/settings/users', [UserSettingsController::class, 'index']);
         Route::post('/settings/users', [UserSettingsController::class, 'store']);
+        Route::post('/settings/users/bulk-action', [UserSettingsController::class, 'bulkAction']);
         Route::patch('/settings/users/{id}', [UserSettingsController::class, 'update']);
         Route::delete('/settings/users/{id}', [UserSettingsController::class, 'destroy']);
         Route::post('/templates', [TemplateController::class, 'store']);

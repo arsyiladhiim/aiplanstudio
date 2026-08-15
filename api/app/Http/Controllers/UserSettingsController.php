@@ -100,4 +100,85 @@ class UserSettingsController extends Controller
 
         return response()->json(null, 204);
     }
+
+    // CP-18.F2: bulk action endpoint.
+    public function bulkAction(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'action' => ['required', 'in:approve,reject,delete'],
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer'],
+        ]);
+
+        $actor = $request->user();
+        $users = User::query()->whereIn('id', $data['user_ids'])->get();
+
+        if ($users->isEmpty()) {
+            return response()->json(['message' => 'Tidak ada user yang cocok.'], 422);
+        }
+
+        $approved = $rejected = $deleted = 0;
+        $skipped = [];
+
+        foreach ($users as $user) {
+            if ($user->id === $actor?->id) {
+                $skipped[] = ['id' => $user->id, 'reason' => 'cannot_act_on_self'];
+                continue;
+            }
+            if ($user->isAdmin()) {
+                $skipped[] = ['id' => $user->id, 'reason' => 'cannot_act_on_admin'];
+                continue;
+            }
+
+            switch ($data['action']) {
+                case 'approve':
+                    if ($user->status !== 'pending') {
+                        $skipped[] = ['id' => $user->id, 'reason' => 'not_pending'];
+                        continue 2;
+                    }
+                    $user->update(['status' => 'active']);
+                    Activity::create([
+                        'user_id' => $actor?->id,
+                        'action' => Activity::ACTION_USER_APPROVED,
+                        'description' => sprintf('%s menyetujui user "%s" (bulk)', $actor?->name ?? 'system', $user->email),
+                        'metadata' => ['target_user_id' => $user->id, 'target_email' => $user->email, 'bulk' => true],
+                    ]);
+                    $approved++;
+                    break;
+                case 'reject':
+                    if ($user->status !== 'pending') {
+                        $skipped[] = ['id' => $user->id, 'reason' => 'not_pending'];
+                        continue 2;
+                    }
+                    // Reject = remove the pending user. Same as delete for pending accounts.
+                    $deletedEmail = $user->email;
+                    $user->delete();
+                    Activity::create([
+                        'user_id' => $actor?->id,
+                        'action' => Activity::ACTION_USER_REJECTED,
+                        'description' => sprintf('%s menolak user "%s" (bulk)', $actor?->name ?? 'system', $deletedEmail),
+                        'metadata' => ['target_email' => $deletedEmail, 'bulk' => true],
+                    ]);
+                    $rejected++;
+                    break;
+                case 'delete':
+                    $deletedEmail = $user->email;
+                    $user->delete();
+                    Activity::create([
+                        'user_id' => $actor?->id,
+                        'action' => Activity::ACTION_USER_DELETED,
+                        'description' => sprintf('%s menghapus user "%s" (bulk)', $actor?->name ?? 'system', $deletedEmail),
+                        'metadata' => ['target_email' => $deletedEmail, 'bulk' => true],
+                    ]);
+                    $deleted++;
+                    break;
+            }
+        }
+
+        return response()->json([
+            'action' => $data['action'],
+            'affected' => ['approved' => $approved, 'rejected' => $rejected, 'deleted' => $deleted],
+            'skipped' => $skipped,
+        ]);
+    }
 }
