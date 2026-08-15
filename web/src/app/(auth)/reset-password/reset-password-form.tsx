@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui";
-import { fetchCsrfCookie } from "@/lib/api";
+import { apiPost } from "@/lib/api";
 
 export default function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -29,22 +29,7 @@ export default function ResetPasswordForm() {
     setLoading(true);
     setError("");
     try {
-      await fetchCsrfCookie();
-
-      const xsrfCookie = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-      const xsrfToken = xsrfCookie ? decodeURIComponent(xsrfCookie[1]) : '';
-      const res = await fetch("/api/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(xsrfToken ? { "X-XSRF-TOKEN": xsrfToken } : {}) },
-        credentials: "include",
-        body: JSON.stringify({ token, email, password, password_confirmation: confirmation }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Reset password gagal.");
-      }
-
+      await apiPost("/reset-password", { token, email, password, password_confirmation: confirmation });
       setDone(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Reset password gagal.");

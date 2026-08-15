@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Card, Input, Label } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
-import { apiGet, apiPatch, fetchCsrfCookie } from "@/lib/api";
+import { apiGet, apiPatch } from "@/lib/api";
 import { Loader2, Check, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 const PRESETS = [
@@ -48,7 +48,6 @@ export default function ProfilePage() {
     setSaving(true);
     setMessage(null);
     try {
-      await fetchCsrfCookie();
       const body: Record<string, string | null> = {};
       if (name.trim()) body.name = name.trim();
       if (email.trim()) body.email = email.trim();

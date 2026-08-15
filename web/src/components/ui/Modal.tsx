@@ -32,7 +32,12 @@ export function Modal({
   closeOnBackdrop = true,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
   const titleId = useId();
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +53,7 @@ export function Modal({
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        onCloseRef.current?.();
         return;
       }
       if (e.key !== "Tab" || focusable.length === 0) return;
@@ -71,7 +76,7 @@ export function Modal({
       document.removeEventListener("keydown", handleKey);
       document.body.style.overflow = "";
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

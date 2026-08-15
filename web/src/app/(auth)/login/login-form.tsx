@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui";
-import { fetchCsrfCookie } from "@/lib/api";
+import { apiPost } from "@/lib/api";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -24,30 +24,14 @@ export default function LoginForm() {
     const password = fd.get("password") as string;
 
     try {
-      await fetchCsrfCookie();
-
-      const xsrfCookie = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-      const xsrfToken = xsrfCookie ? decodeURIComponent(xsrfCookie[1]) : "";
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(xsrfToken ? { "X-XSRF-TOKEN": xsrfToken } : {}),
-        },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(
-          data.message || data.errors?.email?.[0] || "Login gagal",
-        );
-      }
-
+      await apiPost("/login", { email, password });
       router.push("/dashboard");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Login gagal.");
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Login gagal.";
+      setError(msg);
     } finally {
       setLoading(false);
     }

@@ -1,29 +1,35 @@
 // lib/api.ts — fetch wrapper with Sanctum SPA session auth.
 // Auth via HttpOnly session cookie + CSRF. No tokens in JS.
 // Direct call ke Laravel API (no BFF) — see docs/25-bypass-bff.md.
+// CP-13: CSRF token fetched via /api/csrf-token (raw session token in X-CSRF-TOKEN header).
+// Browser cannot read XSRF-TOKEN cookie from api subdomain (host-only cookie), so we fetch the
+// raw token from Laravel and send it via X-CSRF-TOKEN header. Laravel's CSRF middleware accepts
+// the raw token in this header (see PreventRequestForgery::getTokenFromRequest — order:
+// _token → X-CSRF-TOKEN raw → X-XSRF-TOKEN cookie decrypt).
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? ""
 const TIMEOUT_MS = 30_000
 
+let csrfToken: string | null = null
 let csrfPromise: Promise<void> | null = null
 
-/** Get CSRF token from cookie set by Laravel (XSRF-TOKEN is not HttpOnly) */
-function getCsrfToken(): string | null {
-  if (typeof document === "undefined") return null
-  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/)
-  return match ? decodeURIComponent(match[1]) : null
+/** Fetch CSRF token from Laravel. Returns raw session token for X-CSRF-TOKEN header. */
+async function fetchCsrfToken(): Promise<void> {
+  const res = await fetch(`${BASE}/api/csrf-token`, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  })
+  if (!res.ok) throw new Error(`CSRF endpoint returned ${res.status}`)
+  const data = (await res.json()) as { token: string }
+  csrfToken = data.token
 }
 
-/** Fetch CSRF cookie from Laravel (sets XSRF-TOKEN cookie on frontend origin via Sanctum stateful domain) */
-export async function fetchCsrfCookie(): Promise<void> {
-  await fetch(`${BASE}/api/sanctum/csrf-cookie`, { credentials: "include" })
-}
-
-/** Ensure CSRF cookie is fetched (lazy, once per session) */
+/** Ensure CSRF token is fetched (lazy, once per session; refetched on 419 retry) */
 function ensureCsrf(): Promise<void> {
   if (!csrfPromise) {
-    csrfPromise = fetchCsrfCookie().catch(() => {
+    csrfPromise = fetchCsrfToken().catch((err) => {
       csrfPromise = null
+      throw err
     })
   }
   return csrfPromise
@@ -32,10 +38,7 @@ function ensureCsrf(): Promise<void> {
 /** Build fetch headers with CSRF token for state-changing requests */
 function csrfHeaders(method: string): HeadersInit {
   const h: Record<string, string> = { "Content-Type": "application/json" }
-  if (method !== "GET") {
-    const token = getCsrfToken()
-    if (token) h["X-XSRF-TOKEN"] = token
-  }
+  if (method !== "GET" && csrfToken) h["X-CSRF-TOKEN"] = csrfToken
   h["X-Request-ID"] = generateRequestId()
   return h
 }
@@ -132,6 +135,7 @@ async function apiFetch<T>(
   } catch (err) {
     clearTimeout(timer)
     if (err instanceof RetryableCsrfError) {
+      csrfToken = null
       csrfPromise = null
       await ensureCsrf()
       const timer2 = setTimeout(() => controller.abort(), TIMEOUT_MS)

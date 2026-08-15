@@ -28,6 +28,11 @@ Route::get('/auth/google/callback', [SocialiteController::class, 'callback'])->m
 Route::get('/health', fn() => response()->json(['status' => 'ok']));
 Route::get('/version', [\App\Http\Controllers\InfoController::class, 'version']);
 Route::get('/changelog', [ChangelogController::class, 'index']);
+// CP-13: CSRF token endpoint for cross-origin direct routing.
+// Browser can't read XSRF-TOKEN cookie from api subdomain (host-only cookie).
+// Frontend fetches this GET (no CSRF check) and sends token via X-CSRF-TOKEN header.
+// Laravel CSRF check accepts raw session token in X-CSRF-TOKEN (no cookie decrypt needed).
+Route::get('/csrf-token', fn(Request $r) => response()->json(['token' => $r->session()->token()]))->middleware('throttle:60,1');
 
 // Webhook — external access via Project API Token (not session auth)
 Route::post('/webhooks/phase-complete', [WebhookController::class, 'phaseComplete'])

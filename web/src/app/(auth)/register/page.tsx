@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui";
-import { fetchCsrfCookie } from "@/lib/api";
+import { apiPost } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -25,28 +25,15 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
     try {
-      await fetchCsrfCookie();
-
-      const xsrfCookie = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-      const xsrfToken = xsrfCookie ? decodeURIComponent(xsrfCookie[1]) : '';
-      const res = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(xsrfToken ? { "X-XSRF-TOKEN": xsrfToken } : {}) },
-        credentials: "include",
-        body: JSON.stringify({
+      const data = await apiPost<{ user: { id: number; name: string; email: string; role: string; status: string }; pending?: boolean }>(
+        "/register",
+        {
           name: fd.get("name"),
           email: fd.get("email"),
           password: pw,
           password_confirmation: confirm,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || data.errors?.email?.[0] || "Registrasi gagal");
-      }
-
-      const data = await res.json().catch(() => ({}));
+        }
+      );
       if (data.pending) {
         router.push("/login?status=pending");
       } else {

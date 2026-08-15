@@ -933,8 +933,98 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - [x] Manual: pipeline stage `pertanyaan → agents` generate proper artifact shape (verified ErdData JSON shape match `web/src/lib/api.ts:395-403`)
 - [x] Single commit created on `devel`
 - **Date completed:** 2026-08-15
-- **Commit SHA:** `<fill at commit>`
+- **Commit SHA:** `794088e` (CP-12 main) + `c8acbc2` (Google OAuth follow-up)
 - **Notes:** Pure text + parser-friendly updates. No backend logic change. No migration. No env change di production (only `.example` + `.production` annotations). CP-12 + CP-12.b propagate Phase 7 no-BFF architecture ke semua downstream artifacts. ERD prompt revert ke JSON-only (React Flow native, no Mermaid).
+
+## CP-13 — Modal Focus + CSRF Cross-Origin + Auth Forms + Audit (2026-08-15)
+
+### Problem
+Live runtime bugs surfaced after CP-12 deploy:
+1. **Modal focus stealing**: AI Provider input "terpental" (caret jumps to first input). Root cause: `useEffect([open, onClose])` re-runs on every render karena `onClose` inline arrow di caller.
+2. **CSRF 419 on POST/PATCH/DELETE**: `XSRF-TOKEN` cookie host-only di api subdomain, browser JS di frontend domain tidak bisa baca. `X-XSRF-TOKEN` header kosong → Laravel 419.
+3. **Login form relative path**: `fetch("/api/login")` di Next.js dev server 404 (no BFF proxy).
+4. **Audit**: 4 auth forms + 3 settings pages pakai raw `fetch` + manual CSRF cookie parse.
+
+### Plan — 6 phases
+
+#### Phase 1 — Modal focus fix (`web/src/components/ui/Modal.tsx`)
+- Add `const onCloseRef = useRef(onClose)` after dialogRef.
+- Add `useEffect(() => { onCloseRef.current = onClose }, [onClose])` to sync ref.
+- Main `useEffect` deps: `[open, onClose]` → `[open]`.
+- Key handler: `onClose()` → `onCloseRef.current?.()`.
+- Affected callers: `provider/page.tsx:214`, `users/page.tsx:231` (inline arrow `onClose`).
+
+#### Phase 2 — Custom CSRF endpoint + frontend rewrite
+- `api/routes/api.php:31` — add `Route::get('/csrf-token', fn(Request $r) => response()->json(['token' => $r->session()->token()]))->middleware('throttle:60,1')`. Outside auth group (GET safe, no CSRF check needed).
+- `api/config/cors.php` `allowed_headers` — add `'X-CSRF-TOKEN'` (raw header per Laravel CSRF order: `_token` → `X-CSRF-TOKEN` raw → `X-XSRF-TOKEN` cookie decrypt).
+- `web/src/lib/api.ts` rewrite:
+  - `let csrfToken: string | null = null; let csrfPromise: Promise<void> | null = null`
+  - `fetchCsrfToken()` — GET `${BASE}/api/csrf-token`, store raw token in `csrfToken`.
+  - `csrfHeaders(method)` — include `X-CSRF-TOKEN: csrfToken` on non-GET.
+  - `apiFetch` 419 retry — reset both caches + refetch + retry once.
+  - Drop `getCsrfToken()` (cookie parse) + drop `fetchCsrfCookie()` (no longer needed).
+
+#### Phase 3 — Pending enforcement (existing code verified correct)
+- `AuthController::register` already: `$isFirst ? admin/active : member/pending` + return `{pending: true}` (line 23-40).
+- `AuthController::login` already: `if (! $user->isActive()) throw ValidationException "Kredensial tidak cocok."` (line 56-60) — generic message, no info leak.
+- `SocialiteController::callback` already: same `$isFirst` pattern (line 44-56).
+- **No backend edit needed.**
+
+#### Phase 4 — Convert 4 auth forms to apiPost
+- `web/src/app/(auth)/login/login-form.tsx:31` → `await apiPost("/login", {email, password})`. Drop `fetchCsrfCookie` import.
+- `web/src/app/(auth)/register/page.tsx:32` → `await apiPost<{user, pending}>("/register", {...})`. Drop manual CSRF dance.
+- `web/src/app/(auth)/forgot-password/page.tsx:24` → `apiPost("/forgot-password", {email})`.
+- `web/src/app/(auth)/reset-password/reset-password-form.tsx:36` → `apiPost("/reset-password", {...})`.
+
+#### Phase 5 — Settings pages cleanup + e2e global-setup
+- Remove `fetchCsrfCookie` calls in `provider/page.tsx` (5 calls), `users/page.tsx` (2 calls), `profile/page.tsx` (1 call). apiPost/apiPatch/apiDelete already handle CSRF via `ensureCsrf()`.
+- `web/e2e/global-setup.ts`: replace `/sanctum/csrf-cookie` + relative `/api/login` → `E2E_API_BASE_URL` (default `http://localhost:8000`) + `GET /api/csrf-token` + `POST /api/login` dengan `X-CSRF-TOKEN` header.
+
+#### Phase 6 — Verify
+- `npx tsc --noEmit` clean.
+- `npm run lint` — 2 pre-existing CommandPalette errors (unchanged).
+- `php artisan test` — 261 passed + 1 Socialite KNOWN ISSUE (pre-existing test isolation).
+- Rebuild `aiplanstudio_web` + `aiplanstudio_apifpm` + restart.
+- Smoke test via Cloudflare Tunnel:
+  1. `GET /api/csrf-token` → 200 `{token}`
+  2. Register new → 201 `{pending: true}` (DB `status=pending`)
+  3. Pending login → 422 "Kredensial tidak cocok."
+  4. Admin login → 200
+  5. PATCH approve user → 200
+  6. Approved user login → 200
+  7. DELETE member → 204
+
+### Files Touched
+| File | Action |
+|---|---|
+| `web/src/components/ui/Modal.tsx` | Edit (focus ref fix) |
+| `api/routes/api.php` | Edit (add `/csrf-token` GET) |
+| `api/config/cors.php` | Edit (allowed_headers add `X-CSRF-TOKEN`) |
+| `web/src/lib/api.ts` | Edit (fetch + cache CSRF token, X-CSRF-TOKEN header) |
+| `web/src/app/(auth)/login/login-form.tsx` | Edit (`apiPost`) |
+| `web/src/app/(auth)/register/page.tsx` | Edit (`apiPost`) |
+| `web/src/app/(auth)/forgot-password/page.tsx` | Edit (`apiPost`) |
+| `web/src/app/(auth)/reset-password/reset-password-form.tsx` | Edit (`apiPost`) |
+| `web/src/app/(app)/settings/provider/page.tsx` | Edit (remove fetchCsrfCookie) |
+| `web/src/app/(app)/settings/users/page.tsx` | Edit (remove fetchCsrfCookie) |
+| `web/src/app/(app)/settings/profile/page.tsx` | Edit (remove fetchCsrfCookie) |
+| `web/e2e/global-setup.ts` | Edit (direct API URL + `/csrf-token` + `X-CSRF-TOKEN`) |
+| `AUTH.md` | Edit (CSRF section rewritten) |
+| `docs/25-bypass-bff.md` | Edit (Phase E6 added) |
+| `docs/plan/master-repair.md` | Edit (this section) |
+
+### CP-13 Sign-off
+- [x] Modal focus bug fixed (no caret jump)
+- [x] CSRF cross-origin working (custom endpoint + X-CSRF-TOKEN header)
+- [x] All 4 auth forms use apiPost
+- [x] All 3 settings pages cleaned
+- [x] e2e global-setup updated for direct routing
+- [x] Backend tests pass (261 + 1 known flake)
+- [x] Frontend lint + tsc clean
+- [x] Verify matrix: register pending → login blocked → admin approve → login success → delete
+- [x] Single commit on `devel`
+- **Date completed:** 2026-08-15
+- **Commit SHA:** `<fill at commit>`
 
 ---
 

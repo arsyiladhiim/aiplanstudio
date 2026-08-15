@@ -4,7 +4,9 @@
 
 - **Auth**: Sanctum SPA Session (HttpOnly cookie + CSRF). Bukan Bearer token.
 - **Alur**: Browser → fetch `${NEXT_PUBLIC_API_URL}/api/*` (cross-origin, `credentials: "include"`) → Laravel API. **Direct routing, no BFF** — see `docs/25-bypass-bff.md`. Frontend call Laravel langsung tanpa Next.js sebagai proxy.
-- **CSRF**: Cookie `XSRF-TOKEN` (tidak HttpOnly). Setiap mutasi wajib `fetchCsrfCookie()` dulu, lalu kirim header `X-XSRF-TOKEN` (di-decode dengan `decodeURIComponent`).
+- **CSRF** (CP-13): Frontend panggil `GET /api/csrf-token` (1 round-trip, no preflight), dapat raw session token. Kirim via header `X-CSRF-TOKEN` di setiap POST/PATCH/DELETE. Laravel `PreventRequestForgery` menerima raw token via `X-CSRF-TOKEN` (skip cookie-decrypt). Cache in-memory (session lifetime) + lazy refetch on 419 retry.
+  - **Why custom endpoint?** Cookie `XSRF-TOKEN` di-set host-only pada `api-aiplanstudio.<domain>` (tidak terbaca JS dari `aiplanstudio.<domain>` karena cross-origin). Custom JSON endpoint bypasses cookie read entirely.
+  - Pattern: `web/src/lib/api.ts` `fetchCsrfToken()` → cache → `csrfHeaders()` include `X-CSRF-TOKEN`. 4 auth forms (login/register/forgot/reset) sudah pakai `apiPost/apiPatch` helper, tidak manual `fetch`.
 - **Session cookie**: `ai-planning-studio-session` (HttpOnly, `SameSite=None; Secure` untuk cross-origin). Laravel set via Set-Cookie; browser otomatis kirim balik.
 
 ## Alur user baru (approval)

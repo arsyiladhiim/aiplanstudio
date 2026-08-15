@@ -7,7 +7,6 @@ import {
   apiPost,
   apiPatch,
   apiDelete,
-  fetchCsrfCookie,
   ApiError,
   type User as UserType,
 } from "@/lib/api";
@@ -50,7 +49,6 @@ export default function UsersSettings() {
   async function approve(id: number) {
     setUpdating(id);
     try {
-      await fetchCsrfCookie();
       const updated = await apiPatch<UserType>(`/settings/users/${id}`, {
         status: "active",
       });
@@ -63,7 +61,6 @@ export default function UsersSettings() {
   async function remove(id: number) {
     setDeleting(id);
     try {
-      await fetchCsrfCookie();
       await apiDelete("/settings/users/" + id);
       setUsers((u) => u.filter((x) => x.id !== id));
     } finally {

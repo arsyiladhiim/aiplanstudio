@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card, Input, Label, Badge, Modal } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { CheckCircle2, AlertCircle, Zap, Plus, Trash2, Star, Lock, Loader2 } from "lucide-react";
-import { apiGet, apiPost, apiPatch, apiDelete, fetchCsrfCookie, ApiError } from "@/lib/api";
+import { apiGet, apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
 
 type Provider = {
   id: number; name: string; base_url: string; model: string;
@@ -52,7 +52,6 @@ interface ProviderFormData {
   async function save() {
     setSaving(true); setSaveMsg(""); setSaveError(false);
     try {
-      await fetchCsrfCookie();
       if (editId) {
         const b: ProviderFormData = { name: form.name, base_url: form.base_url, model: form.model, provider_type: form.provider_type };
         if (form.api_key) b.api_key = form.api_key;
@@ -74,17 +73,16 @@ interface ProviderFormData {
   }
 
   async function remove(id: number) {
-    await fetchCsrfCookie(); await apiDelete(`/settings/provider/${id}`); load();
+    await apiDelete(`/settings/provider/${id}`); load();
   }
 
   async function setActive(id: number) {
-    await fetchCsrfCookie(); await apiPost(`/settings/provider/${id}/set-active`); load();
+    await apiPost(`/settings/provider/${id}/set-active`); load();
   }
 
   async function testConn(id: number) {
     setTestBusy(id);
     try {
-      await fetchCsrfCookie();
       const r = await apiPost<{ok: boolean; message: string}>(`/settings/provider/${id}/test`);
       setSaveMsg(r.message); setSaveError(!r.ok);
     } catch (e: unknown) { setSaveMsg(e instanceof Error ? e.message : "Gagal"); setSaveError(true); }
@@ -94,7 +92,6 @@ interface ProviderFormData {
   async function testPrompt(id: number) {
     setPromptBusy(id); setPromptRes(null);
     try {
-      await fetchCsrfCookie();
       const r = await apiPost<{ok: boolean; message: string; response: string | null}>(`/settings/provider/${id}/test-prompt`, { prompt: "Halo" });
       setPromptRes({ id, resp: r.response || r.message });
     } catch (e: unknown) { setPromptRes({ id, resp: e instanceof Error ? e.message : "Gagal" }); }

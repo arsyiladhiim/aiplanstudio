@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui";
-import { fetchCsrfCookie } from "@/lib/api";
+import { apiPost } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
@@ -17,22 +17,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError("");
     try {
-      await fetchCsrfCookie();
-
-      const xsrfCookie = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-      const xsrfToken = xsrfCookie ? decodeURIComponent(xsrfCookie[1]) : '';
-      const res = await fetch("/api/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(xsrfToken ? { "X-XSRF-TOKEN": xsrfToken } : {}) },
-        credentials: "include",
-        body: JSON.stringify({ email }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Gagal mengirim tautan reset.");
-      }
-
+      await apiPost("/forgot-password", { email });
       setSent(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal mengirim tautan reset.");

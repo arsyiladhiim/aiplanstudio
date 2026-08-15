@@ -84,14 +84,31 @@ API (https://api-aiplanstudio.arsyiladm.my.id)
 - [x] E3.6 Update checkpoint
 
 ### Phase E4 — Validation
-- [x] E4.1 Backend test suite: `php artisan test` (dengan DB_DATABASE=aiplanstudio_test) → **246 passed** (980 assertions), 1 pre-existing Socialite order fail, 1 skip. Backend clean.
-- [x] E4.2 Frontend lint + tsc: 0 errors, 0 warnings
+- [x] E4.1 Backend test suite: `php artisan test` (dengan DB_DATABASE=aiplanstudio_test) → **261 passed** (1035 assertions), 1 pre-existing Socialite order fail (flaky test isolation), 1 skip. Backend clean.
+- [x] E4.2 Frontend lint + tsc: 0 errors, 0 warnings (2 pre-existing CommandPalette errors unrelated)
 - [x] E4.3 `curl https://api-aiplanstudio.arsyiladm.my.id/api/version` → 200 OK JSON (via Cloudflare Tunnel)
 - [x] E4.4 CORS preflight valid origin: `OPTIONS` + `Origin: https://aiplanstudio.arsyiladm.my.id` → 204 + full allow headers
 - [x] E4.4b CORS preflight evil origin: `Origin: https://evil.com` → 204 **tanpa** CORS headers → browser will block
-- [x] E4.5 CSRF cookie: `GET /sanctum/csrf-cookie` → 204 + Set-Cookie `XSRF-TOKEN` (secure; samesite=none) + `ai-planning-studio-session` (secure; httponly; samesite=none)
+- [x] E4.5 ~~CSRF cookie~~ **CP-13 (2026-08-15): CSRF custom endpoint** — `GET /api/csrf-token` → 200 JSON `{token}` (raw session token). Frontend caches in-memory + sends via `X-CSRF-TOKEN` header. `XSRF-TOKEN` cookie via `/sanctum/csrf-cookie` masih ada tapi tidak dipakai oleh browser (host-only cookie cross-origin unreadable).
 - [x] E4.6 Webhook tracking: `POST /api/webhooks/phase-complete` dengan Bearer token → 401 (expected, fake token). Route registered + auth middleware works.
 - [x] E4.7 Update checkpoint
+
+### Phase E6 — CSRF Cross-Origin Fix (CP-13, 2026-08-15)
+- [x] **E6.1** Root cause: `XSRF-TOKEN` cookie host-only di `api-aiplanstudio.arsyiladm.my.id`, JS di `aiplanstudio.arsyiladm.my.id` tidak bisa baca (`document.cookie` blocked cross-origin). `X-XSRF-TOKEN` header kosong → Laravel 419.
+- [x] **E6.2** Solution: custom JSON endpoint `GET /api/csrf-token` di `api/routes/api.php:31`. Cache in-memory + lazy refetch on 419. Laravel `PreventRequestForgery` accepts raw token di `X-CSRF-TOKEN` (skip cookie-decrypt).
+- [x] **E6.3** `web/src/lib/api.ts`: `fetchCsrfToken()` → `csrfToken` cache → `csrfHeaders()` include `X-CSRF-TOKEN` on POST/PATCH/DELETE.
+- [x] **E6.4** 4 auth forms refactored ke `apiPost`: `login`, `register`, `forgot-password`, `reset-password` (sebelumnya raw `fetch(/api/...)` relative path).
+- [x] **E6.5** 3 settings pages cleaned: `provider`, `users`, `profile` — removed explicit `fetchCsrfCookie()` calls (apiPost already handles).
+- [x] **E6.6** `api/config/cors.php` `allowed_headers`: tambah `X-CSRF-TOKEN`.
+- [x] **E6.7** `web/e2e/global-setup.ts`: replaced `/sanctum/csrf-cookie` + relative `/api/login` → `E2E_API_BASE_URL` + `GET /api/csrf-token` + `POST /api/login` dengan `X-CSRF-TOKEN` header.
+- [x] **E6.8** Modal focus bug fixed (`web/src/components/ui/Modal.tsx`): useEffect deps `[open, onClose]` → useRef sync pattern, deps `[open]` only. Inline arrow `onClose` tidak trigger focus re-run.
+- [x] **E6.9** Verify matrix via Cloudflare Tunnel:
+  - Register new user → 201 `{pending: true}` (DB: `status=pending, role=member`)
+  - Pending login → 422 "Kredensial tidak cocok." (generic, no info leak)
+  - Admin login → 200
+  - Admin approve (PATCH) → 200
+  - Approved user login → 200
+  - Delete member (DELETE) → 204
 
 ### Phase E5 — Final Rebuild + Restart
 - [x] E5.1 Rebuild semua image (api + web)
