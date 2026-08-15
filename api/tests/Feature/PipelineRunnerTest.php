@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AiProvider;
 use App\Models\PhaseProgress;
 use App\Models\Project;
+use App\Models\ProjectApiToken;
 use App\Models\User;
 use App\Models\Version;
 use App\Services\AiClient;
@@ -475,8 +476,14 @@ class PipelineRunnerTest extends TestCase
         $this->assertSame(10, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_QUESTIONS'));
     }
 
-    public function test_master_web_tracking_block_injects_token(): void
+    public function test_master_web_tracking_block_shows_when_token_exists(): void
     {
+        // CP-6: tracking token dibuat via Setup Tracking UI, bukan auto-generate.
+        // Test ini verify: ketika token ADA di DB → tracking block muncul + token terlihat di prompt.
+        $expectedName = 'auto-tracking-'.substr(md5((string) $this->version->id), 0, 8);
+        $result = ProjectApiToken::generate($this->project, $expectedName);
+        $this->version->refresh();
+
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'contextPrompt');
@@ -485,13 +492,28 @@ class PipelineRunnerTest extends TestCase
         $prompt = $ref->invoke($runner, 'master_web', $this->version);
 
         $this->assertStringContainsString('WEBHOOK TRACKING', $prompt);
-        $this->assertStringContainsString('Authorization: Bearer ', $prompt);
+        $this->assertStringContainsString('X-Token-Secret', $prompt);
         $this->assertStringContainsString('phase-complete', $prompt);
-        // token plain tersimpan di versions.tracking_token
+        // CP-6: tidak ada token plain auto-generated di versions.tracking_token
         $this->version->refresh();
-        $this->assertNotEmpty($this->version->tracking_token);
-        // tergenerate di project_api_tokens
+        $this->assertNull($this->version->tracking_token);
+        // ProjectApiToken dibuat hanya oleh explicit call, bukan auto-gen di PipelineRunner
         $this->assertSame(1, $this->project->apiTokens()->count());
+    }
+
+    public function test_master_web_tracking_block_skipped_when_no_token(): void
+    {
+        // CP-6: tanpa token, prompt kasih instruksi skip webhook (bukan inject token kosong).
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'contextPrompt');
+        $ref->setAccessible(true);
+
+        $prompt = $ref->invoke($runner, 'master_web', $this->version);
+
+        $this->assertStringContainsString('BELUM AKTIF', $prompt);
+        $this->assertStringNotContainsString('X-Token-Secret: <SECRET>', $prompt);
+        $this->assertSame(0, $this->project->apiTokens()->count());
     }
 
     public function test_master_web_context_includes_phases_breakdown(): void

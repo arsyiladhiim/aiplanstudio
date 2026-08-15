@@ -7,6 +7,7 @@ use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\GenerateStreamController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectTokenController;
 use App\Http\Controllers\ProviderSettingsController;
 use App\Http\Controllers\ResetPasswordController;
 use App\Http\Controllers\SocialiteController;
@@ -95,6 +96,8 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         $project->apiTokens()->where('id', $tokenId)->delete();
         return response()->json(null, 204);
     });
+    // CP-6: Setup Tracking auto-create per-version ProjectApiToken.
+    Route::post('/projects/{project}/versions/{version}/tokens/auto-tracking', [ProjectTokenController::class, 'autoTrackingForVersion']);
 
     Route::middleware(['role.admin'])->group(function () {
         Route::get('/activities', [ActivityController::class, 'globalIndex']);

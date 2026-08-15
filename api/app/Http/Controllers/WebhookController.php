@@ -30,10 +30,6 @@ class WebhookController extends Controller
             return response()->json(['message' => 'Webhook duplikat terdeteksi. Permintaan sudah diproses.'], 409);
         }
 
-        if (! $projectToken || ! $projectToken->verifySignature($timestamp, $request->getContent(), $signature)) {
-            return response()->json(['message' => 'Signature webhook tidak valid atau timestamp kedaluwarsa (>300s).'], 401);
-        }
-
         $data = $request->validate([
             'version_id' => ['required', 'integer'],
             'phase_key' => ['required', 'string'],

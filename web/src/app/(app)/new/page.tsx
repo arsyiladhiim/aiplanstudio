@@ -9,6 +9,7 @@ import { ApiContractTable, type ApiContractItem } from "@/components/wizard/ApiC
 import { PhaseBreakdownCard, type PhaseItem } from "@/components/wizard/PhaseBreakdownCard";
 import type { ProgressItem } from "@/components/wizard/TrackingPhases";
 import { TrackingPanel } from "@/components/wizard/TrackingPanel";
+import { SetupTrackingCard } from "@/components/wizard/SetupTrackingCard";
 import { McqForm } from "@/components/wizard/McqForm";
 import { StreamingMarkdown } from "@/components/wizard/StreamingMarkdown";
 import { StageThroughputBar } from "@/components/wizard/StageThroughputBar";
@@ -1162,6 +1163,11 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.api_contract}</Markdown>;
                   }
                 })()}
+                {activeKey === "master_web" && artifacts.master_web && projectId && versionId && (
+                  <div className="mb-3">
+                    <SetupTrackingCard projectId={projectId} versionId={versionId} />
+                  </div>
+                )}
                 {activeKey === "master_web" && artifacts.master_web && (() => {
                   const masterPrompt = artifacts.master_web;
                   return (
@@ -1257,6 +1263,8 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
             phases={trackingPhases}
             progMap={progMap}
             webhookUrl={`/api/webhooks/phase-complete`}
+            projectId={projectId}
+            versionId={versionId}
           />
         )}
       </div>

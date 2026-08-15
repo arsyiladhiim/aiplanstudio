@@ -321,21 +321,28 @@ class PipelineRunner
 
     private function trackingBlock(Version $v): string
     {
-        if ($this->plainTrackingToken !== null) {
-            $plain = $this->plainTrackingToken;
-        } else {
-            $project = $v->project;
-            $plain = ProjectApiToken::generate($project, 'auto-tracking-'.Str::random(4))['token'];
-            $this->plainTrackingToken = $plain;
-            $this->pendingTrackingToken = hash('sha256', $plain);
-            $v->update(['tracking_token' => $this->pendingTrackingToken]);
-            $this->pendingTrackingToken = null;
+        $project = $v->project;
+        $token = ProjectApiToken::where('project_id', $project->id)
+            ->where('name', 'auto-tracking-'.substr(md5((string) $v->id), 0, 8))
+            ->latest()
+            ->first();
+
+        if (! $token) {
+            return "\n\n### WEBHOOK TRACKING (BELUM AKTIF)\n".
+                "User belum membuat webhook token untuk version ini. Lewati webhook sampai token dibuat via Setup Tracking UI di wizard.\n".
+                "Jika AI agent menerima instruksi ini, jangan kirim webhook — fokus saja ke output prompt.\n";
         }
 
         return "\n\n### Version ID\n{$v->id}\n".
             "### WEBHOOK TRACKING — CHECKPOINT WAJIB per fase + per sub-item\n".
             'POST '.config('app.url')."/api/webhooks/phase-complete\n".
-            "Authorization: Bearer {$plain}\n".
+            "Headers WAJIB (semua case-sensitive):\n".
+            "  Authorization: Bearer <TOKEN>\n".
+            "  X-Token-Secret: <SECRET>\n".
+            "  X-Timestamp: <unix_seconds>\n".
+            "  X-Signature: hmac_sha256(\"<X-Timestamp>.<raw_body>\", \"<X-Token-Secret>\")\n".
+            "  Content-Type: application/json\n".
+            "Token + Secret sudah di-expose ke user via UI (lihat tombol 'Setup Tracking' di TrackingPanel wizard). Ambil dari situ sebelum panggil webhook.\n".
             "Body (per fase): {\"version_id\": {$v->id}, \"phase_key\": \"{key}\", \"status\": \"done\", \"output\": \"ringkasan\"}\n".
             "Body (per sub-item): {\"version_id\": {$v->id}, \"phase_key\": \"{key}\", \"task_key\": \"{sub_item_key}\", \"task_type\": \"halaman|menu|fitur|flow|api\", \"title\": \"judul\", \"status\": \"done\", \"output\": \"ringkasan\"}\n".
             "PENTING: `phase_key` HARUS memakai `key` persis dari daftar FASE di atas (misal fase1_setup). Untuk sub-item, `task_key` adalah key persis dari HALAMAN/MENU/FITUR/FLOW/API di fase.\n".
@@ -351,19 +358,13 @@ class PipelineRunner
 
     private function stripTrackingToken(string $content): string
     {
-        if ($this->plainTrackingToken === null) {
-            return $content;
-        }
-
-        return str_replace($this->plainTrackingToken, '[REDACTED]', $content);
+        return $content;
     }
 
     private function persistPendingTrackingToken(): void
     {
-        if ($this->pendingTrackingToken !== null) {
-            $this->version->update(['tracking_token' => $this->pendingTrackingToken]);
-            $this->pendingTrackingToken = null;
-        }
+        // CP-6: tracking token creation moved to UI (Setup Tracking flow).
+        // versions.tracking_token column is no longer populated by PipelineRunner.
     }
 
     /**
@@ -463,10 +464,6 @@ class PipelineRunner
         }
 
         $updateData = [$col => $value];
-        if ($this->pendingTrackingToken !== null) {
-            $updateData['tracking_token'] = $this->pendingTrackingToken;
-            $this->pendingTrackingToken = null;
-        }
         $this->version->update($updateData);
 
         $this->snapshotArtifact($key, $col, $value);

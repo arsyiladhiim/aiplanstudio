@@ -158,6 +158,24 @@ export async function apiDelete(path: string): Promise<void> {
   await apiFetch<void>("DELETE", path);
 }
 
+export interface AutoTrackingToken {
+  id: number;
+  name: string;
+  token: string | null;
+  secret: string | null;
+  existing: boolean;
+  message: string;
+}
+
+export async function apiSetupAutoTracking(
+  projectId: number,
+  versionId: number,
+): Promise<AutoTrackingToken> {
+  return apiPost<AutoTrackingToken>(
+    `/projects/${projectId}/versions/${versionId}/tokens/auto-tracking`,
+  );
+}
+
 export function createSSE(
   path: string,
   onEvent: (event: string, data: unknown) => void,

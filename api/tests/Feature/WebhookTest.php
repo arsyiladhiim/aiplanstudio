@@ -191,4 +191,37 @@ class WebhookTest extends TestCase
         $second->assertStatus(409)
             ->assertJsonFragment(['message' => 'Webhook duplikat terdeteksi. Permintaan sudah diproses.']);
     }
+
+    public function test_webhook_persists_all_granular_task_types(): void
+    {
+        foreach (['halaman', 'menu', 'fitur', 'flow', 'api'] as $i => $type) {
+            $response = $this->webhook([
+                'version_id' => $this->version->id,
+                'phase_key' => 'fase1_setup',
+                'task_key' => "sub_{$type}_{$i}",
+                'task_type' => $type,
+                'title' => "Sub item {$type} {$i}",
+                'status' => 'done',
+                'output' => "output {$type}",
+            ]);
+            $response->assertStatus(200);
+            $this->assertDatabaseHas('task_progress', [
+                'task_key' => "sub_{$type}_{$i}",
+                'task_type' => $type,
+                'status' => 'done',
+            ]);
+        }
+    }
+
+    public function test_webhook_rejects_invalid_task_type(): void
+    {
+        $response = $this->webhook([
+            'version_id' => $this->version->id,
+            'phase_key' => 'fase1_setup',
+            'task_key' => 'sub_bad',
+            'task_type' => 'bogus',
+            'status' => 'done',
+        ]);
+        $response->assertStatus(422);
+    }
 }
