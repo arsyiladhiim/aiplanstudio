@@ -6,7 +6,14 @@ import { Button } from "@/components/ui/Button";
 import dynamic from "next/dynamic";
 const ErdDiagramDynamic = dynamic(() => import("@/components/wizard/ErdDiagram").then(m => ({ default: m.ErdDiagram })), { ssr: false, loading: () => <div className="h-[460px] animate-pulse rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)]" /> });
 import { ApiContractTable, type ApiContractItem } from "@/components/wizard/ApiContractTable";
-import { PhaseBreakdownCard, type PhaseItem } from "@/components/wizard/PhaseBreakdownCard";
+import type { PhaseItem } from "@/components/wizard/PhaseBreakdownCard";
+import { AnalysisView } from "@/components/wizard/AnalysisView";
+import { PrdView } from "@/components/wizard/PrdView";
+import { ArchitectureView } from "@/components/wizard/ArchitectureView";
+import { StandardsView } from "@/components/wizard/StandardsView";
+import { PhasesView } from "@/components/wizard/PhasesView";
+import { AgentsView } from "@/components/wizard/AgentsView";
+import { ErdTabs } from "@/components/wizard/ErdTabs";
 import type { ProgressItem } from "@/components/wizard/TrackingPhases";
 import { TrackingPanel } from "@/components/wizard/TrackingPanel";
 import { SetupTrackingCard } from "@/components/wizard/SetupTrackingCard";
@@ -1059,11 +1066,36 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     )}
                   </div>
                 ) : (activeKey === "erd" && status.erd === "done") || (activeKey === "architecture" && status.architecture === "done") || (activeKey === "master_web" && status.master_web === "done") ? null : (
-                  <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
-                    {status[activeKey] === "done" && !artifacts[activeKey]
-                      ? "Tidak ada output"
-                      : artifacts[activeKey] || "Menunggu hasil AI..."}
-                  </Markdown>
+                  <>
+                    {activeKey === "analisa" && artifacts.analisa && (
+                      <AnalysisView markdown={artifacts.analisa} />
+                    )}
+                    {activeKey === "prd" && artifacts.prd && (
+                      <PrdView markdown={artifacts.prd} />
+                    )}
+                    {activeKey === "standards_web" && artifacts.standards_web && (
+                      <StandardsView markdown={artifacts.standards_web} />
+                    )}
+                    {activeKey === "standards_mobile" && artifacts.standards_mobile && (
+                      <StandardsView markdown={artifacts.standards_mobile} />
+                    )}
+                    {activeKey === "agents" && artifacts.agents && (
+                      <AgentsView markdown={artifacts.agents} />
+                    )}
+                    {!(
+                      (activeKey === "analisa" && artifacts.analisa) ||
+                      (activeKey === "prd" && artifacts.prd) ||
+                      (activeKey === "standards_web" && artifacts.standards_web) ||
+                      (activeKey === "standards_mobile" && artifacts.standards_mobile) ||
+                      (activeKey === "agents" && artifacts.agents)
+                    ) && (
+                      <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
+                        {status[activeKey] === "done" && !artifacts[activeKey]
+                          ? "Tidak ada output"
+                          : artifacts[activeKey] || "Menunggu hasil AI..."}
+                      </Markdown>
+                    )}
+                  </>
                 )}
 
                 {activeKey === "architecture" && artifacts.architecture && (() => {
@@ -1085,20 +1117,14 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                       edges.push({ from: em[1].trim(), to: em[2].trim(), relation: em[3].trim() });
                     }
                   }
-
-                  const cleanText = text
-                    .replace(/^KOMPONEN:.*$/gm, '')
-                    .replace(/^KONEKSI:.*$/gm, '')
-                    .replace(/\n{3,}/g, '\n\n')
-                    .trim();
-
                   return (
                     <>
-                      {nodes.length > 0 && <div className="mb-6"><ErdDiagramDynamic erd={{ nodes, edges }} /></div>}
-                      {cleanText && (
-                        <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
-                          {cleanText}
-                        </Markdown>
+                      <ArchitectureView markdown={text} />
+                      {nodes.length > 0 && (
+                        <div className="mt-6">
+                          <h4 className="mb-3 text-sm font-semibold">Module Diagram</h4>
+                          <ErdDiagramDynamic erd={{ nodes, edges }} />
+                        </div>
                       )}
                     </>
                   );
@@ -1115,39 +1141,19 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                       const erdData = parseErdArtifact(artifacts.erd);
                       if (!erdData) return <pre className="whitespace-pre-wrap text-sm">{artifacts.erd}</pre>;
                       return (
-                        <>
-                          <div className="mb-6 mt-4"><ErdDiagramDynamic erd={erdData} /></div>
-                            {(() => { const ac = erdData.api_contract; return ac && ac.length > 0 ? <>
-                              <div className="mt-6">
-                                <h4 className="mb-3 font-semibold">API Contract</h4>
-                                <ApiContractTable items={ac} />
-                              </div>
-                            </> : null; })()}
-                        </>
+                        <div className="mt-4">
+                          <ErdTabs erd={erdData} apiContract={erdData.api_contract} />
+                        </div>
                       );
                     })()}
                   </>
                 )}
-                {activeKey === "phases_web" && artifacts.phases_web && (() => {
-                  try {
-                    const parsed = JSON.parse(artifacts.phases_web);
-                    const phases: PhaseItem[] = Array.isArray(parsed) ? parsed : [];
-                    if (phases.length === 0) throw new Error("not array");
-                    return <PhaseBreakdownCard phases={phases} label="Phase Breakdown Web" />;
-                  } catch {
-                    return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.phases_web}</Markdown>;
-                  }
-                })()}
-                {activeKey === "phases_mobile" && artifacts.phases_mobile && (() => {
-                  try {
-                    const parsed = JSON.parse(artifacts.phases_mobile);
-                    const phases: PhaseItem[] = Array.isArray(parsed) ? parsed : [];
-                    if (phases.length === 0) throw new Error("not array");
-                    return <PhaseBreakdownCard phases={phases} label="Phase Breakdown Mobile" />;
-                  } catch {
-                    return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.phases_mobile}</Markdown>;
-                  }
-                })()}
+                {activeKey === "phases_web" && artifacts.phases_web && (
+                  <PhasesView markdown={artifacts.phases_web} label="Phase Breakdown Web" />
+                )}
+                {activeKey === "phases_mobile" && artifacts.phases_mobile && (
+                  <PhasesView markdown={artifacts.phases_mobile} label="Phase Breakdown Mobile" />
+                )}
                 {activeKey === "api_contract" && artifacts.api_contract && (() => {
                   try {
                     const parsed = JSON.parse(artifacts.api_contract);
