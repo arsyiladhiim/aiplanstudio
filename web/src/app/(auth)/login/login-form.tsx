@@ -130,7 +130,7 @@ export default function LoginForm() {
       </div>
 
       <a
-        href="/api/auth/google"
+        href={`${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/auth/google/redirect`}
         className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--radius)] border border-[var(--color-border)] bg-[var(--color-surface-2)] text-sm font-medium text-[var(--color-fg)] transition hover:bg-[var(--color-surface)]"
         data-testid="login-google"
       >

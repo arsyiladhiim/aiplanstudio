@@ -58,6 +58,25 @@ GOOGLE_REDIRECT_URI=http://localhost:8000/api/auth/google/callback
 
 3. `SESSION_DOMAIN=localhost` tetap berlaku karena cookie pakai domain `localhost`.
 
+### Checklist Production (Cloudflare Tunnel — no BFF)
+
+1. **Google Cloud Console** → OAuth Client → tambahkan Authorized redirect URI:
+   `https://api-<your-domain>/api/auth/google/callback` (= `${APP_URL}/api/auth/google/callback`, **API domain bukan frontend**).
+   JavaScript origins: `https://<your-frontend-domain>` (untuk `accounts.google.com` postMessage).
+2. Di `api/.env`:
+
+```
+APP_URL=https://api-<your-domain>
+FRONTEND_URL=https://<your-frontend-domain>
+GOOGLE_REDIRECT_URI=https://api-<your-domain>/api/auth/google/callback
+SANCTUM_STATEFUL_DOMAINS=<your-frontend-domain>
+SESSION_SECURE_COOKIE=true
+SESSION_SAME_SITE=none
+```
+
+3. Restart `aiplanstudio_apifpm` container (atau `php artisan config:clear`).
+4. Verify: `curl -I https://api-<your-domain>/api/auth/google/redirect` → 302 dengan `Location: https://accounts.google.com/o/oauth2/auth?...&redirect_uri=https%3A%2F%2Fapi-<your-domain>%2Fapi%2Fauth%2Fgoogle%2Fcallback`.
+
 ### Catatan perilaku Google login
 
 - User pertama login Google → `admin` + `active` + auto-login.
