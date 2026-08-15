@@ -17,7 +17,7 @@
 | CP-4 UX Heavy Lifts | 9 | ✅ done | `220040b` | 2026-08-14 | 2026-08-14 |
 | CP-5 Polish + Hardening | 16 | ✅ done | `4377758` | 2026-08-14 | 2026-08-14 |
 | CP-6 Tracking Flow Restore | 8 | ✅ done | `a400b4f` | 2026-08-14 | 2026-08-14 |
-| CP-7 Prompt Quality Overhaul | 11 | ⏳ pending | — | — | — |
+| CP-7 Prompt Quality Overhaul | 11 | ✅ done | `401205a` | 2026-08-14 | 2026-08-14 |
 | CP-8 Stage-Specific Viewer UX | 9 | ⏳ pending | — | — | — |
 | CP-9 Master Prompt Showcase | 5 | ⏳ pending | — | — | — |
 | CP-10 Granular Tracking UI + ERD Absorb | 6 | ⏳ pending | — | — | — |
@@ -625,15 +625,15 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - **Fix:** minor: tambah "Skip this stage if target !== 'both'. Validate target sebelum generate."
 - **Status:** ⏳ pending
 
-## CP-7 Sign-off (template)
+## CP-7 Sign-off
 
-- [ ] All 11 items ✅
-- [ ] `php artisan test` pass (fixtures may need adjust if output schema changed)
-- [ ] No regression di downstream stages
-- [ ] Commit created on `devel`
-- **Date completed:** ____
-- **Commit SHA:** ____
-- **Notes:** ____
+- [x] All 11 items ✅
+- [x] `php artisan test` pass (258 pass, 1 pre-existing Socialite failure)
+- [x] No regression di downstream stages (PipelineRunnerTest updated assertion phrasing)
+- [x] Commit created on `devel`
+- **Date completed:** 2026-08-14
+- **Commit SHA:** `401205a`
+- **Notes:** 11 prompts rewritten with explicit output templates + self-check instructions. phased_master + phased_master_mobile now 1-paste-ready to coding agent with correct HMAC signature format. Standards includes React 19 Compiler rules + Laravel 11 Pint formatting. Agents split into 5 roles (web-frontend/web-backend/web-bff/web-db/web-test) with explicit handoffs.
 
 ---
 
@@ -893,10 +893,12 @@ If blocked: mark ❌ with reason, do NOT proceed.
 - Plan: 9 viewer components (AnalysisView, PrdView, ArchitectureView, StandardsView, PhasesView, AgentsView, SectionRenderer, CopyField enhance, ErdDiagram tabs). Replace generic `<pre>` di wizard.
 - Items: V-1..V-9.
 
-### CP-7 — pending
-- Status: ⏳ pending
-- Plan: rewrite 9 prompts dengan explicit output templates + self-check sections. Focus: phased_master untuk 1-paste-ready ke coding agent.
-- Items: P-P1..P-P11.
+### CP-7 — 2026-08-14
+- Status: ✅ done
+- Commit: `401205a`
+- Items: 11/11 done (P-P1..P-P11)
+- Tests: 258 pass (PipelineRunnerTest updated assertion for new analisa phrasing)
+- Notes: phased_master = 1-paste-ready, standards = React 19 + Pint rules, agents = 5 roles with handoffs, prd = INVEST + NFR + Out of Scope.
 
 ### CP-6 — 2026-08-14
 - Status: ✅ done
