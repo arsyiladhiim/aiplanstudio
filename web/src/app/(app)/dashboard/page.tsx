@@ -5,7 +5,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { PageHeader, TargetBadge } from "@/components/common";
 import { apiGet, type Activity } from "@/lib/api";
 import type { Target } from "@/lib/mock";
-import { Wand2, FolderKanban, GitBranch, ArrowRight, Plus, Clock, Loader2, TrendingUp, CalendarDays, Heart, History, RefreshCw } from "lucide-react";
+import { GitBranch, ArrowRight, Plus, Clock, Loader2, Heart, History, RefreshCw } from "lucide-react";
 import { formatRelativeTime } from "@/lib/format";
 
 interface DashboardStats {
@@ -76,17 +76,19 @@ export default function DashboardPage() {
     );
   }
 
-  const statCards = [
-    { label: "Total Project", value: stats!.total_projects.toString(), icon: FolderKanban },
-    { label: "Total Versi", value: stats!.total_versions.toString(), icon: GitBranch },
-    { label: "Project Aktif", value: stats!.active_projects.toString(), icon: Wand2 },
-    { label: "Favorit", value: stats!.favorite_projects.toString(), icon: Heart },
-    { label: "Project Minggu Ini", value: stats!.projects_this_week.toString(), icon: TrendingUp },
-    { label: "Versi Minggu Ini", value: stats!.versions_this_week.toString(), icon: CalendarDays },
-  ];
-
   const recentProjects = stats!.recent_projects;
   const recentActivities = stats!.recent_activities;
+
+  const primaryStats = [
+    { label: "Total Project", value: stats!.total_projects.toString() },
+    { label: "Project Aktif", value: stats!.active_projects.toString() },
+    { label: "Total Versi", value: stats!.total_versions.toString() },
+  ];
+  const secondaryStats = [
+    { label: "Favorit", value: stats!.favorite_projects.toString() },
+    { label: "Project Minggu Ini", value: stats!.projects_this_week.toString() },
+    { label: "Versi Minggu Ini", value: stats!.versions_this_week.toString() },
+  ];
 
   return (
     <>
@@ -96,20 +98,25 @@ export default function DashboardPage() {
         action={<><button onClick={refresh} disabled={refreshing} className="mr-2 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-fg-muted)] transition hover:text-[var(--color-fg)] hover:bg-[var(--color-surface-2)]" title="Segarkan"><RefreshCw size={16} /></button><ButtonLink href="/new"><Plus size={16} /> Buat Plan Baru</ButtonLink></>}
       />
 
-      {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {statCards.map((s) => (
-          <Card key={s.label} className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-[var(--color-fg-muted)]">{s.label}</span>
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-[color-mix(in_oklab,var(--color-brand)_14%,transparent)] text-[var(--color-brand)]">
-                <s.icon size={17} />
-              </span>
+      {/* Stats — typographic, tanpa ikon dekoratif */}
+      <Card className="overflow-hidden p-0">
+        <div className="grid divide-y divide-[var(--color-border)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {primaryStats.map((s) => (
+            <div key={s.label} className="px-6 py-5">
+              <div className="text-sm text-[var(--color-fg-muted)]">{s.label}</div>
+              <div className="mt-1 text-3xl font-bold tracking-tight">{s.value}</div>
             </div>
-            <div className="mt-3 text-3xl font-bold">{s.value}</div>
-          </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-[var(--color-border)] bg-[var(--color-surface-2)] px-6 py-2.5 text-xs text-[var(--color-fg-muted)]">
+          {secondaryStats.map((s, i) => (
+            <span key={s.label} className="inline-flex items-center gap-1.5">
+              {i > 0 && <span className="text-[var(--color-fg-ghost)]">·</span>}
+              <span>{s.label}: <strong className="font-semibold text-[var(--color-fg)]">{s.value}</strong></span>
+            </span>
+          ))}
+        </div>
+      </Card>
 
       {/* Continue working */}
       {recentProjects.length > 0 && (

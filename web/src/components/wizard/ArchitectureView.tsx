@@ -1,5 +1,5 @@
 import { SectionRenderer, parseSections } from "./SectionRenderer";
-import { Card, Badge } from "@/components/ui";
+import { Card } from "@/components/ui";
 
 function extractAscii(content: string): string | null {
   const fence = content.match(/```\n([\s\S]*?)```/);
@@ -19,51 +19,38 @@ export function ArchitectureView({ markdown }: { markdown: string }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {beforeFirstSection && (
         <Card className="p-4">
           <pre className="whitespace-pre-wrap text-sm text-[var(--color-fg-muted)]">{beforeFirstSection}</pre>
         </Card>
       )}
-      {matched.map((sec, i) => {
-        const ascii = extractAscii(sec.content);
-        return (
-          <Card key={i} className="p-4">
-            <div className="mb-2 flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-[var(--color-fg)]">{sec.title}</h3>
-              {sec.title.toLowerCase().includes("trade") && <Badge tone="warning">Trade-offs</Badge>}
-            </div>
-            {ascii ? (
-              <>
+      <div className="space-y-5">
+        {matched.map((sec, i) => {
+          const ascii = extractAscii(sec.content);
+          if (ascii) {
+            return (
+              <div key={i}>
+                <h3 className="mb-2 text-sm font-semibold text-[var(--color-fg)]">{sec.title}</h3>
                 <pre className="overflow-x-auto rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3 font-mono text-xs leading-relaxed text-[var(--color-fg)]">
                   {ascii}
                 </pre>
-                <div className="mt-2 text-sm leading-relaxed text-[var(--color-fg-muted)]">
-                  <RestContent content={sec.content} />
-                </div>
-              </>
-            ) : (
-              <div className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
+              </div>
+            );
+          }
+          return (
+            <div key={i}>
+              <h3 className="mb-1.5 text-sm font-semibold text-[var(--color-fg)]">{sec.title}</h3>
+              <div className="space-y-2 text-sm leading-relaxed text-[var(--color-fg-muted)]">
                 {sec.content.split(/\n{2,}/).map((p, j) => (
                   <p key={j} className="whitespace-pre-wrap">{p}</p>
                 ))}
               </div>
-            )}
-          </Card>
-        );
-      })}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function RestContent({ content }: { content: string }) {
-  const stripped = content.replace(/```\n[\s\S]*?```/, "").trim();
-  if (!stripped) return null;
-  return (
-    <>
-      {stripped.split(/\n{2,}/).map((p, j) => (
-        <p key={j} className="whitespace-pre-wrap">{p}</p>
-      ))}
-    </>
-  );
-}

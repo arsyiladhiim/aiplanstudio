@@ -920,12 +920,14 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                     const groupStages = getStages(project!.target as Target).filter(s => group.stages.includes(s.key));
                     const statusMap = selectedVersion.stage_status as Record<string, string>;
                     const done = groupStages.filter(s => statusMap[s.key] === 'done').length;
+                    const skipped = groupStages.filter(s => statusMap[s.key] === 'skipped').length;
                     return (
                       <details key={group.key} open className="group/seg rounded-lg border border-[var(--color-border)] px-2 py-1.5">
                         <summary className="flex cursor-pointer items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
                           <span>{group.label}</span>
-                          <span className="ml-auto rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] normal-case">
-                            {done}/{groupStages.length} selesai
+                          <span className="ml-auto inline-flex items-center gap-1 text-[10px] normal-case">
+                            {skipped > 0 && <span className="rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[var(--color-fg-muted)]">{skipped} dilewati</span>}
+                            <span className="rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5">{done}/{groupStages.length} selesai</span>
                           </span>
                         </summary>
                         <div className="mt-1.5 space-y-0.5">

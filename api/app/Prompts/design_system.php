@@ -103,7 +103,23 @@ WAJIB ≥7 item dengan `- [ ]` (hard constraint untuk AI agent):
 - [ ] <anti-pattern 6>
 - [ ] <anti-pattern 7>
 
-Referensi anti-pattern: blue→purple gradient, uniform card grid 3-kolom, centered-everything hero, Inter-by-default, opacity 0.8 hover, box-shadow 0 4px 6px pada semua card, identical section treatments, generic "Welcome to ..." hero, rounded-full pada SEMUA button, stock placeholder image generik, emoji sebagai feature icons (🚀 ✨ 💡 ⚡).
+Referensi anti-pattern (FRONTEND ANTI-SLOP STANDARD — tulis ≥7 item `- [ ]` yang paling relevan):
+- [ ] blue/purple AI gradient sebagai default brand
+- [ ] glassmorphism berlebihan tanpa fungsi
+- [ ] card grid 3-kolom seragam di semua section
+- [ ] centered-everything hero tanpa information hierarchy
+- [ ] Inter-by-default / font generik tanpa rationale
+- [ ] excessive rounded-full / pill di semua button & badge
+- [ ] excessive box-shadow di semua card
+- [ ] ikon dekoratif tanpa fungsi
+- [ ] emoji sebagai feature icons (🚀 ✨ 💡 ⚡)
+- [ ] chart/statistik tanpa makna (decorative chart)
+- [ ] heading membesar tanpa fungsi/hierarchy
+- [ ] gaya "generic SaaS dashboard" / "generic AI landing-page"
+- [ ] whitespace berlebihan yang mengurangi usability
+- [ ] density berlebihan yang merusak readability
+- [ ] component dibuat hanya karena "look nice"
+- [ ] visual effect yang mengalihkan perhatian dari konten
 
 ## 7. Layout Rhythm
 3 section treatment berbeda (bukan uniform):
@@ -121,6 +137,15 @@ WAJIB ada rhythm/alternation. BUKAN "card grid 3-kolom seragam" di semua section
 - 3 contoh microcopy untuk app ini: <button labels, empty messages, error messages>
 - Tone guideline: <1 kalimat konsisten untuk seluruh copy>
 
+### 10. Visual QA Scorecard (Final Anti-Slop Gate)
+Nilai UI ini 1-10 per kategori; skor <8 WAJIB disertai 1 kalimat justifikasi + langkah perbaikan konkret:
+- **Visual identity:** <skor>/10 — <justifikasi>
+- **Information hierarchy:** <skor>/10 — <justifikasi>
+- **Typography & spacing:** <skor>/10 — <justifikasi>
+- **Responsiveness:** <skor>/10 — <justifikasi>
+- **Originality (anti-generic):** <skor>/10 — <justifikasi>
+Target: minimal 4 dari 5 kategori ≥8/10. Jika ada yang <8, perbaiki desain sebelum dianggap selesai.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VERIFY sebelum respond:
 1. 9 heading "## N." ada (0-9).
@@ -130,5 +155,6 @@ VERIFY sebelum respond:
 5. Section 6 checklist `- [ ]` minimal 7 item.
 6. Panjang total ≥2500 chars.
 7. Tidak ada placeholder unfilled `<...>` selain `<NAMA_PROYEK>` di heading.
+8. ### 10. Visual QA Scorecard ada dengan 5 skor + justifikasi untuk yang <8.
 
 '.platformSuffix($target);

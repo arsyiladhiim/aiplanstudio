@@ -22,6 +22,8 @@ class PipelineRunner
 
     private bool $liteMode = false;
 
+    private float $crossRefPenalty = 0.0;
+
     private AiOutputParser $outputParser;
 
     /** Plain tracking token — kept in-memory only, never persisted plaintext */
@@ -45,17 +47,18 @@ class PipelineRunner
     private const LITE_STAGES = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'master_web'];
 
     private const STAGE_REQUIRED_KEYWORDS = [
-        'design_system' => ['signature', 'anti-pattern', 'token'],
-        'design_system_mobile' => ['Material', 'ThemeData', 'signature'],
-        'prd' => ['user story', 'acceptance', 'functional requirement'],
-        'architecture' => ['folder structure', 'tech stack', 'pattern'],
-        'standards_web' => ['TypeScript', 'lint', 'convention'],
-        'standards_mobile' => ['Dart', 'lint', 'convention'],
-        'security' => ['OWASP', 'authentication', 'authorization'],
-        'observability' => ['logging', 'monitoring', 'health check'],
-        'env_config' => ['environment', 'variable', 'configuration'],
-        'deployment' => ['Docker', 'rollback'],
-        'agents' => ['AGENTS.md', 'agent', 'instruction'],
+        // Tiap grup adalah OR — minimal 1 keyword dalam grup wajib muncul (case-insensitive).
+        'design_system' => [['signature', 'elemen khas'], ['anti-pattern', 'anti-pola'], ['token']],
+        'design_system_mobile' => [['Material'], ['ThemeData'], ['signature']],
+        'prd' => [['user story', 'user stories', 'user story'], ['acceptance', 'penerimaan'], ['functional requirement', 'kebutuhan fungsional']],
+        'architecture' => [['stack', 'teknologi'], ['module', 'boundary', 'batas'], ['trade-off', 'tradeoff', 'keputusan']],
+        'standards_web' => [['TypeScript', 'typescript', 'ts'], ['lint'], ['convention', 'konvensi']],
+        'standards_mobile' => [['Dart', 'dart'], ['lint'], ['convention', 'konvensi']],
+        'security' => [['autentikasi', 'authentication'], ['otorisasi', 'authorization', 'role'], ['owasp', 'checklist', 'keamanan']],
+        'observability' => [['logging', 'log'], ['monitoring', 'pemantauan'], ['health check', 'healthcheck', 'kesehatan']],
+        'env_config' => [['environment', 'lingkungan'], ['variable', 'variabel'], ['configuration', 'konfigurasi']],
+        'deployment' => [['Docker', 'docker'], ['rollback']],
+        'agents' => [['AGENTS.md', 'agents'], ['agent'], ['instruction', 'instruksi']],
     ];
 
     /**
@@ -615,6 +618,7 @@ class PipelineRunner
         $value = $content;
         if ($key === 'architecture') {
             $this->validateMarkdownArtifact($key, $content, ['## 1. Stack', '## 2. Module Boundaries', '## 3. Data Flow', '## 4. Folder Structure', '## 5. Deployment Topology', '## 6. Trade-offs']);
+            $this->validateArchitectureSectionRules($content);
             $this->sse->emit('artifact', ['stage' => $key, 'content' => $content]);
         } elseif ($key === 'pertanyaan' || $key === 'pertanyaan_mobile') {
             $cleaned = $this->jsonParser->extractJson($content);
@@ -659,6 +663,7 @@ class PipelineRunner
                 } else {
                     throw new \RuntimeException('API Contract: struktur tidak dikenali. Stage ditandai error.');
                 }
+                $value = $this->normalizeApiContract($value);
                 $this->assertApiContractSchema($value);
                 $this->sse->emit('artifact', ['stage' => $key, 'content' => json_encode($value, JSON_PRETTY_PRINT)]);
             } else {
@@ -696,6 +701,7 @@ class PipelineRunner
             $this->sse->emit('artifact', ['stage' => $key, 'content' => $content]);
         } elseif ($key === 'security') {
             $this->validateMarkdownArtifact($key, $content, ['## 1. Autentikasi', '## 2. Otorisasi', '## 3. Input Validation', '## 4. XSS', '## 5. Data Protection', '## 6. Dependencies', '## 7. Transport', '## 8. Rate Limiting', '## 9. Checklist']);
+            $this->validateSecuritySectionRules($content);
             $this->sse->emit('artifact', ['stage' => $key, 'content' => $content]);
         } elseif ($key === 'deployment') {
             $this->validateMarkdownArtifact($key, $content, ['## 1. Prerequisites', '## 2. Topology', '## 3. Environment', '## 4. Build & Start', '## 5. Cloudflare Tunnel', '## 6. Backup', '## 7. Rollback', '## 8. Zero-Downtime', '## 9. Post-Deploy', '## 10. Monitoring']);
@@ -748,17 +754,21 @@ class PipelineRunner
             $score += 0.4;
         }
 
-        // 2. Required keywords (20%)
-        $keywords = self::STAGE_REQUIRED_KEYWORDS[$stage] ?? [];
-        if ($keywords !== []) {
+        // 2. Required keywords (20%) — OR per group
+        $groups = self::STAGE_REQUIRED_KEYWORDS[$stage] ?? [];
+        if ($groups !== []) {
             $checks++;
             $hit = 0;
-            foreach ($keywords as $kw) {
-                if (mb_stripos($content, $kw) !== false) {
-                    $hit++;
+            foreach ($groups as $group) {
+                foreach ($group as $kw) {
+                    if (mb_stripos($content, $kw) !== false) {
+                        $hit++;
+
+                        break;
+                    }
                 }
             }
-            $score += 0.2 * ($hit / count($keywords));
+            $score += 0.2 * ($hit / count($groups));
         }
 
         // 3. Length adequacy (20%)
@@ -782,6 +792,12 @@ class PipelineRunner
         }
         if (! $genericHit) {
             $score += 0.2;
+        }
+
+        // 5. Cross-ref penalty (soft) — app_spec pages missing from master
+        if ($this->crossRefPenalty > 0) {
+            $score = max(0.0, $score - $this->crossRefPenalty);
+            $this->crossRefPenalty = 0.0;
         }
 
         return $checks > 0 ? round($score, 2) : null;
@@ -866,11 +882,15 @@ class PipelineRunner
         }
 
         if ($missing !== []) {
-            throw new \RuntimeException(
-                "{$stage}: stage/halaman berikut tidak tercantum di master prompt — ".implode(', ', array_slice($missing, 0, 5)).
-                '. Pastikan master diregenerasi setelah app_spec final. Stage ditandai error.'
-            );
+            \Log::warning("Cross-ref app_spec↔master ({$stage})", [
+                'stage' => $stage,
+                'missing' => array_slice($missing, 0, 5),
+            ]);
+            $this->crossRefPenalty = max($this->crossRefPenalty ?? 0, 0.1);
+
+            return;
         }
+        $this->crossRefPenalty = 0;
     }
 
     /**
@@ -946,6 +966,17 @@ class PipelineRunner
             $sanitized = preg_replace('/\b(system|assistant|user)\s*:/i', '[rol]:', (string) $lastError);
             $sanitized = preg_replace('/\b(system|assistant|user)\b/i', '[rol]', $sanitized);
             $system = $system."\n\n[DORONGAN PERBAIKAN — OUTPUT SEBELUMNYA DITOLAK VALIDASI]\n{$sanitized}\nPerbaiki masalah tersebut secara spesifik. Jangan ulangi kesalahan yang sama.";
+
+            // W6: reminder eksplisit keyword grup untuk stage yang gagal keyword
+            $groups = self::STAGE_REQUIRED_KEYWORDS[$stage] ?? [];
+            if ($groups !== []) {
+                $lines = [];
+                foreach ($groups as $group) {
+                    $lines[] = 'Pastikan dokumen memuat minimal SATU dari: '.implode(' / ', $group).'.';
+                }
+                $system .= "\n\n[CEK KEYWORD STAGE]\n".implode("\n", $lines);
+            }
+
             $messages[0]['content'] = $system;
         }
 
@@ -1131,15 +1162,24 @@ class PipelineRunner
     }
 
     /**
-     * Assert required keywords for each stage are present (case-insensitive substring).
+     * Assert required keywords for each stage — each group is OR (≥1 synonym must appear).
+     * Pesan error menyebut frasa eksplisit agar retry-hint tepat sasaran.
      */
     private function assertRequiredKeywords(string $stage, string $content): void
     {
-        $keywords = self::STAGE_REQUIRED_KEYWORDS[$stage] ?? [];
-        foreach ($keywords as $kw) {
-            if (mb_stripos($content, $kw) === false) {
+        $groups = self::STAGE_REQUIRED_KEYWORDS[$stage] ?? [];
+        foreach ($groups as $group) {
+            $hit = false;
+            foreach ($group as $kw) {
+                if (mb_stripos($content, $kw) !== false) {
+                    $hit = true;
+
+                    break;
+                }
+            }
+            if (! $hit) {
                 throw new \RuntimeException(
-                    $stage.": missing required keyword '{$kw}'. Stage ditandai error."
+                    $stage.': missing required keyword group (wajib salah satu: '.implode(' | ', $group).'). Stage ditandai error.'
                 );
             }
         }
@@ -1284,6 +1324,82 @@ class PipelineRunner
     }
 
     /**
+     * W4 — Coerce common AI output quirks in api_contract endpoint items before schema validation.
+     */
+    private function normalizeApiContract(array $endpoints): array
+    {
+        return array_map(function ($item) {
+            if (! is_array($item)) {
+                return $item;
+            }
+            if (array_key_exists('auth', $item)) {
+                if (is_bool($item['auth'])) {
+                    $item['auth'] = $item['auth'] ? 'required' : 'none';
+                } elseif ($item['auth'] === null || $item['auth'] === '') {
+                    $item['auth'] = 'none';
+                } elseif (is_string($item['auth'])) {
+                    $item['auth'] = trim($item['auth']);
+                }
+            }
+            if (isset($item['path']) && is_string($item['path']) && ! str_starts_with($item['path'], '/')) {
+                $item['path'] = '/'.ltrim($item['path'], '/');
+            }
+
+            return $item;
+        }, $endpoints);
+    }
+
+    /**
+     * W2 — Architecture specific rules: ASCII diagram, trade-off table, no placeholder.
+     */
+    private function validateArchitectureSectionRules(string $content): void
+    {
+        $sections = preg_split("/(?=^##\s)/m", $content);
+
+        $asciiFound = false;
+        $tradeoffSection = '';
+        foreach ($sections as $sec) {
+            if (! $asciiFound && preg_match('/Module Boundaries/i', $sec)) {
+                // box-drawing chars atau indented ASCII blocks (│ ├ └ ┌ ─)
+                $asciiFound = preg_match('/[│├└┌┐┘─┬┴┼]/u', $sec) === 1;
+            }
+            if (preg_match('/Trade-?offs?/i', $sec)) {
+                $tradeoffSection = $sec;
+            }
+        }
+
+        if (! $asciiFound) {
+            throw new \RuntimeException('architecture: Section Module Boundaries WAJIB memuat ASCII diagram (``` box-drawing). Stage ditandai error.');
+        }
+
+        $tableRows = preg_match_all('/^\s*\|.*\|/m', $tradeoffSection);
+        if ($tableRows < 4) {
+            throw new \RuntimeException('architecture: Section Trade-offs WAJIB tabel markdown minimal 4 baris (header + separator + ≥2 data). Saat ini: '.$tableRows.'. Stage ditandai error.');
+        }
+
+        $placeholders = preg_match_all('/<[A-Z][A-Z0-9_]*>/', $content);
+        if ($placeholders > 0) {
+            throw new \RuntimeException('architecture: masih ada placeholder <...> unfilled ('.($placeholders).'). Stage ditandai error.');
+        }
+    }
+
+    /**
+     * W3 — Security specific rules: checklist count + no placeholder + otorisasi item.
+     */
+    private function validateSecuritySectionRules(string $content): void
+    {
+        $checklist = $this->outputParser->extractChecklistItems($content);
+        if ($checklist < 7) {
+            throw new \RuntimeException('security: Section Checklist WAJIB punya minimal 7 item (- [ ]). Saat ini: '.$checklist.'. Stage ditandai error.');
+        }
+
+        $placeholders = preg_match_all('/<[A-Z][A-Z0-9_]*>/', $content);
+        if ($placeholders > 0) {
+            throw new \RuntimeException('security: masih ada placeholder <...> unfilled ('.($placeholders).'). Stage ditandai error.');
+        }
+    }
+
+    /**
      * Enforce that Signature Element section has substantive, specific content.
      * Generic phrases like "glassmorphism" without justification are rejected.
      */
@@ -1387,7 +1503,7 @@ class PipelineRunner
             throw new \RuntimeException("prd: Section Differentiation terlalu pendek ({$bodyLen} char, minimal 200). Stage ditandai error.");
         }
 
-        $bullets = preg_match_all('/^\s*-\s+/m', $body);
+        $bullets = preg_match_all('/^\s*[-*•]\s+/mu', $body);
         if ($bullets < 3) {
             throw new \RuntimeException("prd: Section Differentiation wajib punya ≥3 bullet poin. Saat ini: {$bullets}. Stage ditandai error.");
         }
@@ -1409,8 +1525,11 @@ class PipelineRunner
     private function validateEnvConfigSectionRules(string $content): void
     {
         $envBlock = $this->outputParser->extractCodeFence($content, 'env')
+            ?? $this->outputParser->extractCodeFencePrefix($content, 'env')
             ?? $this->outputParser->extractCodeFence($content, 'dotenv')
-            ?? $this->outputParser->extractCodeFence($content, 'bash');
+            ?? $this->outputParser->extractCodeFencePrefix($content, 'dotenv')
+            ?? $this->outputParser->extractCodeFence($content, 'bash')
+            ?? $this->outputParser->extractCodeFencePrefix($content, 'bash');
 
         // Backend vars yang WAJIB ada
         $requiredVars = ['APP_KEY', 'DB_PASSWORD', 'APP_URL', 'SESSION_DOMAIN'];
@@ -1446,7 +1565,9 @@ class PipelineRunner
             : ['php', 'tsx', 'sql'];
 
         foreach ($requiredSnippets as $lang) {
-            if ($this->outputParser->extractCodeFence($content, $lang) === null) {
+            $fence = $this->outputParser->extractCodeFence($content, $lang)
+                ?? $this->outputParser->extractCodeFencePrefix($content, $lang);
+            if ($fence === null) {
                 throw new \RuntimeException($stage.': code fence bahasa '.$lang.' tidak ditemukan. Stage ditandai error.');
             }
         }

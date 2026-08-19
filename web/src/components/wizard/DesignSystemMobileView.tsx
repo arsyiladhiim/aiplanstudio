@@ -43,7 +43,9 @@ export function DesignSystemMobileView({ markdown }: { markdown: string }) {
         return (
           <Card key={i} className="p-4">
             <div className="mb-2 flex items-center gap-2">
-              <Sparkles size={14} />
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[color-mix(in_oklab,var(--color-brand)_14%,transparent)] text-[10px] font-bold text-[var(--color-brand)]">
+                {i}
+              </span>
               <h3 className="text-sm font-semibold">{heading}</h3>
               {heading.startsWith("2.") && (
                 <Badge tone="brand"><Palette size={10} className="mr-1 inline" />ThemeData</Badge>
@@ -53,7 +55,11 @@ export function DesignSystemMobileView({ markdown }: { markdown: string }) {
               )}
             </div>
             {sectionText && (
-              <pre className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--color-fg-muted)]">{sectionText}</pre>
+              <div className="space-y-2 text-xs leading-relaxed text-[var(--color-fg-muted)]">
+                {sectionText.split(/\n{2,}/).map((p, j) => (
+                  <p key={j} className="whitespace-pre-wrap">{p}</p>
+                ))}
+              </div>
             )}
             {sectionBlocks.map((b, j) => (
               <CodeSnippet key={j} language={b.language} code={b.code} />

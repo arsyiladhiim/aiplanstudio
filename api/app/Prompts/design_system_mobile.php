@@ -94,7 +94,7 @@ WAJIB ≥7 item dengan `- [ ]`:
 - [ ] <anti-pattern 6>
 - [ ] <anti-pattern 7>
 
-Referensi: default M3 purple ColorScheme.fromSeed tanpa override, FAB stock sebagai primary action, Card shape: RoundedRectangleBorder(16) di semua tempat, bottom navigation 5 tab stock Material icons, stock empty state dari flutter create, placeholder image random package tanpa konteks, "Welcome to ..." sebagai hero default mobile.
+Referensi anti-pattern (FRONTEND ANTI-SLOP STANDARD + mobile): default M3 purple ColorScheme.fromSeed tanpa override, FAB stock sebagai primary action, Card RoundedRectangleBorder(16) di semua tempat, bottom nav 5 tab stock Material icons, stock empty state flutter create, placeholder image tanpa konteks, "Welcome to ..." hero default, ikon dekoratif tanpa fungsi, chart tanpa makna, heading over-size tanpa hierarchy, gaya "generic AI app", whitespace berlebihan, density berlebihan, component dibuat hanya "look nice", visual effect mengalihkan dari konten.
 
 ## 7. Layout Rhythm
 3 section treatment berbeda:
@@ -110,6 +110,15 @@ Referensi: default M3 purple ColorScheme.fromSeed tanpa override, FAB stock seba
 - 3 contoh microcopy mobile: <button labels, SnackBar text, empty messages>
 - Tone guideline: <1 kalimat konsisten>
 
+### 10. Visual QA Scorecard (Final Anti-Slop Gate)
+Nilai UI mobile 1-10 per kategori; skor <8 WAJIB justifikasi + langkah perbaikan:
+- **Visual identity:** <skor>/10 — <justifikasi>
+- **Information hierarchy:** <skor>/10 — <justifikasi>
+- **Typography & spacing:** <skor>/10 — <justifikasi>
+- **Responsiveness:** <skor>/10 — <justifikasi>
+- **Originality (anti-generic):** <skor>/10 — <justifikasi>
+Target: minimal 4 dari 5 kategori ≥8/10.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VERIFY sebelum respond:
 1. 9 heading "## N." ada (0-9).
@@ -119,5 +128,6 @@ VERIFY sebelum respond:
 5. Section 6 checklist `- [ ]` minimal 7 item.
 6. Panjang total ≥2500 chars.
 7. Konsistensi dengan design system web (WAJIB sebut referensi di Section 1).
+8. ### 10. Visual QA Scorecard ada dengan 5 skor + justifikasi untuk yang <8.
 
 '.platformSuffix($target);

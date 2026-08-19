@@ -98,5 +98,8 @@ class RetryWithHintTest extends TestCase
         $system = $hinted[0]['content'] ?? '';
         $this->assertStringContainsString('DORONGAN PERBAIKAN', $system);
         $this->assertStringContainsString('Differentiation', $system);
+        // W6: reminder keyword grup eksplisit
+        $this->assertStringContainsString('CEK KEYWORD STAGE', $system);
+        $this->assertStringContainsString('user story', strtolower($system));
     }
 }

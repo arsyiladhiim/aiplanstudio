@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { parseSections } from "./SectionRenderer";
 import { Card, Badge } from "@/components/ui";
-import { Check } from "lucide-react";
 
 interface UserStory {
   id: string;
@@ -86,12 +85,9 @@ export function PrdView({ markdown }: { markdown: string }) {
                   <p className="text-sm font-medium leading-snug text-[var(--color-fg)]">{s.story}</p>
                 </div>
                 {s.ac.length > 0 && (
-                  <ul className="space-y-1 pl-1">
+                  <ul className="mt-2 space-y-1 border-l border-[var(--color-border)] pl-3">
                     {s.ac.map((line, j) => (
-                      <li key={j} className="flex items-start gap-2 text-xs text-[var(--color-fg-muted)]">
-                        <Check size={12} className="mt-0.5 shrink-0 text-[var(--color-success)]" />
-                        <span className="leading-snug">{line}</span>
-                      </li>
+                      <li key={j} className="text-xs leading-snug text-[var(--color-fg-muted)]">{line}</li>
                     ))}
                   </ul>
                 )}

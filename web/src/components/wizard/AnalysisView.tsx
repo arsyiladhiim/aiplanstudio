@@ -32,6 +32,10 @@ export function AnalysisView({ markdown }: { markdown: string }) {
   );
 }
 
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "P";
+}
+
 function PersonaList({ content }: { content: string }) {
   const personas = content.split(/(?=^###\s)/m).filter((s) => s.trim());
   if (personas.length === 0) {
@@ -44,14 +48,19 @@ function PersonaList({ content }: { content: string }) {
         const name = lines[0] ?? `Persona ${i + 1}`;
         const rest = lines.slice(1);
         return (
-          <div key={i} className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3">
-            <div className="mb-1 text-xs font-semibold text-[var(--color-brand)]">👤 {name}</div>
-            <ul className="space-y-1 text-xs text-[var(--color-fg-muted)]">
-              {rest.map((line, j) => (
-                <li key={j} className="leading-snug">{line}</li>
-              ))}
-            </ul>
-          </div>
+<div key={i} className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3">
+              <div className="mb-1 flex items-center gap-2">
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-[color-mix(in_oklab,var(--color-brand)_18%,transparent)] text-[10px] font-bold text-[var(--color-brand)]">
+                  {initials(name)}
+                </span>
+                <span className="text-xs font-semibold text-[var(--color-fg)]">{name}</span>
+              </div>
+              <ul className="space-y-1 pl-px text-xs text-[var(--color-fg-muted)]">
+                {rest.map((line, j) => (
+                  <li key={j} className="leading-snug">{line}</li>
+                ))}
+              </ul>
+            </div>
         );
       })}
     </div>

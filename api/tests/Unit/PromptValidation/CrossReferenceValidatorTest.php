@@ -43,19 +43,20 @@ class CrossReferenceValidatorTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function test_app_spec_missing_page_throws(): void
+    public function test_app_spec_missing_page_no_longer_throws(): void
     {
         $this->version->master_prompt = "# Master Prompt\n\n## Halaman\n- home_dashboard\n\n## SELESAI";
         $this->version->save();
 
+        \Log::spy();
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'validateAppSpecMasterCrossRef');
         $ref->setAccessible(true);
 
-        $this->expectException(\RuntimeException::class);
         $spec = ['nama' => 'X', 'halaman' => [['nama' => 'never_mentioned']], 'components' => []];
         $ref->invoke($runner, 'app_spec_web', $spec);
+        \Log::shouldHaveReceived('warning')->once()->withArgs(fn ($msg) => str_contains($msg, 'app_spec↔master'));
     }
 
     public function test_app_spec_without_master_skips_check(): void

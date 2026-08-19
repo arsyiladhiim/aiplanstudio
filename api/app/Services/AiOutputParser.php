@@ -42,6 +42,19 @@ class AiOutputParser
      * Extract variable names from .env.example block (KEY=value or KEY=...).
      * Returns list of uppercase snake_case keys.
      */
+    /**
+     * W4 — Extract code fence tolerating language suffix variants (e.g. ```php8, ```env.example).
+     */
+    public function extractCodeFencePrefix(string $content, string $prefix): ?string
+    {
+        $pattern = '/```'.preg_quote($prefix, '/').'[\w.+#-]*\s*\n?(.*?)```/si';
+        if (preg_match($pattern, $content, $m)) {
+            return trim($m[1]);
+        }
+
+        return null;
+    }
+
     public function extractEnvVars(string $envExampleBlock): array
     {
         $vars = [];

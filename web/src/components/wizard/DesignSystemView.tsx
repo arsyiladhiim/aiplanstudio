@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { ReactElement } from "react";
 import { Card, Badge } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { Copy, Check, Palette, Sparkles } from "lucide-react";
@@ -21,26 +20,6 @@ function extractCodeBlocks(markdown: string): CodeBlock[] {
   return blocks;
 }
 
-const SECTION_ICONS: Record<string, ReactElement> = {
-  "## 0.": <Sparkles size={14} />,
-  "## 1.": <Sparkles size={14} />,
-  "## 2.": <Palette size={14} />,
-  "## 3.": <Sparkles size={14} />,
-  "## 4.": <Sparkles size={14} />,
-  "## 5.": <Sparkles size={14} />,
-  "## 6.": <Sparkles size={14} />,
-  "## 7.": <Sparkles size={14} />,
-  "## 8.": <Sparkles size={14} />,
-  "## 9.": <Sparkles size={14} />,
-};
-
-function highlightSection(heading: string): ReactElement | null {
-  for (const [prefix, icon] of Object.entries(SECTION_ICONS)) {
-    if (heading.startsWith(prefix)) return icon;
-  }
-  return null;
-}
-
 export function DesignSystemView({ markdown }: { markdown: string }) {
   if (!markdown.trim()) {
     return <p className="text-sm text-[var(--color-fg-subtle)] italic">Design system belum di-generate.</p>;
@@ -58,14 +37,15 @@ export function DesignSystemView({ markdown }: { markdown: string }) {
       {sections.map((section, i) => {
         const headingMatch = section.match(/^##\s(\d+\..+?)$/m);
         const heading = headingMatch ? headingMatch[1] : `Section ${i + 1}`;
-        const icon = highlightSection(`## ${heading}`);
         const sectionBlocks = extractCodeBlocks(section);
         const sectionText = section.replace(FENCE_PATTERN, "").trim();
 
         return (
           <Card key={i} className="p-4">
             <div className="mb-2 flex items-center gap-2">
-              {icon}
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[color-mix(in_oklab,var(--color-brand)_14%,transparent)] text-[10px] font-bold text-[var(--color-brand)]">
+                {i}
+              </span>
               <h3 className="text-sm font-semibold">{heading}</h3>
               {heading.startsWith("2.") && (
                 <Badge tone="brand"><Palette size={10} className="mr-1 inline" />Tokens</Badge>
@@ -75,7 +55,11 @@ export function DesignSystemView({ markdown }: { markdown: string }) {
               )}
             </div>
             {sectionText && (
-              <pre className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--color-fg-muted)]">{sectionText}</pre>
+              <div className="space-y-2 text-xs leading-relaxed text-[var(--color-fg-muted)]">
+                {sectionText.split(/\n{2,}/).map((p, j) => (
+                  <p key={j} className="whitespace-pre-wrap">{p}</p>
+                ))}
+              </div>
             )}
             {sectionBlocks.map((b, j) => (
               <CodeSnippet key={j} language={b.language} code={b.code} />
