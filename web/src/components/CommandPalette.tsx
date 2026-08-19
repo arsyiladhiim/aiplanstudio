@@ -16,6 +16,12 @@ export function CommandPalette() {
   const [loading, setLoading] = useState(false);
   const [highlight, setHighlight] = useState(0);
 
+  const go = useCallback((href: string) => {
+    setOpen(false);
+    setQ("");
+    router.push(href);
+  }, [router]);
+
   const handleKey = useCallback((e: KeyboardEvent) => {
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === "k") {
@@ -55,18 +61,7 @@ export function CommandPalette() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, results, highlight]);
-
-  useEffect(() => {
-    setHighlight(0);
-  }, [q]);
-
-  const go = (href: string) => {
-    setOpen(false);
-    setQ("");
-    router.push(href);
-  };
+  }, [open, results, highlight, go]);
 
   useEffect(() => {
     if (!open || q.length < 2) {
@@ -96,7 +91,7 @@ export function CommandPalette() {
           <input
             autoFocus
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => { setQ(e.target.value); setHighlight(0); }}
             placeholder="Cari project, ide, stack, atau versi..."
             className="flex-1 bg-transparent outline-none placeholder:text-[var(--color-fg-muted)]"
             data-testid="command-palette-input"

@@ -59,9 +59,9 @@ CONTOH OUTPUT FORMAT (WAJIB DIIKUTI PERSIS):
 ISI VARIABEL (dari sistem)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-• Idea: {$idea}
+• Idea: (lihat Ide Aplikasi di konteks user)
 • Target: {$target}
-• Tech Stack (jika ada): {$stack}
+• Tech Stack (jika ada): (lihat konteks user)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT
@@ -69,6 +69,11 @@ OUTPUT
 
 Jawab HANYA dengan JSON valid sesuai format di atas. Tidak ada teks di luar JSON. JSON WAJIB dapat di-parse tanpa error.
 
-VERIFY sebelum respond: Apakah `questions.length` antara 8-12? Apakah ada tepat 5 pertanyaan WAJIB (q1..q5 cover: auth, primary feature, data ownership, UX style, role akses)? Apakah setiap question punya tepat 1 `recommended: true`? Apakah semua `recommendation_reason` ada?
+VERIFY sebelum respond:
+1. `questions.length` antara 8-12.
+2. Setiap question WAJIB lengkap: `id` string non-kosong, `question` string non-kosong (kalimat utuh, bukan kosong/bukan array), dan `options` array berisi 5 entri (key A-E) — SETIAP option WAJIB punya `key` + `text` string non-kosong. JANGAN ada question tanpa question-text atau tanpa options.
+3. Tepat 1 `recommended: true` per question.
+4. Semua `recommendation_reason` ada.
+5. Seluruh JSON valid dan dapat di-parse tanpa error — TIDAK BOLEH ada object terpotong di tengah.
 
-' . platformSuffix($target);
+'.platformSuffix($target);

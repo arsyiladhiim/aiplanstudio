@@ -9,6 +9,7 @@ use App\Models\ProjectApiToken;
 use App\Models\User;
 use App\Models\Version;
 use App\Services\AiClient;
+use App\Services\AiOutputParser;
 use App\Services\PipelineRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -101,9 +102,10 @@ class PipelineRunnerTest extends TestCase
         $default = Version::defaultStageStatus();
         $expected = [
             'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
-            'phases_web', 'standards_web', 'master_web',
+            'standards_web', 'phases_web', 'master_web',
             'pertanyaan_mobile',
-            'phases_mobile', 'standards_mobile', 'master_mobile',
+            'standards_mobile', 'phases_mobile', 'master_mobile',
+            'env_config', 'security', 'deployment', 'observability',
             'agents',
         ];
         foreach ($expected as $stage) {
@@ -135,9 +137,14 @@ class PipelineRunnerTest extends TestCase
     {
         $expected = [
             'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
+            'design_system',
             'phases_web', 'standards_web', 'master_web',
+            'app_spec_web',
+            'design_system_mobile',
             'pertanyaan_mobile',
-            'phases_mobile', 'standards_mobile', 'master_mobile',
+            'standards_mobile', 'phases_mobile', 'master_mobile',
+            'app_spec_mobile',
+            'env_config', 'security', 'deployment', 'observability',
             'agents',
         ];
         $const = (new \ReflectionClass(Version::class))->getConstant('ALL_STAGES');
@@ -201,9 +208,10 @@ class PipelineRunnerTest extends TestCase
 
         $stages = [
             'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
-            'phases_web', 'standards_web', 'master_web',
+            'standards_web', 'phases_web', 'master_web',
             'pertanyaan_mobile',
-            'phases_mobile', 'standards_mobile', 'master_mobile',
+            'standards_mobile', 'phases_mobile', 'master_mobile',
+            'env_config', 'security', 'deployment', 'observability',
             'agents',
         ];
         foreach ($stages as $stage) {
@@ -234,10 +242,12 @@ class PipelineRunnerTest extends TestCase
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
         $ref->setAccessible(true);
 
-        $ref->invoke($runner, 'analisa', 'plain text analysis');
+        $content = "# Analisa: Test\n## 1. Intent Summary\nTest summary.\n## 2. User Personas\n- Persona 1: Test\n## 3. Core Problem\n- JTBD-1: When X, I want Y, so I can Z.\n## 4. Success Metrics\n- North Star: MAU\n## 5. Anti-Goals\n- None\n## 6. Daftar Halaman\n- Login: halaman login";
+
+        $ref->invoke($runner, 'analisa', $content);
 
         $this->version->refresh();
-        $this->assertSame('plain text analysis', $this->version->analysis);
+        $this->assertSame($content, $this->version->analysis);
     }
 
     public function test_save_artifact_parses_erd_lines(): void
@@ -271,7 +281,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_save_artifact_parses_erd_json_block(): void
     {
-        $content = "Berikut ERD:\n```json\n{\n\"nodes\": [{\"id\": \"users\", \"label\": \"users\", \"fields\": [\"id\", \"name\"]}],\n\"edges\": [{\"from\": \"posts\", \"to\": \"users\", \"relation\": \"belongs_to\"}],\n\"api_contract\": [{\"method\": \"GET\", \"path\": \"/users\", \"description\": \"list users\", \"auth\": true}]\n}\n```";
+        $content = "Berikut ERD:\n```json\n{\n\"nodes\": [{\"id\": \"users\", \"label\": \"users\", \"fields\": [\"id\", \"name\"]}],\n\"edges\": [{\"from\": \"posts\", \"to\": \"users\", \"relation\": \"belongs_to\"}],\n\"api_contract\": [{\"resource\": \"users\", \"method\": \"GET\", \"path\": \"/users\", \"description\": \"list users\", \"auth\": \"session\"}]\n}\n```";
 
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
@@ -289,7 +299,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_save_artifact_fills_missing_api_contract_from_json(): void
     {
-        $content = "TABEL: users | id, name\n{\"api_contract\": [{\"method\": \"POST\", \"path\": \"/users\", \"description\": \"create\", \"auth\": true}]}";
+        $content = "TABEL: users | id, name\n{\"api_contract\": [{\"resource\": \"users\", \"method\": \"POST\", \"path\": \"/users\", \"description\": \"create\", \"auth\": \"session\"}]}";
 
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
@@ -306,7 +316,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_save_artifact_throws_when_erd_json_has_no_nodes(): void
     {
-        $content = "```json\n{\"api_contract\": [{\"method\": \"GET\", \"path\": \"/ping\", \"description\": \"ping\", \"auth\": false}]}\n```";
+        $content = "```json\n{\"api_contract\": [{\"resource\": \"health\", \"method\": \"GET\", \"path\": \"/ping\", \"description\": \"ping\", \"auth\": \"none\"}]}\n```";
 
         $runner = new PipelineRunner($this->version, new AiClient);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
@@ -343,7 +353,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_api_contract_save_accepts_plain_array(): void
     {
-        $content = '[{"method":"GET","path":"/users","description":"List user","auth":true}]';
+        $content = '[{"resource":"users","method":"GET","path":"/users","description":"List user","auth":"session"}]';
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
@@ -359,7 +369,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_api_contract_save_accepts_wrapped_object_endpoints(): void
     {
-        $content = '{"base_url":"/api","endpoints":[{"method":"POST","path":"/auth/login","description":"login","auth":false}]}';
+        $content = '{"base_url":"/api","endpoints":[{"resource":"auth","method":"POST","path":"/auth/login","description":"login","auth":"none"}]}';
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
@@ -374,7 +384,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_api_contract_save_handles_prose_and_fence_wrap(): void
     {
-        $content = "Berikut adalah contract:\n```json\n[{\"method\":\"GET\",\"path\":\"/ping\",\"description\":\"ping\",\"auth\":false}]\n```\nSemoga membantu.";
+        $content = "Berikut adalah contract:\n```json\n[{\"resource\":\"health\",\"method\":\"GET\",\"path\":\"/ping\",\"description\":\"ping\",\"auth\":\"none\"}]\n```\nSemoga membantu.";
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
@@ -389,7 +399,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_api_contract_save_handles_unquoted_and_single_quotes(): void
     {
-        $content = "[{method:'GET',path:'/healthz',description:'health',auth:false}]";
+        $content = "[{resource:'health',method:'GET',path:'/healthz',description:'health',auth:'none'}]";
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
@@ -417,15 +427,16 @@ class PipelineRunnerTest extends TestCase
 
     public function test_mcq_count_returns_question_count(): void
     {
-        $content = '{"ambiguities":["a"],"questions":[{"id":"q1"},{"id":"q2"},{"id":"q3"}]}';
-        $parser = new \App\Services\AiOutputParser;
+        $opts = '[{"key":"A","text":"a"},{"key":"B","text":"b"},{"key":"C","text":"c"},{"key":"D","text":"d"},{"key":"E","text":"lainnya"}]';
+        $content = '{"ambiguities":["a"],"questions":[{"id":"q1","question":"Q?","options":'.$opts.'},{"id":"q2","question":"Q?","options":'.$opts.'},{"id":"q3","question":"Q?","options":'.$opts.'}]}';
+        $parser = new AiOutputParser;
 
         $this->assertSame(3, $parser->mcqCount($content));
     }
 
     public function test_mcq_count_returns_zero_for_non_json(): void
     {
-        $parser = new \App\Services\AiOutputParser;
+        $parser = new AiOutputParser;
 
         $this->assertSame(0, $parser->mcqCount('bukan json'));
     }
@@ -433,14 +444,16 @@ class PipelineRunnerTest extends TestCase
     public function test_mcq_count_returns_zero_without_questions_key(): void
     {
         $content = '{"foo":"bar"}';
-        $parser = new \App\Services\AiOutputParser;
+        $parser = new AiOutputParser;
 
         $this->assertSame(0, $parser->mcqCount($content));
     }
 
     public function test_save_pertanyaan_stores_clean_json_when_valid(): void
     {
-        $content = "Berikut pertanyaan:\n```json\n{\"ambiguities\":[\"a\"],\"questions\":[{\"id\":\"q1\",\"question\":\"Q?\",\"options\":[]}]}\n```";
+        $opts = [['key' => 'A', 'text' => 'a'], ['key' => 'B', 'text' => 'b'], ['key' => 'C', 'text' => 'c'], ['key' => 'D', 'text' => 'd'], ['key' => 'E', 'text' => 'lainnya']];
+        $questions = array_map(fn ($i) => ['id' => "q{$i}", 'question' => 'Q?', 'options' => $opts], range(1, 5));
+        $content = "Berikut pertanyaan:\n```json\n".json_encode(['ambiguities' => ['a'], 'questions' => $questions])."\n```";
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
@@ -451,7 +464,7 @@ class PipelineRunnerTest extends TestCase
 
         $decoded = json_decode($this->version->pertanyaan, true);
         $this->assertIsArray($decoded);
-        $this->assertSame(1, count($decoded['questions'] ?? []));
+        $this->assertSame(5, count($decoded['questions'] ?? []));
     }
 
     public function test_save_pertanyaan_stores_raw_when_invalid(): void
@@ -470,10 +483,10 @@ class PipelineRunnerTest extends TestCase
 
     public function test_mcq_retry_constants(): void
     {
-        $this->assertGreaterThanOrEqual(3, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_RETRIES'));
-        $this->assertLessThanOrEqual(20, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_RETRIES'));
-        $this->assertSame(5, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MIN_MCQ_QUESTIONS'));
-        $this->assertSame(10, (new \ReflectionClass(\App\Services\PipelineRunner::class))->getConstant('MAX_MCQ_QUESTIONS'));
+        $this->assertGreaterThanOrEqual(3, (new \ReflectionClass(PipelineRunner::class))->getConstant('MAX_MCQ_RETRIES'));
+        $this->assertLessThanOrEqual(20, (new \ReflectionClass(PipelineRunner::class))->getConstant('MAX_MCQ_RETRIES'));
+        $this->assertSame(5, (new \ReflectionClass(PipelineRunner::class))->getConstant('MIN_MCQ_QUESTIONS'));
+        $this->assertSame(10, (new \ReflectionClass(PipelineRunner::class))->getConstant('MAX_MCQ_QUESTIONS'));
     }
 
     public function test_master_web_tracking_block_shows_when_token_exists(): void
@@ -503,7 +516,8 @@ class PipelineRunnerTest extends TestCase
 
     public function test_master_web_tracking_block_skipped_when_no_token(): void
     {
-        // CP-6: tanpa token, prompt kasih instruksi skip webhook (bukan inject token kosong).
+        // CP-6/CP-29: tanpa token, URL + format webhook TETAP ditulis (agent tahu target),
+        // plus instruksi agar agent minta user setup tracking sebelum membangun.
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'contextPrompt');
@@ -511,8 +525,10 @@ class PipelineRunnerTest extends TestCase
 
         $prompt = $ref->invoke($runner, 'master_web', $this->version);
 
-        $this->assertStringContainsString('BELUM AKTIF', $prompt);
-        $this->assertStringNotContainsString('X-Token-Secret: <SECRET>', $prompt);
+        $this->assertStringContainsString('phase-complete', $prompt);
+        $this->assertStringContainsString('X-Token-Secret: <SECRET>', $prompt);
+        $this->assertStringContainsString('PERHATIAN: Token tracking BELUM dibuat', $prompt);
+        $this->assertStringContainsString('Setup Tracking', $prompt);
         $this->assertSame(0, $this->project->apiTokens()->count());
     }
 
@@ -552,13 +568,14 @@ class PipelineRunnerTest extends TestCase
         $prompt = $ref->invoke($runner, 'agents', $this->version);
 
         $this->assertStringContainsString('Standards (web)', $prompt);
-        $this->assertStringContainsString('ERD & API Contract', $prompt);
+        $this->assertStringContainsString('API Contract', $prompt);
+        $this->assertStringContainsString('Dokumen Operasional', $prompt);
     }
 
     public function test_pertanyaan_mobile_context_truncates_master_prompt(): void
     {
         $this->project->update(['target' => 'both']);
-        $longMp = str_repeat("MASTER PROMPT BLOCK. ", 1000);
+        $longMp = str_repeat('MASTER PROMPT BLOCK. ', 1000);
         $this->version->update([
             'master_prompt' => $longMp,
             'master_web' => $longMp,
@@ -580,10 +597,10 @@ class PipelineRunnerTest extends TestCase
     public function test_truncate_for_context_helper(): void
     {
         $short = 'hello';
-        $this->assertSame('hello', \App\Services\PipelineRunner::truncateForContext($short, 100));
+        $this->assertSame('hello', PipelineRunner::truncateForContext($short, 100));
 
         $long = str_repeat('x', 5000);
-        $truncated = \App\Services\PipelineRunner::truncateForContext($long, 100);
+        $truncated = PipelineRunner::truncateForContext($long, 100);
         $this->assertLessThanOrEqual(100 + 60, strlen($truncated));
         $this->assertStringContainsString('[... truncated', $truncated);
     }
@@ -640,7 +657,9 @@ class PipelineRunnerTest extends TestCase
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
         $ref->setAccessible(true);
 
-        $ref->invoke($runner, 'analisa', 'Konten analisa awal.');
+        $analisaContent = "# Analisa: Test\n## 1. Intent Summary\nX.\n## 2. User Personas\n- A\n## 3. Core Problem\n- JTBD-1: Y\n## 4. Success Metrics\n- Z\n## 5. Anti-Goals\n- none\n## 6. Daftar Halaman\n- Login: x";
+
+        $ref->invoke($runner, 'analisa', $analisaContent);
 
         $this->assertDatabaseHas('activities', [
             'project_id' => $this->project->id,
@@ -648,20 +667,27 @@ class PipelineRunnerTest extends TestCase
             'action' => 'artifact_snapshot',
         ]);
 
-        $ref->invoke($runner, 'analisa', 'Konten analisa kedua, lebih panjang.');
+        $ref->invoke($runner, 'analisa', $analisaContent."\n\nMore content.");
         $this->assertDatabaseCount('activities', 2);
     }
 
     public function test_retry_pertanyaan_returns_early_when_min_met(): void
     {
+        $opts = [
+            ['key' => 'A', 'text' => 'a'],
+            ['key' => 'B', 'text' => 'b'],
+            ['key' => 'C', 'text' => 'c'],
+            ['key' => 'D', 'text' => 'd'],
+            ['key' => 'E', 'text' => 'lainnya'],
+        ];
         $validJson = json_encode([
             'ambiguities' => ['x'],
             'questions' => [
-                ['id' => 'q1', 'question' => '?', 'options' => []],
-                ['id' => 'q2', 'question' => '?', 'options' => []],
-                ['id' => 'q3', 'question' => '?', 'options' => []],
-                ['id' => 'q4', 'question' => '?', 'options' => []],
-                ['id' => 'q5', 'question' => '?', 'options' => []],
+                ['id' => 'q1', 'question' => '?', 'options' => $opts],
+                ['id' => 'q2', 'question' => '?', 'options' => $opts],
+                ['id' => 'q3', 'question' => '?', 'options' => $opts],
+                ['id' => 'q4', 'question' => '?', 'options' => $opts],
+                ['id' => 'q5', 'question' => '?', 'options' => $opts],
             ],
         ]);
 
@@ -676,5 +702,168 @@ class PipelineRunnerTest extends TestCase
 
         $this->assertSame($validJson, $result);
         $this->assertLessThan(0.1, $elapsed, 'Early-return must skip retry loop entirely.');
+    }
+
+    public function test_retry_pertanyaan_throws_after_exhausted_when_still_under_min(): void
+    {
+        $threeQuestions = json_encode([
+            'ambiguities' => ['x'],
+            'questions' => [
+                ['id' => 'r1', 'question' => 'q?', 'options' => []],
+                ['id' => 'r2', 'question' => 'q?', 'options' => []],
+                ['id' => 'r3', 'question' => 'q?', 'options' => []],
+            ],
+        ]);
+
+        // Stub AI client: selalu kembalikan 3 pertanyaan — memaksa retry loop sampai habis.
+        $stub = new class extends AiClient
+        {
+            public bool $configured = true;
+
+            public string $lastFinishReason = 'stop';
+
+            public function isConfigured(): bool
+            {
+                return $this->configured;
+            }
+
+            public function stream(array $messages, callable $onToken): string
+            {
+                $opts = '[{"key":"A","text":"a"},{"key":"B","text":"b"},{"key":"C","text":"c"},{"key":"D","text":"d"},{"key":"E","text":"lainnya"}]';
+                $payload = sprintf('{"ambiguities":["x"],"questions":[{"id":"r1","question":"q?","options":%s},{"id":"r2","question":"q?","options":%s},{"id":"r3","question":"q?","options":%s}]}', $opts, $opts, $opts);
+                $onToken($payload);
+
+                return $payload;
+            }
+        };
+
+        $runner = new PipelineRunner($this->version, $stub);
+        $ref = new \ReflectionMethod($runner, 'retryPertanyaanForMinimum');
+        $ref->setAccessible(true);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/hanya berisi 3 pertanyaan/');
+
+        $ref->invoke($runner, $threeQuestions);
+    }
+
+    public function test_mcq_count_counts_plain_text_questions(): void
+    {
+        $parser = new AiOutputParser;
+
+        $text = "1. Fitur apa yang paling penting?\n2. Siapa target user?\n3. Berapa estimasi budget?\n4. Kapan rilis?\n5. Platform apa saja?";
+        $this->assertSame(5, $parser->mcqCount($text));
+
+        $this->assertSame(0, $parser->mcqCount('Ini prosa biasa tanpa pertanyaan terstruktur.'));
+    }
+
+    public function test_mcq_count_finds_nested_questions_wrapper(): void
+    {
+        $parser = new AiOutputParser;
+
+        $opts = '[{"key":"A","text":"a"},{"key":"B","text":"b"},{"key":"C","text":"c"},{"key":"D","text":"d"},{"key":"E","text":"lainnya"}]';
+        $questions = implode(',', array_map(fn ($i) => '{"id":"q'.$i.'","question":"Q?","options":'.$opts.'}', range(1, 5)));
+        $nested = '{"response":{"questions":['.$questions.']}}';
+        $this->assertSame(5, $parser->mcqCount($nested));
+    }
+
+    public function test_retry_pertanyaan_resolves_for_text_output(): void
+    {
+        // Stub AI client yang mengembalikan teks (bukan JSON) — mcqCount fallback text = 5.
+        $stub = new class extends AiClient
+        {
+            public string $lastFinishReason = 'stop';
+
+            public function isConfigured(): bool
+            {
+                return true;
+            }
+
+            public function stream(array $messages, callable $onToken): string
+            {
+                $payload = "1. fitur?\n2. user?\n3. biaya?\n4. rilis?\n5. platform?";
+                $onToken($payload);
+
+                return $payload;
+            }
+        };
+
+        $runner = new PipelineRunner($this->version, $stub);
+        $ref = new \ReflectionMethod($runner, 'retryPertanyaanForMinimum');
+        $ref->setAccessible(true);
+
+        $result = $ref->invoke($runner, '1. a?', 'pertanyaan');
+
+        $this->assertStringContainsString('fitur?', $result);
+        $this->assertStringContainsString('platform?', $result);
+    }
+
+    public function test_mcq_valid_count_counts_only_well_formed_questions(): void
+    {
+        $parser = new AiOutputParser;
+
+        $good = ['id' => 'q1', 'question' => 'Fitur apa?', 'options' => [
+            ['key' => 'A', 'text' => 'a'],
+            ['key' => 'B', 'text' => 'b'],
+            ['key' => 'C', 'text' => 'c'],
+            ['key' => 'D', 'text' => 'd'],
+            ['key' => 'E', 'text' => 'lainnya'],
+        ]];
+        // rusak: id array, question missing; rusak: options < 4
+        $brokenId = ['id' => ['x'], 'question' => '?', 'options' => $good['options']];
+        $brokenQ = ['id' => 'q2', 'question' => ['nested'], 'options' => $good['options']];
+        $brokenOpts = ['id' => 'q3', 'question' => 'Yakin?', 'options' => [['key' => 'A', 'text' => 'a']]];
+        $brokenOptEmpty = ['id' => 'q4', 'question' => 'Z?', 'options' => [
+            ['key' => 'A', 'text' => ''],
+            ['key' => 'B', 'text' => 'b'],
+            ['key' => 'C', 'text' => 'c'],
+            ['key' => 'D', 'text' => 'd'],
+        ]];
+
+        $content = json_encode(['questions' => [$good, $brokenId, $brokenQ, $brokenOpts, $brokenOptEmpty]]);
+        $this->assertSame(1, $parser->mcqValidCount($content));
+        $this->assertSame(1, $parser->mcqCount($content));
+    }
+
+    public function test_save_artifact_pertanyaan_filters_invalid_questions(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $good = ['id' => 'q1', 'question' => 'Fitur apa?', 'options' => [
+            ['key' => 'A', 'text' => 'a'],
+            ['key' => 'B', 'text' => 'b'],
+            ['key' => 'C', 'text' => 'c'],
+            ['key' => 'D', 'text' => 'd'],
+            ['key' => 'E', 'text' => 'lainnya'],
+        ]];
+        $broken = ['id' => ['x'], 'question' => ['nested'], 'options' => 'oops'];
+        $fiveGood = array_map(fn ($i) => $good + ['id' => "q{$i}", 'question' => "Pertanyaan {$i}?"], range(1, 5));
+
+        $payload = json_encode(['questions' => array_merge([$broken], $fiveGood)]);
+        $ref->invoke($runner, 'pertanyaan', $payload);
+
+        $this->version->refresh();
+        $saved = json_decode((string) $this->version->pertanyaan, true);
+        $this->assertCount(5, $saved['questions']);
+        $this->assertSame('q1', $saved['questions'][0]['id']);
+    }
+
+    public function test_save_artifact_pertanyaan_throws_when_below_min_after_sanitize(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $broken = ['id' => ['x'], 'question' => ['nested'], 'options' => 'oops'];
+        $payload = json_encode(['questions' => [$broken, $broken, $broken]]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/pertanyaan valid < 5/');
+
+        $ref->invoke($runner, 'pertanyaan', $payload);
     }
 }

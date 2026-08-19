@@ -50,7 +50,7 @@ Legenda Auth: **Pub** = public · **Auth** = butuh login · **Admin** = admin on
 | `/projects` | Projects List | Sidebar | Auth | Search, filter favorit, grid kartu, progress bar, continue, hapus (dialog) |
 | `/projects/[id]` | Project Detail | Sidebar | Auth | Header (edit, favorit), pilih versi, diff mode, 8 tabs (Klarifikasi/Analisa/PRD/Arsitektur/ERD/Phases/Mobile/Aktivitas), API token, master prompt copy, Standards/Agents, checklist progres |
 | `/projects/[id]/diff` | Version Diff | — | Auth | Bandingkan 2 versi seluruh field |
-| `/new` | Buat Plan (Wizard) | Sidebar | Auth | Template, input ide/target/stack, 14/10-stage SSE, stage tracker, ERD diagram, API contract table, phases, master prompt, standards/agents, resumable |
+| `/new` | Buat Plan (Wizard) | Sidebar | Auth | Template, input ide/target/stack, 18/14-stage SSE, stage tracker, ERD diagram, API contract table, phases, master prompt, standards/agents, resumable |
 | `/templates` | Templates | Sidebar | Auth | Kartu template, badge target, "Gunakan Template" |
 | `/activities` | Aktivitas | Header/Footer | Auth | Feed aktivitas terpaginasi, badge aksi, link project |
 | `/help` | Bantuan | Header | Auth | How-it-works, FAQ accordion |
@@ -116,7 +116,7 @@ Logout
   → POST /api/logout → invalidate session cookie → /login
 ```
 
-### 6.2 Wizard "Buat Plan" — Pipeline 13 Stage (inti produk)
+### 6.2 Wizard "Buat Plan" — Pipeline 18 Stage (inti produk)
 ```
 /new   (input: ide, target=web|both, stack opsional, template)
   1 pertanyaan           → pertanyaan (klarifikasi MCQ)     [SSE]
@@ -197,7 +197,7 @@ Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dok
 ### D1. Kesesuaian
 | Tujuan Awal | Implementasi | Status |
 |-------------|--------------|--------|
-| Ide → dokumentasi & prompt lengkap | 14-stage pipeline, tiap stage menyimpan artifact: analisa, PRD, arsitektur, ERD, api_contract, standards, agents, phases, master prompt | ✅ |
+| Ide → dokumentasi & prompt lengkap | 18-stage pipeline (14 web / 18 both), tiap stage menyimpan artifact: analisa, PRD, arsitektur, ERD, api_contract, standards, agents, phases, master prompt | ✅ |
 | Benang merah antar langkah | PipelineRunner menyimpan konteks stage sebelumnya ke stage berikutnya | ✅ |
 | Target-aware (web/both) | mobile track (stage 10-13) khusus mobile; gate menunggu master_web; stack & prompt berbeda per target; 4 mobile fields | ✅ |
 | Bukan eksekutor kode | Tidak ada endpoint eksekusi; semuanya doku & prompt | ✅ |
@@ -250,7 +250,7 @@ Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dok
 
 ### E6. Core Pipeline
 - [ ] AI provider aktif (settings/provider → active + DSN key)
-- [ ] Wizard `/new` → 14/10-stage berjalan (SSE) → artifact ter-save ke DB
+- [ ] Wizard `/new` → 18/14-stage berjalan (SSE) → artifact ter-save ke DB
 - [ ] target=both → mobile track (stage 10-13) berjalan setelah master_web done (gate); target=web → mobile track di-skip
 - [ ] Checkpoint mode & auto-run mode bekerja
 - [ ] Resume project→ versi terakhir

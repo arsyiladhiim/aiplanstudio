@@ -20,8 +20,8 @@ app/Prompts/*.php                # template prompt per stage (target-aware)
 
 ## PipelineRunner
 - Method utama: `run(string|null $stage, bool $auto)`.
-- `ALL_STAGES` constant: `['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract', 'phases_web', 'standards_web', 'master_web', 'pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile', 'agents']`
-- `MOBILE_STAGES`: `['pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile']` — hanya untuk target `both`, gate menunggu `master_web` done.
+- `ALL_STAGES` constant: `['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract', 'standards_web', 'phases_web', 'master_web', 'pertanyaan_mobile', 'standards_mobile', 'phases_mobile', 'master_mobile', 'env_config', 'security', 'deployment', 'observability', 'agents']`
+- `MOBILE_STAGES`: `['pertanyaan_mobile', 'standards_mobile', 'phases_mobile', 'master_mobile']` — hanya untuk target `both`, gate menunggu `master_web` done.
 - Susun `messages`:
   - `system` = template prompt stage (dari `app/Prompts`, dipilih berdasar `stage` + `target`).
   - `user` = konteks: ide + target + stack + jawaban + artefak stage-stage sebelumnya.

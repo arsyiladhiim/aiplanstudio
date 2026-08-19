@@ -543,3 +543,62 @@
 - Perintah/hasil: `php artisan test --filter=PipelineEndToEndSmokeTest` → 3 pass (18 assertions). Full suite 258 pass.
 - Status: [x] CP-11 complete. Final master-repair commit pending.
 
+
+### 2026-08-16 · CP-29 — Vibe Coding Production-Ready (pipeline 18-stage + master prompt ops-ready + produk wiring)
+- Dikerjakan (docs/29-vibe-coding-production-ready-plan.md, semua CP-1..12 ✅):
+  - **Reorder**: `standards_web` sebelum `phases_web` (+mobile) — fix phase roadmap kehilangan grounding standards (B1/B2).
+  - **Ctx chaining**: helper `apiContractBlock()` inject api_contract RICH ke master_web/master_mobile/agents (B3); hapus `mobile_agents` dangling dari master_mobile (B4); `opsDocsBlock()` menyematkan status dokumen operasional.
+  - **4 stage baru**: `env_config`, `security`, `deployment`, `observability` — kolom `versions` baru (migration `2026_08_16_200000_add_ops_docs_to_versions`), prompt files baru di `app/Prompts/`, map `saveArtifact`, contexts baru. ALL_STAGES jadi 18 (14 web / 18 both); `progressCount` sudah optimal (reject api_contract + mobile for web).
+  - **Master prompt §7 Operational Readiness** (web + mobile): env-config.md / security-checklist.md / deployment.md / observability.md WAJIB dibaca agent sebelum build. `phases.php`: `fase7_security` MANDATORY untuk app data user/payment + observability/DR/api_docs wajib produksi.
+  - **Frontend**: mock.ts StageKey/ALL_STAGES 18; colMap fallback+resume; Version type + 4 field; render via catch-all Markdown; Token Usage widget; Skeleton + EmptyState komponen reusable; markdown editor (Edit/Preview toggle) untuk artifact edit; `/templates/[id]` detail page + backend `show` route; export dropdown (MD/ZIP/semua-versi) di project detail; sidebar "Aktivitas"; fix `?tab=tracking` dari LiveProgressWidget.
+  - **Docs sync**: 05-wizard-flow, 06-ai-pipeline, 18-production-readiness (18/14 stage), 26-master-prompt (note mandatory security).
+- Perintah/hasil: pint clean; `php artisan test` 261 pass + 1 pre-existing Socialite flake; `npx tsc --noEmit` clean; `npm run lint` 2 pre-existing CommandPalette (unrelated); rebuild web + restart ep; smoke /new /templates /activities 200 + /api/health ok.
+- Graphify: incremental update → 1431 nodes / 2465 edges / 183 communities; studio + GRAPH_REPORT regenerated.
+- Status: [x] CP-29 complete.
+
+### 2026-08-16 · Fix — Pertanyaan Web retry <5 diam-diam sukses
+- Masalah: stage `pertanyaan`, bila AI terus menghasilkan <5 pertanyaan (mis. 3), `retryPertanyaanForMinimum` setelah 10 retry return `$best` tanpa error → output 3 pertanyaan di-mark `done`. User lihat "kolom 5 kosong" + stage selesai walau belum 10/10.
+- Fix (`app/Services/PipelineRunner.php`):
+  - Loop retry sekarang mengirim **feedback loop** ke AI: output sebelumnya (truncateForContext 800) + instruksi "JANGAN ulangi pertanyaan yang sudah ada, lengkapi total jadi 5-10 UNIK dalam satu blok JSON".
+  - Setelah `MAX_MCQ_RETRIES` (10) masih <5 → **throw RuntimeException** → tertangkap `run()` → SSE `fail` + stage ditandai `error` (bukan diam-diam done).
+- Test: `test_retry_pertanyaan_throws_after_exhausted_when_still_under_min` (stub AiClient selalu 3 pertanyaan → expect throw); `test_retry_pertanyaan_returns_early_when_min_met` tetap pass.
+- Perintah/hasil: pint clean; PipelineRunnerTest 47 pass + 1 skipped; health OK.
+- Status: [x] fix.
+
+### 2026-08-16 · Fix — Master prompt web tidak punya URL tracking + TrackingPanel tak tampil di wizard
+- Masalah: (1) `trackingBlock()` saat token belum dibuat menulis "BELUM AKTIF ... skip webhook" TANPA URL → master prompt yang di-copy tidak punya endpoint → agent tidak bisa lapor progres ("Ditangguhkan: menunggu input user"). (2) TrackingPanel di wizard hanya render bila `phases.length > 0` → di stage master_web/master_mobile (fase belum diisi) kolom tracking tak terlihat.
+- Fix (`app/Services/PipelineRunner.php`): `trackingBlock()` sekarang SELALU menulis URL absolut (`POST <app.url>/api/webhooks/phase-complete`) + header format + checklist checkpoint utk SEMUA tahap (mulai fase1 sampai terakhir), BAIK token ada maupun belum. Tanpa token → tambah instruksi "MINTA user Setup Tracking dulu, JANGAN membangun tanpa lapor progres" (bukan "skip webhook").
+- Fix (`web/src/app/(app)/new/page.tsx`): kondisi render TrackingPanel → `showTrackingPanel && (activeKey === "master_web" || activeKey === "master_mobile" || trackingPhases.length > 0)` — panel selalu tampil di stage master (web/mobile) walau fase kosong, jadi user bisa Setup Tracking + pantau live.
+- Test: `test_master_web_tracking_block_skipped_when_no_token` di-update (expect `phase-complete` + `X-Token-Secret: <SECRET>` + `PERHATIAN: Token tracking BELUM dibuat`); tracking_block 2 pass.
+- Perintah/hasil: pint clean; full suite 262 pass + 1 pre-existing Socialite; tsc/lint clean; rebuild web + restart; health OK; /new 200.
+- Status: [x] fix.
+
+### 2026-08-17 · Fix — Pertanyaan web+mobile: mcqCount fallback teks, retry apply ke mobile, tombol Coba Lagi di klarifikasi
+- Masalah: (1) `mcqCount` hanya paham JSON — AI output teks (numbered list / prosa) dinilai 0 → stage error walau ada ≥5 pertanyaan. (2) retry-minimum hanya untuk `pertanyaan` web, tidak `pertanyaan_mobile`. (3) Tombol "Coba Lagi" tersembunyi untuk stage klarifikasi saat error.
+- Fix:
+  - `AiOutputParser::mcqCount()`: fallback `mcqCountText()` (numbered list + baris ber-"?"), plus `findQuestionsNested()` utk wrapper `response/data/result/payload`.
+  - `PipelineRunner::retryPertanyaanForMinimum(string $content, string $stage)`: dipanggil utk `pertanyaan` + `pertanyaan_mobile`; SSE/log pakai stage sesungguhnya; throw message dibedakan (web/mobile).
+  - `new/page.tsx`: tombol "Coba Lagi" tampil utk klarifikasi (web/mobile) saat error + tetap utk regenerate stage done non-klarifikasi; fallback plain-text `mobileQuestions` utk pertanyaan_mobile (sama pola web).
+- Test baru: `mcq_count_counts_plain_text_questions`, `mcq_count_finds_nested_questions_wrapper`, `retry_pertanyaan_resolves_for_text_output` — 8 test pass.
+- Perintah/hasil: pint clean; full suite 265 pass + 1 pre-existing Socialite; tsc/lint clean (2 CommandPalette pre-existing); rebuild web + restart; health OK; /new 200.
+- Status: [x] fix.
+
+### 2026-08-17 · Fix — MCQ validitas isi (kolom kosong di tengah): web + mobile
+- Masalah: `mcqCount` hanya count array → item rusak (id=array, question/options malformed) ikut lolos → frontend render "4." kosong di tengah list (bukti version 282: 9 raw, idx 3 rusak).
+- Fix (`app/Services/AiOutputParser.php`): `mcqValidCount()` — hitung hanya item valid (id string, question string non-kosong, options array ≥4 dgn tiap option key+text string); `mcqCount()` delegasi ke valid count.
+- Fix (`app/Services/PipelineRunner.php`): `sanitizeMcqData()` buang item rusak + re-index saat `saveArtifact` pertanyaan/pertanyaan_mobile; throw bila tersisa <5 valid.
+- Fix prompt (`pertanyaan.php` + `pertanyaan_mobile.php`): VERIFY 5 point — id/question string utuh, options 5 entri (A-E), 1 recommended, semua recommendation_reason, JSON tak terpotong.
+- Fix frontend (`McqForm.tsx`): skip render item tanpa question string valid / options kosong (guard lapis kedua).
+- Test: mcq_valid_count, save_artifact_filters_invalid_questions, save_artifact_throws_when_below_min, nested wrapper, save clean — PipelineRunnerTest 46 pass.
+- Perintah/hasil: pint clean; full suite 268 pass + 1 pre-existing Socialite; tsc/lint clean; rebuild web + restart; health OK. Live: data 282 → valid 8 → sanitize 8 bersih (q1,q2,q3,q5..q9).
+- Status: [x] fix.
+
+### 2026-08-17 · Fix — CommandPalette lint errors (go TDZ + setHighlight in effect)
+- Masalah: 2 lint error muncul berulang di `web/src/components/CommandPalette.tsx`:
+  - `Cannot access variable before it is declared` (react-hooks/immutability) — `go` (const) dipakai di effect navigasi (line 49/52) SEBELUM deklarasi (line 65).
+  - `Calling setState synchronously within an effect` (react-hooks/set-state-in-effect) — `useEffect(() => setHighlight(0), [q])`.
+- Fix:
+  - `go` diubah `useCallback(..., [router])` dan dipindah KE ATAS (sebelum effect navigasi); tambah `go` ke deps effect, hapus `eslint-disable`.
+  - Hapus effect `setHighlight(0)`; reset highlight pindah ke handler `onChange` input (pola event handler, bukan effect).
+- Perintah/hasil: `npm run lint` → **0 errors** (2 CommandPalette hilang; sisa 2 warning pre-existing MasterPromptViewer); `npx tsc --noEmit` clean; rebuild web + restart; health OK; /new 200.
+- Status: [x] fix.

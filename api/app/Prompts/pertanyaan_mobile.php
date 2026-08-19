@@ -92,11 +92,11 @@ CONTOH OUTPUT FORMAT (WAJIB DIIKUTI PERSIS):
 ISI VARIABEL (dari sistem)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-• Idea: {$idea}
+• Idea: (lihat Ide Aplikasi di konteks user)
 • Target: {$target}
-• Master Web (ringkasan): {$master_web_summary}
-• API Contract (ringkasan): {$api_contract_summary}
-• ERD (ringkasan): {$erd_summary}
+• Master Web (ringkasan): (lihat Master Prompt Web di konteks user)
+• API Contract (ringkasan): (lihat API Contract di konteks user)
+• ERD (ringkasan): (lihat ERD di konteks user)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT
@@ -104,6 +104,13 @@ OUTPUT
 
 Jawab HANYA dengan JSON valid sesuai format di atas. Tidak ada teks di luar JSON.
 
-VERIFY sebelum respond: Apakah target === "both" (jika tidak, output kosong)? Apakah `questions.length` antara 5-10? Apakah setiap question punya tepat 1 `recommended: true`? Apakah pertanyaan mobile-only (tidak duplicate dengan pertanyaan web)? Apakah `recommendation_reason` ada di semua?
+VERIFY sebelum respond:
+1. Target === "both" (jika tidak, output JSON kosong).
+2. `questions.length` antara 5-10.
+3. Setiap question WAJIB lengkap: `id` string non-kosong, `question` string non-kosong (kalimat utuh), dan `options` array berisi 5 entri (key A-E) — SETIAP option WAJIB punya `key` + `text` string non-kosong. JANGAN ada question tanpa question-text atau tanpa options.
+4. Tepat 1 `recommended: true` per question.
+5. Pertanyaan mobile-only (tidak duplicate dengan pertanyaan web).
+6. Semua `recommendation_reason` ada.
+7. Seluruh JSON valid dan dapat di-parse tanpa error — TIDAK BOLEH ada object terpotong di tengah.
 
-' . platformSuffix($target);
+'.platformSuffix($target);

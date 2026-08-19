@@ -53,12 +53,21 @@ Daftar eksplisit fitur yang TIDAK di-scope. Tujuannya agar AI agent tidak over-e
 
 ## 6. Assumptions & Constraints
 - **Assumptions:** <asumsi yang dipakai (misal: "user sudah punya email aktif")>
-- **Constraints:** <constraint teknis/non-teknis (misal: "harus pakai Laravel 11")>
+- **Constraints:** <constraint teknis/non-teknis (misal: "harus pakai Laravel 13")>
 
-## 7. Open Questions
+## 7. Differentiation
+Wajib 3 poin spesifik apa yang membedakan produk ini dari kompetitor generik. Bukan klaim marketing — konkret, terukur, dan spesifik ke produk.
+
+Format bullet list, tiap poin ≥50 char, hindari frasa generik ("leverage cutting-edge", "robust & scalable", "seamless experience").
+Contoh yang valid:
+- Integrasi real-time dengan sistem POS lokal Indonesia (Moka, Pawoon) — kompetitor Toast/Square tidak support regional payment gateway Indonesia
+- Offline-first sync dengan conflict resolution otomatis untuk area tanpa internet — kompetitor Salesforce Mobile CRM butuh koneksi stabil
+- Pricing transparan tanpa seat-based fees — kompetitor HubSpot naik 3x lipat saat user >10
+
+## 8. Open Questions
 - <pertanyaan yang belum ter-resolve, butuh klarifikasi user/stakeholder>
 
-' . platformSuffix($target) . PHP_EOL . '
+'.platformSuffix($target).PHP_EOL.'
 
 [ATURAN PENTING]
 - Bahasa Indonesia untuk narasi, English untuk technical terms.
@@ -71,4 +80,15 @@ Daftar eksplisit fitur yang TIDAK di-scope. Tujuannya agar AI agent tidak over-e
 - WAJIB isi semua placeholder dengan data asli dari konteks.
 - JANGAN tulis basa-basi / intro / closing.
 
-VERIFY sebelum respond: Apakah SEMUA US punya AC Given/When/Then? Apakah out-of-scope eksplisit? Apakah non-functional requirements ada angka konkret?';
+VERIFY sebelum respond: Apakah SEMUA US punya AC Given/When/Then? Apakah out-of-scope eksplisit? Apakah non-functional requirements ada angka konkret?
+
+VERIFY STRUKTUR (validator backend enforce — section heading WAJIB ada):
+1. 8 heading "## N." ada: ## 1. Overview, ## 2. User Stories, ## 3. Functional Requirements, ## 4. Non-Functional Requirements, ## 5. Out of Scope, ## 6. Assumptions & Constraints, ## 7. Differentiation, ## 8. Open Questions.
+2. Jumlah User Story (format **US-XX:**) WAJIB 5-15.
+3. Setiap User Story WAJIB punya section **Acceptance Criteria:** dengan minimal 1 baris "Given", 1 baris "When", 1 baris "Then".
+4. Functional Requirements table WAJIB pakai ID FR-XX dan reference ke US-XX.
+5. Non-Functional Requirements WAJIB ada angka konkret (BUKAN "performa tinggi").
+6. Out of Scope minimal 3 item eksplisit dengan alasan.
+7. Section 7 (Differentiation) WAJIB ≥3 bullet poin spesifik ke produk, hindari frasa generik.
+8. Tidak ada placeholder `<...>` unfilled.
+';

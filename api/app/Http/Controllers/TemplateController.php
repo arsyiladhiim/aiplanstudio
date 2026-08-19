@@ -31,6 +31,16 @@ class TemplateController extends Controller
         return response()->json(Template::create($data), 201);
     }
 
+    public function show(int $id): JsonResponse
+    {
+        $template = Template::whereNull('user_id')->orWhere('user_id', auth()->id())->find($id);
+        if (! $template) {
+            return response()->json(['message' => 'Template tidak ditemukan.'], 404);
+        }
+
+        return response()->json($template);
+    }
+
     public function update(Request $request, int $id): JsonResponse
     {
         $template = Template::find($id);
@@ -102,6 +112,7 @@ class TemplateController extends Controller
                 'description' => "Project \"{$project->title}\" dibuat dari template \"{$template->name}\"",
                 'metadata' => ['template_id' => $template->id],
             ]);
+
             return $project;
         });
 

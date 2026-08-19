@@ -6,9 +6,12 @@ IMPORTANT CONTEXT: Aplikasi web (backend + frontend) SUDAH 100% SELESAI. Mobile 
 
 [STRUKTUR]
 Output format teks terstruktur. JANGAN JSON. Pisahkan tiap fase dengan baris "---".
+WAJIB minimal 5 fase, maksimal 10 fase.
 
 FASE: m_{key} | {title}
 TUJUAN: {tujuan spesifik fase}
+DEPENDENSI: {key fase sebelumnya | tidak ada}
+EFFORT: S | M | L
 TASK: {task detail 1}
 TASK: {task detail 2}
 TASK: {task detail 3}
@@ -18,7 +21,7 @@ MENU: m_{key}_menu_{n} | {judul menu/drawer item} | {parent/navigasi}
 FITUR: m_{key}_fitur_{n} | {judul fitur} | {fungsionalitas}
 FLOW: m_{key}_flow_{n} | {nama user flow} | {step1 → step2 → step3}
 API: m_{key}_api_{n} | {endpoint} | {method} | {deskripsi endpoint web yang dipakai}
-PROMPT: {instruksi lengkap untuk AI coding agent. Minimal 100 kata. Sertakan: setup Flutter, GoRouter, Riverpod state management, Material Design 3, dan kriteria selesai}
+INSTRUKSI: {instruksi lengkap untuk AI coding agent. Minimal 100 kata. Sertakan: setup Flutter, GoRouter, Riverpod state management, Material Design 3, dan kriteria selesai}
 AC: {acceptance criteria}
 
 URUTAN WAJIB FASE MOBILE:
@@ -31,11 +34,12 @@ URUTAN WAJIB FASE MOBILE:
 
 WAJIB:
 - prefix key fase dengan "m_" selalu
-- setiap fase WAJIB PROMPT >= 100 kata
+- setiap fase WAJIB INSTRUKSI >= 100 kata
 - setiap fase WAJIB minimal 3 TASK
 - setiap fase WAJIB AC
 - sebut endpoint API web yang dipakai di tiap fase (di baris API:)
 - Jangan mulai fase sebelum fase sebelumnya selesai
+- fase pertama (m_setup) DEPENDENSI: tidak ada; fase lain DEPENDENSI: fase sebelumnya
 
 [SUB-ITEM CHECKPOINT — WAJIB untuk tracking detail]
 Sesuaikan kategori untuk konteks mobile:
@@ -47,5 +51,7 @@ Sesuaikan kategori untuk konteks mobile:
 - Tidak semua fase punya semua 5 kategori — isi yang relevant. Minimal HALAMAN + FITUR per fase.
 
 ' . platformSuffix($target) . '
+
+VERIFY sebelum respond: apakah urutan fase logis (setup → auth → dashboard → crud → support → build)? Apakah setiap fase punya TASK minimal 3, INSTRUKSI >= 100 kata, dan AC? Apakah format sub-item (m_{key}_halaman_{n}) konsisten? Apakah endpoint API web dicantumkan?
 
 Jawab langsung dengan format yang diminta, tanpa teks lain.';

@@ -100,7 +100,7 @@ Future<Result<UserProfile>> getProfile() async { ... }
 
 $webStandards = '
 ## Tech Stack
-- Backend: Laravel 11 (PHP 8.4) + Sanctum SPA Session
+- Backend: Laravel 13 (PHP 8.3) + Sanctum SPA Session
 - Frontend: Next.js 15 (App Router) + React 19 + TypeScript strict
 - DB: PostgreSQL 16 (3 schemas: master, project, settings)
 - Styling: Tailwind CSS v4 (utility-first, design tokens via CSS vars)
@@ -235,4 +235,14 @@ return fn (string $target) => 'Buat STANDARDS.md untuk proyek ini. Output dalam 
 - Tidak ada intro/closing.
 - Code snippet WAJIB fenced dengan bahasa (```php, ```tsx, ```dart).
 
-VERIFY: Apakah semua section ada code snippet? Apakah "AI Coding Rules" hard constraint? Apakah React 19 / Laravel 11 conventions reflect codebase real?';
+VERIFY: Apakah semua section ada code snippet? Apakah "AI Coding Rules" hard constraint? Apakah React 19 / Laravel 13 conventions reflect codebase real?
+
+VERIFY STRUKTUR (validator backend enforce — code fence + hard rules WAJIB ada):
+1. Code fence bahasa WAJIB ada sesuai target:
+   - Untuk `standards_web`: ```php, ```tsx, ```sql (semua WAJIB ada).
+   - Untuk `standards_mobile`: ```dart (WAJIB ada).
+2. "AI Coding Rules" section WAJIB ada di akhir sebagai numbered list (minimal 10 item `1. ...`).
+3. Setiap section major WAJIB ada minimal 1 code snippet ✅ vs ❌.
+4. Format pakai Bahasa Indonesia untuk penjelasan, English untuk code identifier + technical terms.
+5. Tidak ada placeholder `<...>` unfilled.
+';

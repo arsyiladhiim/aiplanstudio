@@ -9,7 +9,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+use App\Http\Middleware\StatefulSessionConfig;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -25,7 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         $middleware->api(prepend: [
             StartSessionIfStateless::class,
-            EnsureFrontendRequestsAreStateful::class,
+            StatefulSessionConfig::class,
             ThrottleCsrfCookie::class,
             RequestContext::class,
         ]);

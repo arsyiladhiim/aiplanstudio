@@ -59,3 +59,28 @@ export function Label({ className, ...props }: ComponentProps<"label">) {
 
 export { Markdown } from "./Markdown";
 export { Modal } from "./Modal";
+
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={cx("animate-pulse rounded bg-[var(--color-surface-2)]", className)} />;
+}
+
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon?: React.ReactNode;
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-border)] px-6 py-12 text-center">
+      {icon && <div className="mb-3 text-[var(--color-fg-subtle)]">{icon}</div>}
+      <p className="font-medium text-[var(--color-fg)]">{title}</p>
+      {description && <p className="mt-1 max-w-sm text-sm text-[var(--color-fg-muted)]">{description}</p>}
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}

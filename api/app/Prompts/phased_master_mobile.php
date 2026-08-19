@@ -19,7 +19,7 @@ CATATAN KRITIS: Aplikasi WEB (Laravel + Next.js) SUDAH 100% selesai dan berjalan
 
 ## 2. Backend Reference (sudah live — JANGAN buat ulang)
 Backend Laravel + Next.js sudah online. Mobile consume API **DIRECT ke Laravel domain** (TIDAK melalui Next.js/BFF layer apapun — see docs/25-bypass-bff.md):
-- Base URL: <APP_URL/api>  (production: `https://api-aiplanstudio.arsyiladm.my.id/api`)
+- Base URL: <APP_URL/api>  (production: `<api_domain>`)
 - Auth: HttpOnly cookie (TIDAK pakai Bearer header). Mobile pakai cookie manager (dio_cookie_manager).
 - API contract lengkap ada di master prompt web (lihat konteks).
 - Untuk cross-origin (dev `localhost:3000` → `localhost:8000`), backend CORS allowlist + `credentials: "include"` di dio request.
@@ -95,11 +95,12 @@ Untuk SETIAP fase:
 **Acceptance Criteria:**
 - [ ] <AC 1>
 - [ ] <AC 2>
-**Webhook trigger:** Lihat §6.
+**Webhook trigger:** Kirim webhook `running` SAAT MULAI fase, lalu `done` SETELAH fase + semua sub-item selesai (lihat §6). Lakukan untuk SETIAP fase mulai dari fase pertama (m_setup) hingga fase terakhir (m_build).
+
+Lanjutkan untuk SEMUA fase sampai habis. Setelah fase terakhir, tambahkan marker "## SELESAI_ALL".
 
 ## 6. Tracking Webhook (WAJIB per fase + sub-item)
-Sama dengan master prompt web (mobile kirim direct ke Laravel, no Next.js layer):
-- URL: `<APP_URL>/api/webhooks/phase-complete` (production: `https://api-aiplanstudio.arsyiladm.my.id/api/webhooks/phase-complete`)
+Sama dengan master prompt web (mobile kirim direct ke Laravel, no Next.js layer). URL absolut sudah diberikan di konteks (bagian WEBHOOK TRACKING) — gunakan persis dari sana. JANGAN pakai path relative tanpa domain:
 - Headers (WAJIB semua):
   - `Authorization: Bearer <TOKEN>`
   - `X-Token-Secret: <SECRET>`
@@ -110,7 +111,19 @@ Sama dengan master prompt web (mobile kirim direct ke Laravel, no Next.js layer)
 
 `phase_key` HARUS key PERSIS dari daftar fase mobile. JANGAN re-nomor.
 
-## 7. Self-Verify Checklist
+## 7. Operational Readiness (WAJIB baca sebelum build)
+Sebelum menulis kode, BACA dokumen operasional dari wizard (web track sudah selesai):
+- **`env-config.md`** — bagian Mobile (`--dart-define=API_BASE_URL`, APP_ENV, Firebase/FCM, keystore signing).
+- **`security-checklist.md`** — khusus: keystore aman, token session via dio_cookie_manager (JANGAN hardcode), cert pinning bila perlu.
+- **`deployment.md`** — build APK via CI, versi signing, distribusi.
+- **`observability.md`** — crash monitoring (Sentry mobile), structured log.
+
+Aturan:
+- `API_BASE_URL` Wajib HTTPS production (bukan localhost) — dari `--dart-define`.
+- JANGAN hardcode secret/keystore di repo. Pakai env CI + keystore.properties (gitignored).
+- Keystore + signing config WAJIB ikut `deployment.md`.
+
+## 8. Self-Verify Checklist
 - [ ] `flutter analyze` clean
 - [ ] `flutter test` pass
 - [ ] Tidak ada `print()` / `debugPrint()` di production code
@@ -120,12 +133,12 @@ Sama dengan master prompt web (mobile kirim direct ke Laravel, no Next.js layer)
 - [ ] GoRouter guards untuk protected routes
 - [ ] Build APK release sukses tanpa warning
 
-## 8. Output Instructions
+## 9. Output Instructions
 - Jawab HANYA dengan master prompt di atas.
 - WAJIB isi semua placeholder dengan data asli dari konteks pipeline.
 - JANGAN tulis basa-basi.
 - Setiap fase WAJIB punya semua 7 bagian.
 
-' . platformSuffix($target) . PHP_EOL . '
+'.platformSuffix($target).PHP_EOL.'
 
-VERIFY sebelum respond: apakah SEMUA placeholder terisi? Apakah SEMUA fase dari konteks ada? Apakah auth cookie strategy dijelaskan di §2?';
+VERIFY sebelum respond: apakah SEMUA placeholder terisi? Apakah SEMUA fase dari konteks ada? Apakah auth cookie strategy dijelaskan di §2? Apakah marker akhir SELESAI_ALL ada setelah fase terakhir?';

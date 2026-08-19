@@ -84,6 +84,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/projects/{id}/export-all', [ProjectController::class, 'exportAll']);
     Route::post('/versions/{id}/regenerate', [VersionController::class, 'regenerateStage']);
     Route::post('/versions/{id}/restart-from-analisa', [VersionController::class, 'restartFromAnalisa']);
+    Route::post('/versions/{id}/skip-stage', [VersionController::class, 'skipStage']);
     Route::post('/versions/{id}/regenerate-standards', [VersionController::class, 'regenerateStandards']);
     Route::get('/versions/{id}/standards', [VersionController::class, 'downloadStandards']);
     Route::get('/versions/{id}/agents', [VersionController::class, 'downloadAgents']);
@@ -92,6 +93,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::post('/versions/{id}/regenerate-standards/mobile', [VersionController::class, 'regenerateMobileStandards']);
     Route::get('/dashboard/stats', [ProjectController::class, 'dashboardStats']);
     Route::get('/templates', [TemplateController::class, 'index']);
+    Route::get('/templates/{id}', [TemplateController::class, 'show']);
     Route::post('/templates/{id}/instantiate', [TemplateController::class, 'instantiate']);
 
     // AI endpoints — tighter rate limit (expensive calls)

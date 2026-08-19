@@ -12,7 +12,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { Footer } from "@/components/Footer";
 import {
   Sparkles, LayoutDashboard, FolderKanban, Wand2, LayoutTemplate,
-  Settings, Menu, X, Plus, LogOut, Search, Star, Archive, Bell, BellOff,
+  Settings, Menu, X, Plus, LogOut, Search, Star, Archive, Bell, BellOff, History,
 } from "lucide-react";
 
 const LiveProgressWidget = dynamic(
@@ -36,6 +36,7 @@ const nav = [
   { href: "/projects?pinned=1", label: "Favorit", icon: Star },
   { href: "/projects/archived", label: "Arsip", icon: Archive },
   { href: "/new", label: "Buat Plan", icon: Wand2 },
+  { href: "/activities", label: "Aktivitas", icon: History },
   { href: "/templates", label: "Templates", icon: LayoutTemplate },
   { href: "/settings/provider", label: "Settings", icon: Settings, match: "/settings" },
 ];

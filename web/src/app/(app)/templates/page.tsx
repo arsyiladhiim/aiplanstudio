@@ -151,7 +151,10 @@ export default function TemplatesPage() {
                 </div>
                 <h3 className="mt-4 font-semibold">{t.name}</h3>
                 <p className="mt-1 flex-1 text-sm text-[var(--color-fg-muted)]">{t.description}</p>
-                <ButtonLink href={`/new?template=${t.id}`} variant="secondary" size="sm" className="mt-4">
+                <ButtonLink href={`/templates/${t.id}`} variant="ghost" size="sm" className="mt-3">
+                  Lihat Detail <ArrowRight size={15} />
+                </ButtonLink>
+                <ButtonLink href={`/new?template=${t.id}`} variant="secondary" size="sm" className="mt-1">
                   Gunakan Template <ArrowRight size={15} />
                 </ButtonLink>
                 {isAdmin && (

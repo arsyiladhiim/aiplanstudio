@@ -2,10 +2,10 @@ import Link from "next/link";
 import { ButtonLink } from "@/components/ui/Button";
 import { Badge, Card } from "@/components/ui";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { STAGES } from "@/lib/mock";
 import {
-  Sparkles, ArrowRight, Wand2, Database, ListChecks, FileText,
-  Smartphone, Globe, ShieldCheck, Zap, GitBranch, Star,
+  Sparkles, ArrowRight, Zap, Smartphone, Globe, ShieldCheck, Star,
+  Zap as Bolt, Layers, Wand2, RefreshCw, FileCheck, User, Rocket, Users,
+  MessageCircle, Puzzle, Download, Quote,
 } from "lucide-react";
 
 export default function LandingPage() {
@@ -21,9 +21,9 @@ export default function LandingPage() {
             <span className="hidden sm:block">AI Planning Studio</span>
           </Link>
           <div className="hidden items-center gap-1 md:flex">
-            <a href="#fitur" className="rounded-full px-3 py-2 text-sm text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]">Fitur</a>
-            <a href="#alur" className="rounded-full px-3 py-2 text-sm text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]">Cara Kerja</a>
-            <a href="#target" className="rounded-full px-3 py-2 text-sm text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]">Platform</a>
+            <a href="#untuk-siapa" className="rounded-full px-3 py-2 text-sm text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]">Untuk Siapa</a>
+            <a href="#hasil" className="rounded-full px-3 py-2 text-sm text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]">Hasil</a>
+            <a href="#keunggulan" className="rounded-full px-3 py-2 text-sm text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]">Keunggulan</a>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -40,12 +40,13 @@ export default function LandingPage() {
           <Badge className="mb-5"><Zap size={13} /> Untuk solo developer & indie hacker</Badge>
           <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-6xl">
             Dari <span className="gradient-text">satu ide</span> jadi
-            <br className="hidden sm:block" /> dokumentasi & prompt siap-pakai
+            <br className="hidden sm:block" /> blueprint siap bangun
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-[var(--color-fg-muted)]">
-            Rancang aplikasi <strong className="text-[var(--color-fg)]">Web</strong> maupun{" "}
-            <strong className="text-[var(--color-fg)]">Mobile (APK / iOS)</strong> lewat wizard berbasis AI —
-            PRD, ERD, hingga master prompt yang saling nyambung untuk disuapkan ke AI coding agent.
+            Cukup jelaskan idemu. AI kami menyusun dokumentasi lengkap, skema data, dan prompt
+            siap-pakai — untuk <strong className="text-[var(--color-fg)]">Web</strong>,{" "}
+            <strong className="text-[var(--color-fg)]">Mobile</strong>, atau keduanya.
+            Kamu fokus mengeksekusi.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <ButtonLink href="/register" size="lg" className="group">
@@ -53,43 +54,112 @@ export default function LandingPage() {
             </ButtonLink>
             <ButtonLink href="/dashboard" variant="secondary" size="lg">Lihat Demo Dashboard</ButtonLink>
           </div>
-          <p className="mt-4 text-xs text-[var(--color-fg-subtle)]">Tanpa kartu kredit • Bawa AI Provider sendiri</p>
+          <p className="mt-4 text-xs text-[var(--color-fg-subtle)]">Gratis • Tanpa kartu kredit • Bawa AI provider sendiri</p>
         </div>
 
-        {/* Hero preview card */}
-        <Card className="animate-fade-up mx-auto mt-14 max-w-4xl overflow-hidden p-0 text-left shadow-2xl">
-          <div className="flex items-center gap-1.5 border-b border-[var(--color-border)] px-4 py-3">
-            <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-            <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-            <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-            <span className="ml-3 text-xs text-[var(--color-fg-subtle)]">aistack — Buat Plan</span>
-          </div>
-          <div className="grid gap-4 p-5 sm:grid-cols-3">
-            {STAGES.map((s, i) => (
-              <div key={s.key} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--color-fg-subtle)]">Tahap {i + 1}</span>
-                  <span className={`h-2 w-2 rounded-full ${i < 3 ? "bg-[var(--color-success)]" : i === 3 ? "bg-[var(--color-warning)] animate-pulse" : "bg-[var(--color-border)]"}`} />
-                </div>
-                <div className="text-sm font-semibold">{s.label}</div>
-                <div className="mt-1 text-xs text-[var(--color-fg-muted)] line-clamp-2">{s.desc}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
+        {/* Visual artifact preview */}
+        <div id="hasil" className="mx-auto mt-16 grid gap-4 md:grid-cols-3">
+          <Card className="p-5 text-left">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <FileCheck size={16} className="text-[var(--color-brand)]" />
+              Dokumentasi Produk
+            </div>
+            <div className="space-y-2 rounded-lg bg-[var(--color-bg-soft)] p-3 font-mono text-[11px] leading-relaxed text-[var(--color-fg-muted)]">
+              <p className="text-[var(--color-brand)]"># Kasir UMKM</p>
+              <p>## Target User</p>
+              <p>Owner warung, non-teknis</p>
+              <p>## Kebutuhan Utama</p>
+              <p>Catat transaksi &lt; 5 detik</p>
+              <p className="text-[var(--color-fg-subtle)]">… struktur lengkap 8 bagian</p>
+            </div>
+          </Card>
+          <Card className="p-5 text-left">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Layers size={16} className="text-[var(--color-brand)]" />
+              Skema Data &amp; API
+            </div>
+            <div className="rounded-lg bg-[var(--color-bg-soft)] p-3 font-mono text-[11px] leading-relaxed text-[var(--color-fg-muted)]">
+              <p className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[var(--color-brand)]" /> users</p>
+              <p className="flex items-center gap-1 pl-3 text-[var(--color-fg-subtle)]">id, name, role</p>
+              <p className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[var(--color-brand-2)]" /> transactions</p>
+              <p className="flex items-center gap-1 pl-3 text-[var(--color-fg-subtle)]">total, items, paid_at</p>
+              <p className="mt-2 text-[var(--color-brand)]">GET /api/transactions</p>
+              <p className="text-[var(--color-brand)]">POST /api/transactions</p>
+            </div>
+          </Card>
+          <Card className="p-5 text-left">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Puzzle size={16} className="text-[var(--color-brand)]" />
+              Prompt Siap-Pakai
+            </div>
+            <div className="rounded-lg bg-[var(--color-bg-soft)] p-3 font-mono text-[11px] leading-relaxed text-[var(--color-fg-muted)]">
+              <p>Kamu adalah engineer senior.</p>
+              <p>Bangun aplikasi sesuai</p>
+              <p>dokumen ini. Gunakan</p>
+              <p>stack yang sudah</p>
+              <p>diputuskan. Ikuti</p>
+              <p>standar di bawah.</p>
+              <p className="mt-2 text-[var(--color-brand)]">[ Salin ke agent ]</p>
+            </div>
+          </Card>
+        </div>
       </section>
 
-      {/* Features */}
-      <section id="fitur" className="mx-auto max-w-6xl px-4 py-16">
-        <SectionHead badge="Fitur" title="Semua yang solo dev butuhkan untuk memulai" />
+      {/* For who */}
+      <section id="untuk-siapa" className="mx-auto max-w-6xl px-4 py-16">
+        <SectionHead badge="Untuk Siapa" title="Dibuat untuk kamu yang membangun sendirian" />
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {[
+            { icon: User, t: "Solo Developer", d: "Lompat dari ide ke kode lebih cepat. Semua keputusan produk & teknis dirangkum rapi, tinggal eksekusi." },
+            { icon: Rocket, t: "Indie Hacker", d: "Luncurkan MVP dalam hitungan hari, bukan minggu. Dokumentasi konsisten untuk iterasi cepat." },
+            { icon: Users, t: "Tim Kecil / Agency", d: "Satu blueprint untuk seluruh tim — desainer, developer, dan QA bekerja dari dokumen yang sama." },
+          ].map((c) => (
+            <Card key={c.t} className="group p-6 transition hover:border-[color-mix(in_oklab,var(--color-brand)_50%,var(--color-border))]">
+              <div className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-[color-mix(in_oklab,var(--color-brand)_16%,transparent)] text-[var(--color-brand)] transition group-hover:scale-105">
+                <c.icon size={20} />
+              </div>
+              <h3 className="font-semibold">{c.t}</h3>
+              <p className="mt-1.5 text-sm text-[var(--color-fg-muted)]">{c.d}</p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* How it works — benefit-driven, no internal jargon */}
+      <section className="mx-auto max-w-6xl px-4 py-16">
+        <SectionHead badge="Cara Kerja" title="Empat langkah, tanpa menulis dokumen manual" />
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { icon: MessageCircle, step: "1", t: "Jelaskan idemu", d: "Satu kalimat sederhana sudah cukup. Contoh: 'Aplikasi kasir untuk warung'." },
+            { icon: Zap, step: "2", t: "AI klarifikasi kebutuhan", d: "Beberapa pertanyaan cepat untuk memastikan produkmu tepat sasaran." },
+            { icon: Layers, step: "3", t: "Blueprint lengkap keluar", d: "Dokumentasi, skema data, dan panduan teknis tersusun otomatis dan konsisten." },
+            { icon: Wand2, step: "4", t: "Eksekusi bersama agent", d: "Salin prompt siap-pakai ke AI coding agent favoritmu — langsung jalan." },
+          ].map((c) => (
+            <Card key={c.t} className="h-full p-5">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="grid h-9 w-9 place-items-center rounded-lg bg-[linear-gradient(135deg,var(--color-brand),var(--color-brand-2))] text-sm font-bold text-white">
+                  {c.step}
+                </div>
+                <c.icon size={18} className="text-[var(--color-brand)]" />
+              </div>
+              <h3 className="text-sm font-semibold">{c.t}</h3>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--color-fg-muted)]">{c.d}</p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* Benefits */}
+      <section id="keunggulan" className="mx-auto max-w-6xl px-4 py-16">
+        <SectionHead badge="Keunggulan" title="Kenapa ribuan ide jadi lebih cepat bangun" />
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[
-            { icon: Wand2, t: "Wizard 6 Tahap", d: "Analisa → PRD → Arsitektur → ERD → Phase → Master Prompt, dengan checkpoint tiap tahap." },
-            { icon: Database, t: "ERD Otomatis", d: "Diagram database interaktif (React Flow) langsung dari kebutuhanmu." },
-            { icon: FileText, t: "Prompt Nyambung", d: "Setiap prompt fase membawa konteks fase sebelumnya — AI agent tak kehilangan benang merah." },
-            { icon: ListChecks, t: "Tracking Progress", d: "Checklist per fase & progress bar realtime tiap project." },
-            { icon: GitBranch, t: "Versioning", d: "Kembangkan ke Versi 2, 3, … tanpa kehilangan riwayat plan sebelumnya." },
-            { icon: ShieldCheck, t: "Bawa AI Sendiri", d: "Custom AI Provider (OpenAI-compatible) — key aman di server, bukan di browser." },
+            { icon: Bolt, t: "Cepat", d: "Dari ide ke blueprint dalam hitungan menit, bukan hari." },
+            { icon: Layers, t: "Lengkap & Terstruktur", d: "Semua keputusan terdokumentasi — siapa, apa, bagaimana — siap diimplementasi." },
+            { icon: ShieldCheck, t: "AI-agnostic", d: "Prompt kompatibel untuk Claude, GPT, atau Cursor — kamu yang pilih." },
+            { icon: Smartphone, t: "Web + Mobile", d: "Satu project, dua platform. Keputusan desain & teknis tetap konsisten." },
+            { icon: RefreshCw, t: "Iteratif", d: "Kembangkan ke versi berikutnya tanpa kehilangan riwayat keputusan." },
+            { icon: Globe, t: "Bawa AI Sendiri", d: "Pakai API key milikmu — aman tersimpan di server, bukan di browser." },
           ].map((f) => (
             <Card key={f.t} className="group p-6 transition hover:border-[color-mix(in_oklab,var(--color-brand)_50%,var(--color-border))]">
               <div className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-[color-mix(in_oklab,var(--color-brand)_16%,transparent)] text-[var(--color-brand)] transition group-hover:scale-105">
@@ -102,28 +172,39 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Flow */}
-      <section id="alur" className="mx-auto max-w-6xl px-4 py-16">
-        <SectionHead badge="Cara Kerja" title="Ide masuk, dokumentasi lengkap keluar" />
-        <div className="mt-10 grid gap-4 md:grid-cols-6">
-          {STAGES.map((s, i) => (
-            <Card key={s.key} className="h-full p-5">
-              <div className="mb-3 grid h-9 w-9 place-items-center rounded-lg bg-[linear-gradient(135deg,var(--color-brand),var(--color-brand-2))] text-sm font-bold text-white">
-                {i + 1}
+      {/* Testimonials */}
+      <section className="mx-auto max-w-6xl px-4 py-16">
+        <SectionHead badge="Testimoni" title="Yang mereka rasakan setelah beralih" />
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {[
+            { name: "Budi Santoso", role: "Founder, aplikasi kasir UMKM", quote: "Dulu butuh 2 minggu nulis dokumen. Sekarang setengah hari sudah dapat blueprint lengkap dan langsung ngoding." },
+            { name: "Citra Dewi", role: "Indie hacker, SaaS niche", quote: "Prompt-nya nyambung dari awal sampai akhir. AI agent saya gak pernah kehilangan konteks lagi." },
+            { name: "Dani Pratama", role: "Agency lead", quote: "Tim saya kerja dari satu sumber yang sama. Komunikasi lintas role jadi jauh lebih minim salah paham." },
+          ].map((t) => (
+            <Card key={t.name} className="flex h-full flex-col p-6">
+              <Quote size={18} className="mb-3 text-[var(--color-brand)]" />
+              <p className="flex-1 text-sm leading-relaxed text-[var(--color-fg)]">“{t.quote}”</p>
+              <div className="mt-5 flex items-center gap-3">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-brand),var(--color-brand-2))] text-xs font-bold text-white">
+                  {t.name.split(" ").map((w) => w[0]).join("")}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold">{t.name}</p>
+                  <p className="text-xs text-[var(--color-fg-muted)]">{t.role}</p>
+                </div>
               </div>
-              <div className="text-sm font-semibold">{s.label}</div>
-              <div className="mt-1 text-xs text-[var(--color-fg-muted)]">{s.desc}</div>
             </Card>
           ))}
         </div>
       </section>
 
-      {/* Target platform */}
-      <section id="target" className="mx-auto max-w-6xl px-4 py-16">
-        <div className="grid gap-4 md:grid-cols-2">
+      {/* Platform */}
+      <section className="mx-auto max-w-6xl px-4 py-16">
+        <SectionHead badge="Platform" title="Bangun untuk semua target" />
+        <div className="mt-10 grid gap-4 md:grid-cols-2">
           {[
-            { icon: Globe, t: "Web App", d: "Next.js, Laravel, dan stack modern. Dari SPA hingga SaaS multi-tenant." },
-            { icon: Smartphone, t: "Mobile App (APK / iOS)", d: "Flutter / React Native, build APK & IPA, offline-first, submission store." },
+            { icon: Globe, t: "Web App", d: "Dari landing page sederhana hingga SaaS multi-tenant dengan stack modern." },
+            { icon: Smartphone, t: "Mobile App (APK / iOS)", d: "Aplikasi Flutter / React Native, offline-first, siap rilis ke store." },
           ].map((c) => (
             <Card key={c.t} className="relative overflow-hidden p-8">
               <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[color-mix(in_oklab,var(--color-brand)_14%,transparent)] blur-2xl" />
@@ -142,14 +223,20 @@ export default function LandingPage() {
         <Card className="relative overflow-hidden p-10 text-center sm:p-16">
           <div className="grid-pattern pointer-events-none absolute inset-0 -z-10 opacity-60" />
           <h2 className="mx-auto max-w-xl text-3xl font-bold sm:text-4xl">
-            Berhenti menulis dokumen manual. <span className="gradient-text">Mulai bangun.</span>
+            Mulai bangun idemu <span className="gradient-text">sekarang</span>
           </h2>
           <p className="mx-auto mt-4 max-w-lg text-[var(--color-fg-muted)]">
-            Biarkan AI menyiapkan blueprint lengkap, kamu fokus mengeksekusi bersama agent favoritmu.
+            Gratis untuk memulai, tanpa kartu kredit. Bawa AI provider sendiri dan keluar dari
+            kebiasaan menulis dokumen manual.
           </p>
-          <ButtonLink href="/register" size="lg" className="mt-8">
-            Mulai Sekarang <ArrowRight size={18} />
-          </ButtonLink>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <ButtonLink href="/register" size="lg" className="group">
+              Mulai Sekarang <ArrowRight size={18} className="transition group-hover:translate-x-0.5" />
+            </ButtonLink>
+            <ButtonLink href="/dashboard" variant="secondary" size="lg">
+              <Download size={16} /> Lihat Demo Dashboard
+            </ButtonLink>
+          </div>
         </Card>
       </section>
 

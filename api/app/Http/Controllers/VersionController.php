@@ -258,14 +258,37 @@ class VersionController extends Controller
                 $zip = new ZipArchive;
                 $tmpPath = tempnam(sys_get_temp_dir(), 'export').'.zip';
                 $zip->open($tmpPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+                $artifactFiles = [
+                    'pertanyaan.json' => $version->pertanyaan,
+                    'analisa.md' => $version->analysis,
+                    'prd.md' => $version->prd,
+                    'architecture.md' => $version->architecture,
+                    'erd.json' => $version->erd ? json_encode($version->erd, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : null,
+                    'api-contract.json' => $version->api_contract ? json_encode($version->api_contract, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : null,
+                    'design-system.md' => $version->design_system,
+                    'design-system-mobile.md' => $version->design_system_mobile,
+                    'app-spec-web.json' => $version->app_spec_web ? json_encode($version->app_spec_web, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : null,
+                    'app-spec-mobile.json' => $version->app_spec_mobile ? json_encode($version->app_spec_mobile, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : null,
+                    'standards.md' => $version->standards,
+                    'mobile-standards.md' => $version->mobile_standards,
+                    'master-prompt.md' => $version->master_prompt,
+                    'mobile-master-prompt.md' => $version->mobile_master_prompt,
+                    'env-config.md' => $version->env_config,
+                    'security.md' => $version->security,
+                    'deployment.md' => $version->deployment,
+                    'observability.md' => $version->observability,
+                    'agents.md' => $version->agents,
+                    'mobile-agents.md' => $version->mobile_agents,
+                ];
+
+                foreach ($artifactFiles as $name => $content) {
+                    if (! empty($content)) {
+                        $zip->addFromString($name, is_string($content) ? $content : $content);
+                    }
+                }
+
                 $zip->addFromString("{$projectTitle}-v{$v}.md", $this->buildMarkdown($version));
-                $zip->addFromString('erd.json', json_encode($version->erd ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-                if ($version->mobile_standards) {
-                    $zip->addFromString('mobile-standards.md', $version->mobile_standards);
-                }
-                if ($version->mobile_agents) {
-                    $zip->addFromString('mobile-agents.md', $version->mobile_agents);
-                }
                 $zip->close();
 
                 readfile($tmpPath);
@@ -326,6 +349,30 @@ class VersionController extends Controller
             $lines[] = '';
         }
 
+        if ($v->design_system) {
+            $lines[] = '## Design System';
+            $lines[] = $v->design_system;
+            $lines[] = '';
+        }
+
+        if ($v->design_system_mobile) {
+            $lines[] = '## Design System Mobile (Flutter)';
+            $lines[] = $v->design_system_mobile;
+            $lines[] = '';
+        }
+
+        if ($v->app_spec_web) {
+            $lines[] = '## App Spec Web';
+            $lines[] = '```json'.PHP_EOL.json_encode($v->app_spec_web, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL.'```';
+            $lines[] = '';
+        }
+
+        if ($v->app_spec_mobile) {
+            $lines[] = '## App Spec Mobile';
+            $lines[] = '```json'.PHP_EOL.json_encode($v->app_spec_mobile, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL.'```';
+            $lines[] = '';
+        }
+
         if ($v->pertanyaan_mobile || $v->mobile_answers) {
             $lines[] = '## Pertanyaan Mobile (klarifikasi)';
             $lines[] = $v->pertanyaan_mobile ?? '_Belum ada_';
@@ -370,6 +417,14 @@ class VersionController extends Controller
             $lines[] = $v->mobile_agents ?? '_Belum ada_';
         }
 
+        foreach (['env_config' => 'Env & Config', 'security' => 'Security', 'deployment' => 'Deployment', 'observability' => 'Observability', 'agents' => 'Agents'] as $field => $label) {
+            if ($v->{$field}) {
+                $lines[] = '';
+                $lines[] = "## {$label}";
+                $lines[] = $v->{$field};
+            }
+        }
+
         return implode(PHP_EOL, $lines);
     }
 
@@ -392,12 +447,20 @@ class VersionController extends Controller
             'architecture' => 'architecture',
             'erd' => 'erd',
             'api_contract' => 'api_contract',
+            'design_system' => 'design_system',
+            'design_system_mobile' => 'design_system_mobile',
+            'app_spec_web' => 'app_spec_web',
+            'app_spec_mobile' => 'app_spec_mobile',
             'phases_web' => 'phases',
             'standards_web' => 'standards',
             'master_web' => 'master_prompt',
             'phases_mobile' => 'mobile_phases',
             'standards_mobile' => 'mobile_standards',
             'master_mobile' => 'mobile_master_prompt',
+            'env_config' => 'env_config',
+            'security' => 'security',
+            'deployment' => 'deployment',
+            'observability' => 'observability',
             'agents' => 'agents',
         ];
 
@@ -431,7 +494,7 @@ class VersionController extends Controller
             ->with('project')
             ->findOrFail((int) $otherId);
 
-        $fields = ['pertanyaan', 'answers', 'analysis', 'prd', 'architecture', 'erd', 'api_contract', 'phases', 'standards', 'master_prompt', 'agents',
+        $fields = ['pertanyaan', 'answers', 'analysis', 'prd', 'architecture', 'erd', 'api_contract', 'design_system', 'design_system_mobile', 'app_spec_web', 'app_spec_mobile', 'phases', 'standards', 'master_prompt', 'env_config', 'security', 'deployment', 'observability', 'agents',
             'pertanyaan_mobile', 'mobile_answers', 'mobile_phases', 'mobile_standards', 'mobile_master_prompt', 'mobile_agents'];
         $labels = [
             'pertanyaan' => 'Pertanyaan',
@@ -441,9 +504,17 @@ class VersionController extends Controller
             'architecture' => 'Arsitektur',
             'erd' => 'ERD',
             'api_contract' => 'API Contract',
+            'design_system' => 'Design System',
+            'design_system_mobile' => 'Design System Mobile',
+            'app_spec_web' => 'App Spec Web',
+            'app_spec_mobile' => 'App Spec Mobile',
             'phases' => 'Phase Breakdown',
             'standards' => 'Standards',
             'master_prompt' => 'Master Prompt',
+            'env_config' => 'Env & Config',
+            'security' => 'Security',
+            'deployment' => 'Deployment',
+            'observability' => 'Observability',
             'agents' => 'Agents',
             'pertanyaan_mobile' => 'Pertanyaan Mobile',
             'mobile_answers' => 'Jawaban Mobile',
@@ -785,6 +856,9 @@ class VersionController extends Controller
         try {
             $stream = fopen('php://memory', 'w+');
             $runner = new PipelineRunner($version->fresh(['project']), $client, $stream);
+            $resetDependents = $runner->invalidateDependents($stage);
+            $version->refresh();
+            $runner = new PipelineRunner($version->fresh(['project']), $client, $stream);
             $runner->run($stage, true);
             rewind($stream);
             $sse = stream_get_contents($stream);
@@ -826,5 +900,43 @@ class VersionController extends Controller
                 'message' => 'Gagal meregenerasi stage. State dikembalikan ke sebelum regenerate.',
             ], 500);
         }
+    }
+
+    public function skipStage(Request $request, int $id): JsonResponse
+    {
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
+            ->findOrFail($id);
+
+        $data = $request->validate([
+            'stage' => ['required', 'string', 'in:'.implode(',', Version::ALL_STAGES)],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+        $stage = $data['stage'];
+
+        $status = $version->stage_status ?? [];
+        if (($status[$stage] ?? 'pending') === 'done') {
+            return response()->json(['ok' => false, 'message' => "Stage {$stage} sudah selesai, tidak bisa di-skip."], 422);
+        }
+
+        $reasons = $version->skip_reasons ?? [];
+        $reasons[$stage] = trim($data['reason']);
+
+        $version->stage_status = array_merge($status, [$stage => 'done']);
+        $version->skip_reasons = $reasons;
+        $version->save();
+
+        $version->project->logActivity(
+            Activity::ACTION_REGENERATE_STAGE,
+            "Skip stage {$stage} di v{$version->version_no}",
+            $version->id,
+            ['stage' => $stage, 'reason' => trim($data['reason'])],
+        );
+
+        return response()->json([
+            'ok' => true,
+            'stage' => $stage,
+            'status' => 'done',
+            'skipped' => true,
+        ]);
     }
 }

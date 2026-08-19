@@ -25,6 +25,7 @@ interface DashboardStats {
     updated_at: string;
     progress?: number;
     stage_count?: number;
+    originality_score?: number | null;
     latest_version_id?: number | null;
   }>;
   recent_activities: Activity[];
@@ -144,6 +145,23 @@ export default function DashboardPage() {
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
                       <div className="h-full rounded-full bg-[var(--color-brand)] transition-all" style={{ width: `${(p.progress / p.stage_count) * 100}%` }} />
                     </div>
+                  </div>
+                )}
+                {typeof p.originality_score === "number" && (
+                  <div className="mt-2 flex items-center justify-between text-xs">
+                    <span className="text-[var(--color-fg-muted)]">Kualitas Output</span>
+                    <span
+                      title="Skor kualitas aggregated dari semua artifact"
+                      className={`rounded-full px-1.5 py-0.5 font-medium ${
+                        p.originality_score >= 80
+                          ? "bg-[var(--color-success)]/15 text-[var(--color-success)]"
+                          : p.originality_score >= 60
+                            ? "bg-[var(--color-warning)]/15 text-[var(--color-warning)]"
+                            : "bg-[var(--color-danger)]/15 text-[var(--color-danger)]"
+                      }`}
+                    >
+                      {p.originality_score}
+                    </span>
                   </div>
                 )}
               </Card>

@@ -3,7 +3,7 @@
 > Lihat juga: [06-ai-pipeline](06-ai-pipeline.md) · [04-api-contract](04-api-contract.md) · [08-frontend](08-frontend.md)
 
 ## Prinsip
-- **Wizard 14 tahap** (target `both`) / **10 tahap** (target `web`) — semua tahap dijalankan **per-stage manual** (tanpa auto-run): setelah setiap tahap selesai, user meninjau lalu klik **Approve & Lanjut** (atau Analisa Ulang / Edit inline).
+- **Wizard 18 tahap** (target `both`) / **14 tahap** (target `web`) — semua tahap dijalankan **per-stage manual** (default; toggle "Auto" di checkpoint bar untuk auto-advance antar tahap non-MCQ): setelah setiap tahap selesai, user meninjau lalu klik **Approve & Lanjut** (atau Analisa Ulang / Edit inline). Stage akhir menghasilkan dokumen operasional: `env_config`, `security`, `deployment`, `observability`.
 - Untuk target `both`, mobile track (stage 10-13) menghasilkan phases, standards, agents & master prompt untuk platform mobile. Mobile track menunggu web track (`master_web`) selesai (gate), dan wizard meminta **konfirmasi** bila tracking fase web belum selesai.
 
 ## Input Awal
@@ -25,19 +25,23 @@ Sebelum tahap 1, user isi:
 | 4 | `architecture` | Arsitektur & Tech Stack | PRD, target | `architecture` | Render via `ArchitectureView` (section cards + ASCII diagram preservation). |
 | 5 | `erd` | ERD + API Contract | PRD, arsitektur | `erd` (jsonb) + `api_contract` (jsonb) | Render via `ErdTabs` (3 tabs: Diagram \| API \| Tables). Diagram pakai **React Flow** dengan table nodes (PK/FK badges) + animated edges berlabel relasi. API tab pakai `ApiEndpointList`. |
 | ~~6~~ | ~~`api_contract`~~ | ~~API Contract~~ | ~~PRD, arsitektur, ERD~~ | `api_contract` (jsonb, array endpoint) | **DEPRECATED sebagai wizard stage (CP-10).** Backend tetap jalan, output tetap di-save, viewer absorbed ke tab API di stage `erd`. |
-| 6 | `phases_web` | Web Phases | standards, agents, PRD, arsitektur, ERD | `phases` (jsonb) | Render via `PhasesView` (dual JSON + markdown `FASE:` format + effort badges S/M/L). |
-| 7 | `standards_web` | Web Standards | PRD, arsitektur, ERD | `standards` | Render via `StandardsView` (code snippet cards dengan copy button). |
-| 8 | `master_web` | Master Prompt Web | standards, agents, analisa, PRD, arsitektur, ERD | `master_prompt` | Render via `MasterPromptViewer` (section accordion + inline edit + download .md). Auto-open modal setelah SSE `done` event. Embeds `SetupTrackingCard`. |
+| 6 | `standards_web` | Web Standards | PRD, arsitektur, ERD | `standards` | STANDARDS.md web — sebelum phases agar roadmap ter-grounding. Render via `StandardsView`. |
+| 7 | `phases_web` | Web Phases | standards, PRD, arsitektur, ERD | `phases` (jsonb) | Render via `PhasesView` (dual JSON + markdown `FASE:` format + effort badges S/M/L). |
+| 8 | `master_web` | Master Prompt Web | standards, analisa, PRD, arsitektur, ERD, api_contract | `master_prompt` | Render via `MasterPromptViewer` (section accordion + inline edit + download .md). Auto-open modal setelah SSE `done` event. Embeds `SetupTrackingCard`. |
 | 9 | `pertanyaan_mobile` | Mobile Klarifikasi (MCQ) | master_web, api_contract, erd | `pertanyaan_mobile` + `mobile_answers` | **Hanya target both.** Gate `master_web` done. Skip rule: return empty JSON kalau target !== "both". |
 | 10 | `phases_mobile` | Mobile Phases | mobile_standards, PRD, arsitektur, ERD, master_web | `mobile_phases` (jsonb) | **Hanya target both.** |
 | 11 | `standards_mobile` | Mobile Standards | PRD, arsitektur, ERD, master_web | `mobile_standards` | STANDARDS.md mobile |
-| 12 | `master_mobile` | Master Prompt Mobile | mobile_standards, mobile_agents, analisa, PRD, arsitektur, ERD, master_web | `mobile_master_prompt` | Self-contained master prompt mobile. Auto-open modal setelah done. |
-| 13 | `agents` | AI Agent Spec | master_web (+ master_mobile jika both) | `agents` | Render via `AgentsView` (role cards dengan handoff arrows). |
+| 12 | `master_mobile` | Master Prompt Mobile | mobile_standards, analisa, PRD, arsitektur, ERD, master_web | `mobile_master_prompt` | Self-contained master prompt mobile. Auto-open modal setelah done. |
+| 13 | `env_config` | Env & Config | PRD, arsitektur, api_contract, master_web | `env_config` | Dokumen `.env.example` + env var per platform (web/mobile). |
+| 14 | `security` | Security Checklist | PRD, arsitektur, api_contract, ops docs | `security` | OWASP checklist production-ready. |
+| 15 | `deployment` | Deployment Guide | arsitektur, env_config | `deployment` | Docker Compose + Cloudflare Tunnel + backup/rollback. |
+| 16 | `observability` | Observability & Runbook | arsitektur, env_config, deployment | `observability` | Health/Sentry/runbook. |
+| 17 | `agents` | AI Agent Spec | master_web (+ master_mobile jika both) + ops docs | `agents` | Render via `AgentsView` (role cards dengan handoff arrows). |
 
 **Wizard Stages per Version** (frontend `getStages()`):
-- target `web` → 10 stages visible (1-8 + 13).
-- target `both` → 13 stages visible (1-12 + 13).
-- `api_contract` (CP-10) tidak visible di kedua target.
+- target `web` → 14 stages visible (web track + ops docs + agents).
+- target `both` → 18 stages visible (web + mobile + ops docs + agents).
+- `api_contract` (CP-10) tidak visible di kedua target (collapsed ke tab ERD).
 
 ### Stage Keys (PipelineRunner backend order)
 ```
@@ -93,7 +97,7 @@ Setelah tiap stage `done`, wizard berhenti (tanpa auto-run). User dapat:
 
 > **CP-12 note:** Mobile track (Flutter) consume API **direct** ke Laravel domain (TIDAK melalui Next.js/BFF layer apapun). Backend reference sudah live dan mobile adalah client-only. Cookie manager di dio (`dio_cookie_manager`) handle HttpOnly session cookie + CSRF. Detail cross-origin setup: `docs/25-bypass-bff.md` (Sanctum stateful domain + CORS allowlist).
 
-`Both` → dua jalur: tahap 1-9 untuk web, tahap 10-13 khusus mobile (pertanyaan_mobile, phases, standards, master), lalu tahap 14 `agents`. Gate: mobile menunggu `master_web` done.
+`Both` → dua jalur: tahap 1-12 untuk web+mobile track, lalu tahap 13-16 dokumen operasional (env_config, security, deployment, observability), lalu tahap 17 `agents`. Gate: mobile track menunggu `master_web` done.
 
 ## Versi & Pengembangan Lanjutan (R1)
 - **Versi Baru (default `from_last`)**: menyalin artefak, jawaban, `answers`/`mobile_answers` & `stage_status` dari versi terakhir → **revisi/pengembangan lanjut**, bukan mulai dari nol. Kolom `source_version_id` + `baseline_notes` mencatat asal.

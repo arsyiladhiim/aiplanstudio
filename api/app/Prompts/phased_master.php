@@ -85,7 +85,7 @@ Untuk SETIAP fase, gunakan template ini:
 - [ ] <AC 1 — measurable>
 - [ ] <AC 2 — measurable>
 - [ ] <AC 3 — measurable>
-**Webhook trigger:** Setelah SEMUA sub-items + fase selesai, kirim webhook `done` (lihat §6).
+**Webhook trigger:** Kirim webhook `running` SAAT MULAI fase (sebelum kode ditulis), lalu webhook `done` SETELAH fase + semua sub-item selesai (lihat §6). Lakukan untuk SETIAP fase mulai dari fase pertama (`fase1_setup`) hingga fase terakhir (`faseN_deploy`) — dari awal hingga akhir, agar seluruh progress detail tercatat di website.
 
 Lanjutkan untuk SEMUA fase sampai habis. Setelah fase terakhir, tambahkan marker "## SELESAI_ALL".
 
@@ -99,8 +99,7 @@ Lanjutkan untuk SEMUA fase sampai habis. Setelah fase terakhir, tambahkan marker
 - Commit message: Conventional Commits (`feat:`, `fix:`, `chore:`)
 
 ## 6. Tracking Webhook (WAJIB per fase + sub-item)
-Setelah SETIAP fase selesai, kirim HTTP POST:
-- URL: `/api/webhooks/phase-complete` (atau env `APP_URL`)
+Setelah SETIAP fase selesai, kirim HTTP POST ke endpoint webhook. URL absolut sudah diberikan di konteks (bagian WEBHOOK TRACKING) — gunakan persis dari sana (contoh: `https://api-aiplanstudio.arsyiladm.my.id/api/webhooks/phase-complete`). JANGAN pakai path relative tanpa domain.
 - Headers (case-sensitive, semua WAJIB):
   - `Authorization: Bearer <TOKEN>`
   - `X-Token-Secret: <SECRET>`
@@ -124,7 +123,20 @@ PENTING:
 - Status: `running` saat mulai, `done` saat selesai, `error` saat gagal.
 - Hanya LANJUT fase berikutnya setelah webhook `done` untuk fase saat ini sukses.
 
-## 7. Self-Verify Checklist (jalankan sebelum commit)
+## 7. Operational Readiness (WAJIB baca sebelum build — artefak dari stage terpisah)
+Sebelum menulis kode, BACA dokumen operasional yang sudah di-generate wizard:
+- **`env-config.md`** — semua env var (APP_KEY, DB, Redis, SESSION, Sanctum, MAIL, OAuth, integrasi eksternal) + `.env.example`. Isi `.env` produksi dari sini.
+- **`security-checklist.md`** — OWASP: auth/session, RBAC, input validation, XSS/headers, rate-limit, secret hygiene. WAJIB checklist lulus sebelum rilis.
+- **`deployment.md`** — Docker Compose + Cloudflare Tunnel (no exposed ports), DNS/TLS, `pg_dump` backup + restore-verify, rollback image tag, zero-downtime.
+- **`observability.md`** — `/api/health`, Sentry, structured log (request_id), uptime SLO, runbook root-cause.
+
+Aturan:
+- Jangan hardcode secret di kode. Ambil dari env (`.env`) — di-render Laravel via `env()` / `config()`.
+- `APP_DEBUG=false` + HTTPS (`SECURE_COOKIE`, HSTS) saat produksi.
+- Buat `docker/` (compose), `cloudflared` config, dan `.github/workflows/` (CI build/deploy) persis seperti di `deployment.md`.
+- Untuk tiap fitur yang handle data user / pembayaran: WAJIB implementasikan item di `security-checklist.md` + tambahkan `fase_observability` / `fase_dr` / `fase_api_docs` di roadmap (lihat §4).
+
+## 8. Self-Verify Checklist (jalankan sebelum commit)
 - [ ] `php artisan test` pass
 - [ ] `npm run lint && npx tsc --noEmit` clean
 - [ ] Tidak ada `console.log` / `dd()` / `var_dump` tertinggal
@@ -133,14 +145,14 @@ PENTING:
 - [ ] CSRF cookie aktif untuk semua POST/PATCH/DELETE
 - [ ] `.env.example` ter-update jika ada env baru
 
-## 8. Output Instructions
+## 9. Output Instructions
 - Jawab HANYA dengan master prompt di atas (text, bukan JSON).
 - WAJIB isi semua placeholder `<...>` dengan data asli dari konteks pipeline.
 - JANGAN tulis basa-basi, intro, atau closing — langsung ke `# <NAMA_PROYEK> — Master Build Prompt`.
 - Setiap fase WAJIB punya semua 7 bagian (Tujuan/Effort/Files/Tasks/Sub-items/Instruksi/AC).
 
-' . ($target === 'both'
+'.($target === 'both'
     ? 'CATATAN: Proyek ini juga akan membangun MOBILE (Flutter/Android) di master prompt terpisah. Master prompt ini fokus WEB ONLY.'
-    : 'Target: WEB ONLY.') . PHP_EOL . platformSuffix($target) . PHP_EOL . '
+    : 'Target: WEB ONLY.').PHP_EOL.platformSuffix($target).PHP_EOL.'
 
 VERIFY sebelum respond: apakah SEMUA placeholder `<...>` terisi? Apakah SEMUA fase dari konteks ada? Apakah format marker `## SELESAI` ada di akhir fase terakhir?';

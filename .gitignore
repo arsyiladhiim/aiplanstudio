@@ -5,6 +5,9 @@
 
 graphify-out/
 
+.playwright-mcp/
+*.png
+
 docker/postgres/data_
 docker/redis/data
 docker/glitchtip/uploads

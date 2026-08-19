@@ -197,9 +197,11 @@ web/
 return fn (string $target) => 'Buat AGENTS.md untuk proyek ini. Output dalam format Markdown. AGENTS.md adalah panduan perilaku untuk AI coding agent — WAJIB berisi role definitions, hard rules, dan file structure.
 
 # AGENTS.md — AI Coding Agent Rules
-' . ($target === 'mobile' || $target === 'both'
+' . ($target === 'mobile'
     ? $flutterAgents
-    : $webAgents) . '
+    : ($target === 'both'
+        ? $webAgents . PHP_EOL . PHP_EOL . $flutterAgents
+        : $webAgents)) . '
 
 ' . platformSuffix($target) . PHP_EOL . '
 
@@ -214,4 +216,12 @@ return fn (string $target) => 'Buat AGENTS.md untuk proyek ini. Output dalam for
 - Tidak ada intro/closing.
 - Hard rules pakai numbered list, JANGAN bullet (konsisten dengan enforcement).
 
-VERIFY: Apakah setiap agent punya scope + handoff yang jelas? Apakah hard rules 10+ dan enforceable? Apakah file structure match dengan codebase?';
+VERIFY: Apakah setiap agent punya scope + handoff yang jelas? Apakah hard rules 10+ dan enforceable? Apakah file structure match dengan codebase?
+
+VERIFY STRUKTUR (validator backend enforce — hard rules + file structure WAJIB ada):
+1. "Hard Rules" section WAJIB ada dengan minimal 10 item numbered (`1. **...**`).
+2. Hard rules pakai numbered list (JANGAN bullet) untuk konsistensi enforcement.
+3. "Agent Roles" section WAJIB punya minimal 3 agent dengan scope + handoff eksplisit.
+4. "File Structure" section WAJIB ada code block (```) yang match codebase real.
+5. Format pakai Bahasa Indonesia untuk penjelasan, English untuk code identifier + technical terms.
+';

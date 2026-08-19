@@ -165,10 +165,16 @@ class ProjectController extends Controller
                 $latest = $p->versions->first();
                 $progress = 0;
                 $stageCount = 0;
+                $originality = null;
                 if ($latest && $latest->stage_status) {
-                    $stageStatus = collect($latest->stage_status);
                     $progress = $latest->progressCount();
-                    $stageCount = $stageStatus->count();
+                    $stageCount = $latest->visibleStageCount();
+                }
+                if ($latest && $latest->stage_quality) {
+                    $quality = collect($latest->stage_quality)->filter(fn ($q) => is_numeric($q));
+                    if ($quality->isNotEmpty()) {
+                        $originality = (int) round($quality->avg() * 100);
+                    }
                 }
                 unset($p->versions);
 
@@ -182,6 +188,7 @@ class ProjectController extends Controller
                     'updated_at' => $p->updated_at,
                     'progress' => $progress,
                     'stage_count' => $stageCount,
+                    'originality_score' => $originality,
                     'latest_version_id' => $latest->id ?? null,
                 ];
             });

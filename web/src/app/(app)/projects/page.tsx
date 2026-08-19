@@ -2,14 +2,14 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { Card } from "@/components/ui";
+import { Card, EmptyState } from "@/components/ui";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { PageHeader, TargetBadge } from "@/components/common";
 import { apiGet, apiDelete, apiPatch, type Project } from "@/lib/api";
 import { useDebounce } from "@/lib/useDebounce";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { getStages } from "@/lib/mock";
-import { Plus, GitBranch, Clock, Play, Trash2, Search, Heart, Pin, Archive } from "lucide-react";
+import { Plus, GitBranch, Clock, Play, Trash2, Search, Heart, Pin, Archive, FolderKanban } from "lucide-react";
 import { formatRelativeTime } from "@/lib/format";
 
 export default function ProjectsPage() {
@@ -177,10 +177,12 @@ function ProjectsContent() {
       )}
 
       {!loading && !error && projects.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-[var(--color-fg-muted)] mb-4">Belum ada project. Mulai buat plan pertamamu!</p>
-          <ButtonLink href="/new"><Plus size={16} /> Buat Plan Baru</ButtonLink>
-        </div>
+        <EmptyState
+          icon={<FolderKanban size={32} />}
+          title="Belum ada project"
+          description="Mulai buat plan pertamamu!"
+          action={<ButtonLink href="/new"><Plus size={16} /> Buat Plan Baru</ButtonLink>}
+        />
       )}
 
       {!loading && !error && projects.length > 0 && (

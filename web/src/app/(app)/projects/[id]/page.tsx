@@ -1,5 +1,5 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { notFound } from "next/navigation";
 import { use } from "react";
@@ -10,11 +10,22 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { TargetBadge } from "@/components/common";
 import { ApiTokenSection } from "@/components/project/ApiTokenSection";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { getStages, type StageKey, type Target } from "@/lib/mock";
-import { apiGet, apiPost, apiDelete, apiPatch, createSSE, type Project, type Version, type Activity } from "@/lib/api";
+import { getStages, getStageGroups, type StageKey, type Target } from "@/lib/mock";
+import { apiGet, apiPost, apiDelete, apiPatch, createSSE, WEBHOOK_URL, type Project, type Version, type Activity } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
 import { TrackingPanel, type ProgressItem } from "@/components/wizard/TrackingPanel";
 import type { PhaseItem } from "@/components/wizard/PhaseBreakdownCard";
+import { ApiContractTable } from "@/components/wizard/ApiContractTable";
+import { DesignSystemView } from "@/components/wizard/DesignSystemView";
+import { DesignSystemMobileView } from "@/components/wizard/DesignSystemMobileView";
+import { AppSpecWebView } from "@/components/wizard/AppSpecWebView";
+import { AppSpecMobileView } from "@/components/wizard/AppSpecMobileView";
+import { StageRow, type StageStatus } from "@/components/wizard/StageRow";
+import { EmptyArtifact } from "@/components/wizard/EmptyArtifact";
+
+type AppSpecWebLike = Parameters<typeof AppSpecWebView>[0]['data'];
+type AppSpecMobileLike = Parameters<typeof AppSpecMobileView>[0]['data'];
+type ApiContractLike = Parameters<typeof ApiContractTable>[0]['items'];
 import {
   ArrowLeft, GitBranch, Download, Plus, Copy, ListChecks, Check, Loader2, Play, Trash2, GitCompareArrows, Smartphone, Pencil, X, History, Heart, RotateCcw, LayoutDashboard, Globe, Archive,
 } from "lucide-react";
@@ -34,12 +45,14 @@ type TabKey = typeof TABS[number]["key"];
 export default function ProjectDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as TabKey) || "overview";
   const [project, setProject] = useState<Project & { versions?: Version[] } | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
   const [loading, setLoading] = useState(true);
   const [versionLoading, setVersionLoading] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<TabKey>("overview");
+  const [tab, setTab] = useState<TabKey>(initialTab);
   const [creatingVersion, setCreatingVersion] = useState(false);
   const [showVersionDialog, setShowVersionDialog] = useState(false);
   const [versionStrategy, setVersionStrategy] = useState<"from_last" | "blank">("from_last");
@@ -203,6 +216,11 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
     window.open(`/api/versions/${selectedVersion.id}/export?format=${format}`, '_blank');
   }
 
+  function handleExportAll() {
+    if (!project) return;
+    window.open(`/api/projects/${project.id}/export-all`, '_blank');
+  }
+
   if (loading) {
     return <div className="text-center py-12"><Loader2 className="animate-spin inline" /> Memuat project...</div>;
   }
@@ -291,9 +309,35 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
           >
             <Archive size={16} fill={project.archived_at ? "currentColor" : "none"} />
           </button>
-          <Button variant="secondary" size="sm" onClick={() => handleExport('md')} disabled={!selectedVersion}>
-            <Download size={15} /> Export
-          </Button>
+          {/* Export dropdown: current version MD / ZIP / all-versions ZIP */}
+          <details className="relative inline-block">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-1.5 text-sm text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]">
+              <Download size={15} /> Export
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg">
+              <button
+                onClick={() => handleExport('md')}
+                disabled={!selectedVersion}
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-2)] disabled:opacity-40"
+              >
+                Markdown (versi ini)
+              </button>
+              <button
+                onClick={() => handleExport('zip')}
+                disabled={!selectedVersion}
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-2)] disabled:opacity-40"
+              >
+                ZIP (versi ini)
+              </button>
+              <button
+                onClick={handleExportAll}
+                disabled={!project}
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-2)] disabled:opacity-40"
+              >
+                ZIP (semua versi)
+              </button>
+            </div>
+          </details>
           <ButtonLink variant="secondary" size="sm" href={`/projects/${id}/tasks`}>
             <ListChecks size={15} /> Tasks
           </ButtonLink>
@@ -478,6 +522,72 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                       <ErdDiagram erd={selectedVersion.erd} />
                     </div>
                   )}
+                  {selectedVersion.api_contract && (selectedVersion.api_contract as unknown[]).length > 0 && (
+                    <div>
+                      <h4 className="mb-2 font-semibold">API Contract</h4>
+                      <ApiContractTable items={selectedVersion.api_contract as ApiContractLike} />
+                    </div>
+                  )}
+                  {selectedVersion.design_system && (
+                    <div>
+                      <h4 className="mb-2 font-semibold">Design System</h4>
+                      <DesignSystemView markdown={selectedVersion.design_system} />
+                    </div>
+                  )}
+                  {Boolean(selectedVersion.app_spec_web) && (
+                    <div>
+                      <h4 className="mb-2 font-semibold">App Spec — Web</h4>
+                      <AppSpecWebView data={selectedVersion.app_spec_web as AppSpecWebLike} />
+                    </div>
+                  )}
+                  {selectedVersion.standards && (
+                    <div>
+                      <h4 className="mb-2 font-semibold">Standards Web</h4>
+                      <Markdown className="text-sm text-[var(--color-fg-muted)]">{selectedVersion.standards}</Markdown>
+                    </div>
+                  )}
+                  {!selectedVersion.design_system && (
+                    <EmptyArtifact
+                      title="Design System"
+                      description="Token warna, font, signature element, dan anti-pattern untuk UI web."
+                      stageKey="design_system"
+                      versionId={selectedVersion.id}
+                      canGenerate={stageStatus.architecture === 'done'}
+                      blockReason="Selesaikan stage Arsitektur dulu"
+                      onGenerate={async () => {
+                        setRegeneratingStage('design_system');
+                        try {
+                          await apiPost(`/versions/${selectedVersion.id}/regenerate`, { stage: 'design_system' });
+                          fetchVersion(selectedVersion.id);
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Gagal regenerate design system');
+                        } finally {
+                          setRegeneratingStage(null);
+                        }
+                      }}
+                    />
+                  )}
+                  {!selectedVersion.app_spec_web && (
+                    <EmptyArtifact
+                      title="App Spec — Web"
+                      description="Registry halaman, navigation, flows, dan components (JSON)."
+                      stageKey="app_spec_web"
+                      versionId={selectedVersion.id}
+                      canGenerate={stageStatus.master_web === 'done'}
+                      blockReason="Selesaikan Master Prompt Web dulu"
+                      onGenerate={async () => {
+                        setRegeneratingStage('app_spec_web');
+                        try {
+                          await apiPost(`/versions/${selectedVersion.id}/regenerate`, { stage: 'app_spec_web' });
+                          fetchVersion(selectedVersion.id);
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Gagal regenerate app spec web');
+                        } finally {
+                          setRegeneratingStage(null);
+                        }
+                      }}
+                    />
+                  )}
                   {phases.length > 0 && (
                     <div>
                       <h4 className="mb-3 font-semibold">Phases</h4>
@@ -519,8 +629,68 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
               )}
               {tab === "mobile" && project?.target === "both" && (
                 <div className="space-y-4">
-                  {!selectedVersion?.mobile_phases && !selectedVersion?.mobile_master_prompt && (
+                  {!selectedVersion?.mobile_phases && !selectedVersion?.mobile_master_prompt && !selectedVersion?.design_system_mobile && !selectedVersion?.app_spec_mobile && (
                     <p className="text-[var(--color-fg-subtle)]">Belum ada output mobile. Pipeline untuk mobile harus dijalankan.</p>
+                  )}
+                  {selectedVersion.design_system_mobile && (
+                    <div>
+                      <h4 className="mb-2 font-semibold">Design System Mobile</h4>
+                      <DesignSystemMobileView markdown={selectedVersion.design_system_mobile} />
+                    </div>
+                  )}
+                  {Boolean(selectedVersion.app_spec_mobile) && (
+                    <div>
+                      <h4 className="mb-2 font-semibold">App Spec — Mobile</h4>
+                      <AppSpecMobileView data={selectedVersion.app_spec_mobile as AppSpecMobileLike} />
+                    </div>
+                  )}
+                  {selectedVersion.mobile_standards && (
+                    <div>
+                      <h4 className="mb-2 font-semibold">Standards Mobile</h4>
+                      <Markdown className="text-sm text-[var(--color-fg-muted)]">{selectedVersion.mobile_standards}</Markdown>
+                    </div>
+                  )}
+                  {!selectedVersion.design_system_mobile && (
+                    <EmptyArtifact
+                      title="Design System Mobile"
+                      description="Token Material 3 + ThemeData + signature element untuk Flutter."
+                      stageKey="design_system_mobile"
+                      versionId={selectedVersion.id}
+                      canGenerate={stageStatus.master_web === 'done'}
+                      blockReason="Selesaikan Master Prompt Web dulu"
+                      onGenerate={async () => {
+                        setRegeneratingStage('design_system_mobile');
+                        try {
+                          await apiPost(`/versions/${selectedVersion.id}/regenerate`, { stage: 'design_system_mobile' });
+                          fetchVersion(selectedVersion.id);
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Gagal regenerate design system mobile');
+                        } finally {
+                          setRegeneratingStage(null);
+                        }
+                      }}
+                    />
+                  )}
+                  {!selectedVersion.app_spec_mobile && (
+                    <EmptyArtifact
+                      title="App Spec — Mobile"
+                      description="Registry screens, navigation, flows, dan widgets Flutter (JSON)."
+                      stageKey="app_spec_mobile"
+                      versionId={selectedVersion.id}
+                      canGenerate={stageStatus.master_mobile === 'done'}
+                      blockReason="Selesaikan Master Prompt Mobile dulu"
+                      onGenerate={async () => {
+                        setRegeneratingStage('app_spec_mobile');
+                        try {
+                          await apiPost(`/versions/${selectedVersion.id}/regenerate`, { stage: 'app_spec_mobile' });
+                          fetchVersion(selectedVersion.id);
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Gagal regenerate app spec mobile');
+                        } finally {
+                          setRegeneratingStage(null);
+                        }
+                      }}
+                    />
                   )}
                   {mobilePhases.length > 0 && (
                     <div>
@@ -563,7 +733,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                     <TrackingPanel
                       phases={[...(phases as PhaseItem[]), ...(mobilePhases as PhaseItem[])]}
                       progMap={Object.fromEntries((selectedVersion.phase_progress ?? []).map((p: ProgressItem) => [p.phase_key, p]))}
-                      webhookUrl={`/api/webhooks/phase-complete`}
+                      webhookUrl={WEBHOOK_URL}
                     />
                   )}
                 </div>
@@ -596,34 +766,6 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
 
           {/* Sidebar: progress checklist */}
           <div className="space-y-4">
-            <Card className="p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-semibold">Progress</h3>
-                <span className="text-sm text-[var(--color-fg-muted)]">{progress}%</span>
-              </div>
-              <div className="h-2 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
-                <div className="h-full bg-[var(--color-brand)] transition-all" style={{ width: `${progress}%` }} />
-              </div>
-              <div className="mt-4 space-y-2">
-                {phases.length === 0 && <p className="text-xs text-[var(--color-fg-subtle)]">Checklist akan muncul setelah phases dibuat.</p>}
-                {phases.map((ph) => (
-                  <button
-                    key={ph.key}
-                    onClick={() => handleTogglePhase(ph.key, doneMap[ph.key] || false)}
-                    data-testid={`phase-toggle-${ph.key}`}
-                    className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm transition hover:bg-[var(--color-surface-2)]"
-                  >
-                    <span className={`grid h-5 w-5 place-items-center rounded-md border transition ${
-                      doneMap[ph.key] ? "border-[var(--color-brand)] bg-[var(--color-brand)] text-white" : "border-[var(--color-border)]"
-                    }`}>
-                      {doneMap[ph.key] && <Check size={13} />}
-                    </span>
-                    <span className={doneMap[ph.key] ? "text-[var(--color-fg-subtle)] line-through" : ""}>{ph.title}</span>
-                  </button>
-                ))}
-              </div>
-            </Card>
-
             <Card className="p-5">
               <h3 className="mb-3 font-semibold">Master Prompt</h3>
               <p className="text-sm text-[var(--color-fg-muted)]">
@@ -773,38 +915,57 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                     </Button>
                   )}
                 </div>
-                <div className="space-y-1.5">
-                  {getStages(project!.target as Target).map((s) => {
-                    const st = (selectedVersion.stage_status as Record<string, string>)[s.key];
-                    const isRegenerating = regeneratingStage === s.key;
+                <div className="space-y-3">
+                  {getStageGroups(project!.target as Target).map((group) => {
+                    const groupStages = getStages(project!.target as Target).filter(s => group.stages.includes(s.key));
+                    const statusMap = selectedVersion.stage_status as Record<string, string>;
+                    const done = groupStages.filter(s => statusMap[s.key] === 'done').length;
                     return (
-                      <div key={s.key} className="group flex items-center gap-2 text-xs">
-                        <span>
-                          {st === 'done' ? '✅' : st === 'running' ? '⏳' : st === 'error' ? '❌' : '⭕'}
-                        </span>
-                        <span className={`flex-1 ${st === 'done' ? 'text-[var(--color-fg-subtle)]' : ''}`}>{s.label}</span>
-                        {st === 'done' && (
-                          <button
-                            onClick={async () => {
-                              setRegeneratingStage(s.key);
-                              try {
-                                await apiPost(`/versions/${selectedVersion.id}/regenerate`, { stage: s.key });
-                                fetchVersion(selectedVersion.id);
-                              } catch (err) {
-                                setError(err instanceof Error ? err.message : `Gagal regenerate ${s.label}`);
-                              } finally {
-                                setRegeneratingStage(null);
-                              }
-                            }}
-                            disabled={isRegenerating}
-                            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[var(--color-fg-subtle)] opacity-0 transition hover:bg-[var(--color-surface-2)] hover:text-[var(--color-brand)] group-hover:opacity-100 disabled:opacity-100"
-                            title={`Regenerate ${s.label}`}
-                            data-testid={`regenerate-${s.key}`}
-                          >
-                            {isRegenerating ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                          </button>
-                        )}
-                      </div>
+                      <details key={group.key} open className="group/seg rounded-lg border border-[var(--color-border)] px-2 py-1.5">
+                        <summary className="flex cursor-pointer items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-fg-muted)]">
+                          <span>{group.label}</span>
+                          <span className="ml-auto rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] normal-case">
+                            {done}/{groupStages.length} selesai
+                          </span>
+                        </summary>
+                        <div className="mt-1.5 space-y-0.5">
+                          {groupStages.map((s) => {
+                            const st = statusMap[s.key] as StageStatus;
+                            return (
+                              <StageRow
+                                key={s.key}
+                                stageKey={s.key}
+                                label={s.label}
+                                status={st}
+                                quality={selectedVersion.stage_quality?.[s.key]}
+                                isRegenerating={regeneratingStage === s.key}
+                                onRegenerate={async () => {
+                                  setRegeneratingStage(s.key);
+                                  try {
+                                    await apiPost(`/versions/${selectedVersion.id}/regenerate`, { stage: s.key });
+                                    fetchVersion(selectedVersion.id);
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : "Gagal regenerate stage");
+                                  } finally {
+                                    setRegeneratingStage(null);
+                                  }
+                                }}
+                                onSkip={async (reason) => {
+                                  setRegeneratingStage(s.key);
+                                  try {
+                                    await apiPost(`/versions/${selectedVersion.id}/skip-stage`, { stage: s.key, reason });
+                                    fetchVersion(selectedVersion.id);
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : "Gagal skip stage");
+                                  } finally {
+                                    setRegeneratingStage(null);
+                                  }
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                      </details>
                     );
                   })}
                 </div>
@@ -837,10 +998,18 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                       {phases.map((ph) => {
                         const isDone = doneMap[ph.key];
                         return (
-                          <div key={ph.key} className="flex items-center gap-2 text-xs">
-                            <span>{isDone ? '✅' : '⏳'}</span>
+                          <button
+                            key={ph.key}
+                            onClick={() => handleTogglePhase(ph.key, isDone || false)}
+                            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-[var(--color-surface-2)]"
+                          >
+                            <span className={`grid h-4 w-4 place-items-center rounded border transition ${
+                              isDone ? 'border-blue-500 bg-blue-500 text-white' : 'border-[var(--color-border)]'
+                            }`}>
+                              {isDone && <Check size={10} />}
+                            </span>
                             <span className={isDone ? 'text-[var(--color-fg-subtle)] line-through' : ''}>{ph.title}</span>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -879,6 +1048,26 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                 <p className="mt-3 text-[10px] text-[var(--color-fg-subtle)]">
                   Status diperbarui real-time oleh AI agent via webhook.
                 </p>
+              </Card>
+            )}
+
+            {selectedVersion?.stage_tokens && Object.keys(selectedVersion.stage_tokens).length > 0 && (
+              <Card className="p-5">
+                <h3 className="mb-3 font-semibold">Token Usage</h3>
+                <div className="space-y-1.5">
+                  {Object.entries(selectedVersion.stage_tokens).map(([stage, tokens]) => (
+                    <div key={stage} className="flex items-center justify-between text-xs">
+                      <span className="text-[var(--color-fg-muted)]">{stage}</span>
+                      <span className="font-mono tabular-nums">{Number(tokens).toLocaleString("id-ID")}</span>
+                    </div>
+                  ))}
+                  <div className="mt-2 flex items-center justify-between border-t border-[var(--color-border)] pt-2 text-sm font-semibold">
+                    <span>Total</span>
+                    <span className="font-mono tabular-nums">
+                      {Object.values(selectedVersion.stage_tokens).reduce((s, n) => s + (Number(n) || 0), 0).toLocaleString("id-ID")}
+                    </span>
+                  </div>
+                </div>
               </Card>
             )}
 

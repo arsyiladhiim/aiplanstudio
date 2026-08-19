@@ -8,6 +8,8 @@
 // _token → X-CSRF-TOKEN raw → X-XSRF-TOKEN cookie decrypt).
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? ""
+export const API_BASE_URL = BASE
+export const WEBHOOK_URL = `${BASE}/api/webhooks/phase-complete`
 const TIMEOUT_MS = 30_000
 
 let csrfToken: string | null = null
@@ -493,6 +495,8 @@ export type Version = {
   source_version_id?: number | null
   baseline_notes?: string | null
   stage_status: Record<string, string>
+  stage_quality?: Record<string, number>
+  skip_reasons?: Record<string, string>
   stage_tokens?: Record<string, number>
   pertanyaan?: string
   answers?: Record<string, string>
@@ -507,11 +511,19 @@ export type Version = {
   master_prompt?: string
   standards?: string
   agents?: string
+  design_system?: string
+  design_system_mobile?: string
+  app_spec_web?: unknown
+  app_spec_mobile?: unknown
   tracking_token?: string
   mobile_phases?: PhaseData[]
   mobile_master_prompt?: string
   mobile_standards?: string
   mobile_agents?: string
+  env_config?: string
+  security?: string
+  deployment?: string
+  observability?: string
   project?: Project
   phase_progress?: Array<{
     id?: number

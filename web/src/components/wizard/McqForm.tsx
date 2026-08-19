@@ -31,11 +31,17 @@ export function McqForm({
           </ul>
         </div>
       )}
-      {mcqData.questions.map((q: McqQuestion, i: number) => (
+      {mcqData.questions.map((q: McqQuestion, i: number) => {
+        // Guard: skip item rusak (question kosong / options bukan array) agar tidak tampil
+        // nomor kosong di tengah list. Backend sudah filter saat simpan; ini guard lapis kedua.
+        const qText = typeof q.question === "string" ? q.question.trim() : "";
+        const options = Array.isArray(q.options) ? q.options : [];
+        if (qText === "" || options.length === 0) return null;
+        return (
         <div key={q.id || i} className="rounded-xl border border-[var(--color-border)] p-4">
-          <p className="mb-3 font-medium" id={`mcq-q-${q.id}`}>{i + 1}. {q.question}</p>
+          <p className="mb-3 font-medium" id={`mcq-q-${q.id}`}>{i + 1}. {qText}</p>
           <div className="space-y-2" role="radiogroup" aria-labelledby={`mcq-q-${q.id}`}>
-            {q.options.map((opt) => {
+            {options.map((opt) => {
               const isSelected = answers[q.id]?.selected === opt.key;
               return (
                 <button
@@ -73,7 +79,8 @@ export function McqForm({
             )}
           </div>
         </div>
-      ))}
+        );
+      })}
       <Button
         onClick={onSubmit}
         disabled={mcqData.questions.some((q: McqQuestion) => !answers[q.id])}

@@ -5,7 +5,8 @@ import { Card, Badge, Textarea, Label, Markdown, Modal } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import dynamic from "next/dynamic";
 const ErdDiagramDynamic = dynamic(() => import("@/components/wizard/ErdDiagram").then(m => ({ default: m.ErdDiagram })), { ssr: false, loading: () => <div className="h-[460px] animate-pulse rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)]" /> });
-import { ApiContractTable, type ApiContractItem } from "@/components/wizard/ApiContractTable";
+import type { ApiContractItem } from "@/components/wizard/ApiContractTable";
+import { ApiContractTable } from "@/components/wizard/ApiContractTable";
 import type { PhaseItem } from "@/components/wizard/PhaseBreakdownCard";
 import { AnalysisView } from "@/components/wizard/AnalysisView";
 import { PrdView } from "@/components/wizard/PrdView";
@@ -13,17 +14,20 @@ import { ArchitectureView } from "@/components/wizard/ArchitectureView";
 import { StandardsView } from "@/components/wizard/StandardsView";
 import { PhasesView } from "@/components/wizard/PhasesView";
 import { AgentsView } from "@/components/wizard/AgentsView";
+import { DesignSystemView } from "@/components/wizard/DesignSystemView";
+import { DesignSystemMobileView } from "@/components/wizard/DesignSystemMobileView";
+import { AppSpecWebView } from "@/components/wizard/AppSpecWebView";
+import { AppSpecMobileView } from "@/components/wizard/AppSpecMobileView";
 import { ErdTabs } from "@/components/wizard/ErdTabs";
 import { MasterPromptViewer, hasMasterPromptArtifact } from "@/components/wizard/MasterPromptViewer";
 import type { ProgressItem } from "@/components/wizard/TrackingPhases";
 import { TrackingPanel } from "@/components/wizard/TrackingPanel";
-import { SetupTrackingCard } from "@/components/wizard/SetupTrackingCard";
 import { McqForm } from "@/components/wizard/McqForm";
 import { StreamingMarkdown } from "@/components/wizard/StreamingMarkdown";
 import { StageThroughputBar } from "@/components/wizard/StageThroughputBar";
 import { BuildWall } from "@/components/wizard/BuildWall";
 import { getStages, type StageKey, type StageState, type Target } from "@/lib/mock";
-import { apiPost, apiGet, apiPatch, apiDelete, createSSEPost, createSSE, type Project, type Template, type Version, type McqData, type McqAnswer } from "@/lib/api";
+import { apiPost, apiGet, apiPatch, apiDelete, createSSEPost, createSSE, WEBHOOK_URL, type Project, type Template, type Version, type McqData, type McqAnswer } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
 import { chime } from "@/lib/chime";
 import {
@@ -59,6 +63,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [idea, setIdea] = useState("");
   const [title, setTitle] = useState("");
   const [target, setTarget] = useState<Target>("web");
+  const [liteMode, setLiteMode] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, McqAnswer>>({});
   const [mobileMcqAnswers, setMobileMcqAnswers] = useState<Record<string, McqAnswer>>({});
@@ -83,6 +88,10 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   // P8: fire Confetti only on transition to allDone (one-shot).
   const confettiFiredRef = useRef(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  // M2: auto-advance antar tahap non-MCQ saat toggle aktif (target=both 14 stage).
+  const [autoAdvance, setAutoAdvance] = useState(false);
+  const autoAdvanceRef = useRef(false);
+  useEffect(() => { autoAdvanceRef.current = autoAdvance; }, [autoAdvance]);
   useEffect(() => {
     if (allDone && !confettiFiredRef.current) {
       confettiFiredRef.current = true;
@@ -96,6 +105,19 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const activeKeyRef = useRef(activeKey);
   useEffect(() => { activeKeyRef.current = activeKey; }, [activeKey]);
 
+  // M2: auto-advance antar tahap non-MCQ saat toggle aktif (target=both 14 stage).
+  const approveNextRef = useRef<() => void>(() => {});
+  useEffect(() => { approveNextRef.current = approveNext; });
+  useEffect(() => {
+    if (!autoAdvance) return;
+    const key = stages[current]?.key;
+    if (!key || status[key] !== 'done') return;
+    // Berhenti auto di stage klarifikasi (butuh input user) — user lanjut manual.
+    if (key === 'pertanyaan' || key === 'pertanyaan_mobile') return;
+    const t = setTimeout(() => { approveNextRef.current(); }, 500);
+    return () => clearTimeout(t);
+  }, [status, current, autoAdvance, stages]);
+
   // Real backend integration states
   const [projectId, setProjectId] = useState<number | null>(null);
   const [versionId, setVersionId] = useState<number | null>(null);
@@ -104,17 +126,18 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editingStage, setEditingStage] = useState<StageKey | null>(null);
+  const [editPreview, setEditPreview] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [savingArtifact, setSavingArtifact] = useState(false);
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; max: number } | null>(null);
   const [phaseProg, setPhaseProg] = useState<Version["phase_progress"]>([]);
   const [stageTokens, setStageTokens] = useState<Record<string, number>>({});
-  const [providerRate] = useState<number | null>(null);
   // startedAt: updated by SSE event handler (bukan useEffect) untuk hindari
   // React Compiler 'set-state-in-effect' rule.
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [pendingConfirmMaster, setPendingConfirmMaster] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   // CP-9 M-5: auto-open MasterPromptViewer modal saat stage master_web/mobile baru selesai.
   const [masterModalOpen, setMasterModalOpen] = useState(false);
   const [masterModalTarget, setMasterModalTarget] = useState<"web" | "mobile" | null>(null);
@@ -225,6 +248,19 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
     if (parsed.length === 0) parsed = ['Jelaskan lebih detail tentang aplikasi yang kamu inginkan?'];
     return parsed;
   }, [artifacts.pertanyaan, mcqData]);
+
+  // Permanent fallback untuk pertanyaan mobile bila AI output teks (bukan JSON).
+  const mobileQuestions = useMemo(() => {
+    if (mcqMobileData) return [] as string[];
+    if (!artifacts.pertanyaan_mobile) return [] as string[];
+    const lines = artifacts.pertanyaan_mobile.split('\n').filter((l: string) => l.trim());
+    let parsed = lines
+      .filter((l: string) => /^\d+[.)]\s/.test(l.trim()))
+      .map((l: string) => l.replace(/^\d+[.)]\s*/, '').trim());
+    if (parsed.length === 0) parsed = lines.filter((l: string) => l.trim().endsWith('?'));
+    if (parsed.length === 0) parsed = ['Jelaskan lebih detail tentang kebutuhan mobile kamu?'];
+    return parsed;
+  }, [artifacts.pertanyaan_mobile, mcqMobileData]);
 
   // Parse ERD artifact toleran: strip code fence + ambil blok JSON terluar.
   const parseErdArtifact = useCallback((raw: string): ErdParsed | null => {
@@ -353,7 +389,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       if (cancelled.current) return;
       createSSEPost(
         `/generate/stream`,
-        { version: versionId, stage },
+        { version: versionId, stage, auto: 1, lite: liteMode ? 1 : 0 },
         handleSSEEvent,
         (err) => {
           if (retries < 3 && !cancelled.current) {
@@ -368,7 +404,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       ).then(ctrl => { abortRef.current = ctrl; });
     };
     attempt(0);
-  }, [handleSSEEvent]);
+  }, [handleSSEEvent, liteMode]);
 
   const startPipeline = useCallback((versionId: number, stage?: string) => {
     if (abortRef.current) {
@@ -415,6 +451,17 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       }
     }).catch((err) => console.error('Failed to load templates:', err));
   }, [templateParam, setTargetAndReset]);
+
+  // M3: resume session detect — setelah login ulang, /new otomatis lanjut ke versi yang hilang.
+  useEffect(() => {
+    if (isResume) return;
+    if (typeof window === "undefined") return;
+    const v = sessionStorage.getItem("wizard:lostVersion");
+    if (!v) return;
+    sessionStorage.removeItem("wizard:lostVersion");
+    sessionStorage.removeItem("wizard:lostProject");
+    router.replace(`/new?resume=1&version=${encodeURIComponent(v)}`);
+  }, [isResume, router]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -470,6 +517,8 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       api_contract: 'api_contract',
       phases_web: 'phases', standards_web: 'standards', master_web: 'master_prompt',
       phases_mobile: 'mobile_phases', standards_mobile: 'mobile_standards', master_mobile: 'mobile_master_prompt',
+      env_config: 'env_config', security: 'security', deployment: 'deployment', observability: 'observability',
+      design_system: 'design_system', design_system_mobile: 'design_system_mobile', app_spec_web: 'app_spec_web', app_spec_mobile: 'app_spec_mobile',
       agents: 'agents',
     };
     const missing = stages.filter(s =>
@@ -538,6 +587,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         phases_mobile: 'mobile_phases',
         standards_mobile: 'mobile_standards',
         master_mobile: 'mobile_master_prompt',
+        env_config: 'env_config', security: 'security', deployment: 'deployment', observability: 'observability',
         agents: 'agents',
       };
       const loaded: Record<string, string> = {};
@@ -684,6 +734,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
 
   async function reset() {
     if (deleting) return;
+    setShowResetConfirm(false);
     cancelled.current = true;
     if (abortRef.current) {
       abortRef.current.abort();
@@ -816,6 +867,18 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
               </div>
             </div>
 
+            <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-xs text-[var(--color-fg-muted)]">
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={liteMode}
+                  onChange={(e) => setLiteMode(e.target.checked)}
+                  className="rounded border-[var(--color-border)] accent-[var(--color-brand)]"
+                />
+                <span>Lite Plan (lebih cepat, kurang detail)</span>
+              </label>
+            </div>
+
             <Button onClick={start} disabled={!title.trim() || !idea.trim() || creating} className="w-full" size="lg" data-testid="start-plan">
               <Sparkles size={18} /> {creating ? "Membuat Project..." : "Buat Plan"}
             </Button>
@@ -842,7 +905,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           <h1 className="text-2xl font-bold">Menyusun Plan…</h1>
           <p className="mt-1 line-clamp-1 text-sm text-[var(--color-fg-muted)]">{idea}</p>
         </div>
-        <Button variant="secondary" size="sm" onClick={reset} disabled={deleting} data-testid="reset-plan">{deleting ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />} {deleting ? "Menghapus..." : "Mulai Ulang"}</Button>
+        <Button variant="secondary" size="sm" onClick={() => setShowResetConfirm(true)} disabled={deleting} data-testid="reset-plan">{deleting ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />} {deleting ? "Menghapus..." : "Mulai Ulang"}</Button>
       </div>
 
       <div className={`grid gap-6 ${showTrackingPanel ? "lg:grid-cols-[260px_1fr_340px]" : "lg:grid-cols-[280px_1fr]"}`}>
@@ -853,16 +916,11 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
               (sum, n) => sum + (typeof n === "number" ? n : 0),
               0,
             );
-            const cost = (totalTokens * (providerRate ?? 0)).toFixed(4);
             return (
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[11px] text-[var(--color-fg-muted)]" style={{ fontVariantNumeric: "tabular-nums" }}>
                 <div className="flex items-center justify-between">
                   <span>Total token</span>
                   <span className="font-mono text-[var(--color-fg)]">{totalTokens.toLocaleString("id-ID")}</span>
-                </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span>Estimasi biaya</span>
-                  <span className="font-mono text-[var(--color-fg)]">~${cost}</span>
                 </div>
               </div>
             );
@@ -934,18 +992,44 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
             </div>
 
             {status[activeKey] === "running" ? (
-              <div className="space-y-2">
-                {[100, 90, 75, 95, 60].map((w, i) => (
-                  <div key={i} className="shimmer h-3.5 rounded bg-[var(--color-surface-2)]" style={{ width: `${w}%` }} />
-                ))}
+              <div className="max-h-80 overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] p-3">
+                <StreamingMarkdown
+                  content={artifacts[activeKey] || "Menunggu hasil AI..."}
+                  live
+                  className="border-0 bg-transparent"
+                />
               </div>
             ) : editingStage === activeKey ? (
               <div className="space-y-3">
-                <textarea
-                  value={editContent}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
-                  className="w-full min-h-[200px] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] p-3 text-sm font-mono text-[var(--color-fg)] resize-y focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                />
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex gap-1 rounded-lg border border-[var(--color-border)] p-0.5 text-xs">
+                    {(["edit", "preview"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setEditPreview(m === "preview")}
+                        className={`rounded-md px-2.5 py-1 transition ${
+                          (m === "preview") === editPreview
+                            ? "bg-[var(--color-brand)] text-white"
+                            : "text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)]"
+                        }`}
+                      >
+                        {m === "edit" ? "Edit" : "Preview"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {editPreview ? (
+                  <div className="max-h-[400px] overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] p-3 text-sm">
+                    <Markdown className="text-[var(--color-fg-muted)]">{editContent || "_(kosong)_"}</Markdown>
+                  </div>
+                ) : (
+                  <textarea
+                    value={editContent}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
+                    className="w-full min-h-[200px] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] p-3 text-sm font-mono text-[var(--color-fg)] resize-y focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                  />
+                )}
                   <div className="flex items-center gap-2">
                   <button
                     onClick={async () => {
@@ -1077,10 +1161,47 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                         ambiguitiesLabel="Area mobile yang perlu diperjelas:"
                       />
                     ) : (
-                      <div className="flex items-center gap-2 text-sm text-[var(--color-fg-muted)]">
-                        <Loader2 size={14} className="animate-spin" />
-                        Memproses pertanyaan mobile{retryInfo ? ` (percobaan ${retryInfo.attempt}/${retryInfo.max})` : "..."}
-                      </div>
+                      <>
+                        <h4 className="font-semibold">Jawab pertanyaan klarifikasi mobile berikut:</h4>
+                        {mobileQuestions.length === 0 && artifacts.pertanyaan_mobile && (
+                          <div className="flex items-center gap-2 text-sm text-[var(--color-fg-muted)]">
+                            <Loader2 size={14} className="animate-spin" />
+                            Memproses pertanyaan mobile{retryInfo ? ` (percobaan ${retryInfo.attempt}/${retryInfo.max})` : "..."}
+                          </div>
+                        )}
+                        {mobileQuestions.map((q: string, i: number) => (
+                          <div key={i}>
+                            <Label>{q}</Label>
+                            <textarea
+                              rows={2}
+                              value={mobileMcqAnswers[q]?.selected || ''}
+                              onChange={(e) => setMobileMcqAnswers(prev => ({ ...prev, [q]: { selected: e.target.value } }))}
+                              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2 text-sm"
+                              placeholder="Tulis jawaban kamu..."
+                            />
+                          </div>
+                        ))}
+                        <Button
+                          onClick={async () => {
+                            if (!versionId) return;
+                            const formatted: Record<string, string> = {};
+                            Object.entries(mobileMcqAnswers).forEach(([q, a]) => {
+                              if (a?.selected) formatted[q] = a.selected;
+                            });
+                            try { await apiPatch(`/versions/${versionId}/answers`, { mobile_answers: formatted }); }
+                            catch (e) { setError(e instanceof Error ? e.message : "Gagal menyimpan jawaban mobile"); return; }
+                            const nextStage = stages[current + 1]?.key;
+                            if (nextStage && versionId) {
+                              setStatus(s => ({ ...s, [nextStage]: 'running' }));
+                              setCurrent(current + 1);
+                              doStream(versionId, nextStage);
+                            }
+                          }}
+                          disabled={!Object.values(mobileMcqAnswers).some(a => a?.selected?.trim())}
+                        >
+                          <ArrowRight size={15} /> Kirim Jawaban Mobile & Lanjutkan
+                        </Button>
+                      </>
                     )}
                   </div>
                 ) : (activeKey === "erd" && status.erd === "done") || (activeKey === "architecture" && status.architecture === "done") || (activeKey === "master_web" && status.master_web === "done") ? null : (
@@ -1100,12 +1221,35 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                     {activeKey === "agents" && artifacts.agents && (
                       <AgentsView markdown={artifacts.agents} />
                     )}
+                    {activeKey === "design_system" && artifacts.design_system && (
+                      <DesignSystemView markdown={artifacts.design_system} />
+                    )}
+                    {activeKey === "design_system_mobile" && artifacts.design_system_mobile && (
+                      <DesignSystemMobileView markdown={artifacts.design_system_mobile} />
+                    )}
+                    {activeKey === "api_contract" && artifacts.api_contract && (() => {
+                      let parsed: ApiContractItem[] = [];
+                      try { parsed = JSON.parse(artifacts.api_contract); } catch { parsed = []; }
+                      if (parsed.length === 0) return <p className="text-sm text-[var(--color-fg-subtle)] italic">API contract belum tersedia.</p>;
+                      return <ApiContractTable items={parsed} />;
+                    })()}
+                    {activeKey === "app_spec_web" && artifacts.app_spec_web && (
+                      <AppSpecWebView data={artifacts.app_spec_web} />
+                    )}
+                    {activeKey === "app_spec_mobile" && artifacts.app_spec_mobile && (
+                      <AppSpecMobileView data={artifacts.app_spec_mobile} />
+                    )}
                     {!(
                       (activeKey === "analisa" && artifacts.analisa) ||
                       (activeKey === "prd" && artifacts.prd) ||
                       (activeKey === "standards_web" && artifacts.standards_web) ||
                       (activeKey === "standards_mobile" && artifacts.standards_mobile) ||
-                      (activeKey === "agents" && artifacts.agents)
+                      (activeKey === "agents" && artifacts.agents) ||
+                      (activeKey === "design_system" && artifacts.design_system) ||
+                      (activeKey === "design_system_mobile" && artifacts.design_system_mobile) ||
+                      (activeKey === "api_contract" && artifacts.api_contract) ||
+                      (activeKey === "app_spec_web" && artifacts.app_spec_web) ||
+                      (activeKey === "app_spec_mobile" && artifacts.app_spec_mobile)
                     ) && (
                       <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
                         {status[activeKey] === "done" && !artifacts[activeKey]
@@ -1172,21 +1316,6 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
                 {activeKey === "phases_mobile" && artifacts.phases_mobile && (
                   <PhasesView markdown={artifacts.phases_mobile} label="Phase Breakdown Mobile" />
                 )}
-                {activeKey === "api_contract" && artifacts.api_contract && (() => {
-                  try {
-                    const parsed = JSON.parse(artifacts.api_contract);
-                    const ac: ApiContractItem[] = Array.isArray(parsed) ? parsed : [];
-                    if (ac.length === 0) throw new Error("not array");
-                    return (
-                      <Card className="p-4">
-                        <h3 className="mb-4 font-semibold">API Contract ({ac.length} endpoint)</h3>
-                        <ApiContractTable items={ac} />
-                      </Card>
-                    );
-                  } catch {
-                    return <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">{artifacts.api_contract}</Markdown>;
-                  }
-                })()}
                 {(activeKey === "master_web" || activeKey === "master_mobile") && (() => {
                   const isWeb = activeKey === "master_web";
                   const artifact = isWeb ? artifacts.master_web : artifacts.master_mobile;
@@ -1222,14 +1351,33 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           {/* Checkpoint bar */}
           {(status[activeKey] === "done" || status[activeKey] === "error") && !allDone && (
             <Card className="flex items-center justify-between p-4">
-              <span className="text-sm text-[var(--color-fg-muted)]">
-                {status[activeKey] === "error" ? "Terjadi kesalahan pada tahap ini." : "Tahap selesai. Lanjut ke berikutnya?"}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[var(--color-fg-muted)]">
+                  {status[activeKey] === "error" ? "Terjadi kesalahan pada tahap ini." : "Tahap selesai. Lanjut ke berikutnya?"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAutoAdvance(v => !v)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                    autoAdvance
+                      ? "bg-[var(--color-brand)] text-white"
+                      : "bg-[var(--color-surface-2)] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+                  }`}
+                  data-testid="auto-advance-toggle"
+                  title="Lanjut otomatis antar tahap (kecuali klarifikasi yang butuh jawaban)"
+                >
+                  <Sparkles size={12} /> Auto
+                </button>
+              </div>
               <div className="flex gap-2">
-                {activeKey !== 'pertanyaan' && (
+                {/* Coba Lagi: semua stage saat error (utk klarifikasi web/mobile), dan regenerate utk stage done non-klarifikasi. */}
+                {(
+                  (status[activeKey] === "error") ||
+                  (status[activeKey] === "done" && activeKey !== 'pertanyaan' && activeKey !== 'pertanyaan_mobile')
+                ) && (
                   <Button variant="secondary" size="sm" onClick={retryStage}><RotateCcw size={15} /> Coba Lagi</Button>
                 )}
-                {status[activeKey] === "done" && activeKey !== 'pertanyaan' && (
+                {status[activeKey] === "done" && activeKey !== 'pertanyaan' && activeKey !== 'pertanyaan_mobile' && (
                   <Button size="sm" onClick={approveNext} data-testid="approve-next">Approve & Lanjut <ArrowRight size={15} /></Button>
                 )}
               </div>
@@ -1276,12 +1424,13 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
            )}
         </div>
 
-        {/* Tracking side panel */}
-        {showTrackingPanel && trackingPhases.length > 0 && (
+        {/* Tracking side panel — selalu tampil di stage master (web/mobile) agar user melihat progres
+            komunikasi agent ↔ webhook secara live; untuk agents hanya bila ada fase. */}
+        {showTrackingPanel && (activeKey === "master_web" || activeKey === "master_mobile" || trackingPhases.length > 0) && (
           <TrackingPanel
             phases={trackingPhases}
             progMap={progMap}
-            webhookUrl={`/api/webhooks/phase-complete`}
+            webhookUrl={WEBHOOK_URL}
             projectId={projectId}
             versionId={versionId}
           />
@@ -1418,6 +1567,18 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={() => setShowCancelConfirm(false)}>Lanjutkan</Button>
           <Button variant="danger" size="sm" onClick={cancelGeneration}><AlertCircle size={15} /> Ya, Batalkan</Button>
+        </div>
+      </Modal>
+
+      {/* Konfirmasi mulai ulang — menghapus project permanen */}
+      <Modal open={showResetConfirm} onClose={() => setShowResetConfirm(false)} title="Mulai Ulang?" size="sm">
+        <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
+          Mulai ulang akan <strong className="text-[var(--color-danger)]">menghapus project ini beserta semua versi dan artefak secara permanen</strong>.
+          Tindakan ini tidak bisa dibatalkan. Yakin melanjutkan?
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setShowResetConfirm(false)}>Batal</Button>
+          <Button variant="danger" size="sm" onClick={reset}><AlertCircle size={15} /> Ya, Mulai Ulang</Button>
         </div>
       </Modal>
     </div>

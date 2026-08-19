@@ -1,0 +1,77 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Project;
+use App\Models\User;
+use App\Models\Version;
+use App\Services\AiClient;
+use App\Services\PipelineRunner;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class StageQualityScoreTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $user;
+
+    private Project $project;
+
+    private Version $version;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->user = User::factory()->create();
+        $this->project = Project::factory()->create(['user_id' => $this->user->id]);
+        $this->version = Version::factory()->create([
+            'project_id' => $this->project->id,
+            'stage_status' => Version::defaultStageStatus(),
+        ]);
+    }
+
+    public function test_quality_score_stored_after_save_artifact(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $content = "# Analisa\n\n## 1. Intent Summary\nRingkasan\n\n## 2. User Personas\nPersona\n\n## 3. Core Problem\nMasalah\n\n## 4. Success Metrics\nMetrik\n\n## 5. Anti-Goals\nTidak\n\n## 6. Daftar Halaman\n- Dashboard\n\n".str_repeat('Analisa detail lebih panjang untuk mencapai minimal panjang token. ', 60);
+
+        $ref->invoke($runner, 'analisa', $content);
+        $this->version->refresh();
+
+        $quality = $this->version->stage_quality;
+        $this->assertIsArray($quality);
+        $this->assertArrayHasKey('analisa', $quality);
+        $this->assertGreaterThanOrEqual(0.4, $quality['analisa']);
+        $this->assertLessThanOrEqual(1.0, $quality['analisa']);
+    }
+
+    public function test_quality_score_low_for_generic_content(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'computeStageQuality');
+        $ref->setAccessible(true);
+
+        $content = 'Lorem ipsum dolor sit amet. Short.';
+        $score = $ref->invoke($runner, 'prd', $content);
+        $this->assertLessThan(0.6, $score);
+    }
+
+    public function test_quality_score_high_for_complete_original_content(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'computeStageQuality');
+        $ref->setAccessible(true);
+
+        $content = "# PRD\n\n## 1. Overview\nSpesifik untuk warung\n## 2. User Stories\nuser story acceptance\n## 3. Functional Requirements\nfunctional requirement\n## 4. Non-Functional\n## 5. Out of Scope\n## 6. Assumptions\n## 7. Differentiation\n## 8. Open Questions\n\n".str_repeat('Dokumen spesifik dan orisinal untuk produk lokal. ', 80);
+
+        $score = $ref->invoke($runner, 'prd', $content);
+        $this->assertGreaterThanOrEqual(0.7, $score);
+    }
+}

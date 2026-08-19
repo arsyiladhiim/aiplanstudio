@@ -12,9 +12,10 @@ class GenerateStreamController extends Controller
 {
     public function __invoke(Request $request, AiClient $client): StreamedResponse
     {
-        $versionId = $request->query('version');
-        $stage = $request->query('stage');
-        $auto = $request->query('auto', '0') === '1';
+        $versionId = $request->input('version', $request->query('version'));
+        $stage = $request->input('stage', $request->query('stage'));
+        $auto = ($request->input('auto', $request->query('auto', '0')) === '1');
+        $lite = ($request->input('lite', $request->query('lite', '0')) === '1');
 
         if (! $versionId || ! $stage) {
             abort(422, 'Parameter "version" dan "stage" wajib diisi.');
@@ -35,7 +36,7 @@ class GenerateStreamController extends Controller
         ob_implicit_flush(true);
 
         return response()->stream(
-            fn () => $pipeline->run($stage, $auto),
+            fn () => $pipeline->run($stage, $auto, $lite),
             200,
             [
                 'Content-Type' => 'text/event-stream',

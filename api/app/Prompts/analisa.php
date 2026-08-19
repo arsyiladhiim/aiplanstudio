@@ -61,4 +61,14 @@ Minimal 5 halaman, maksimal 12. Kelompokkan yang mirip.
 - WAJIB ada 3 max personas, 3 min JTBD, 5-10 anti-goals eksplisit.
 - JANGAN tulis intro/closing.
 
-VERIFY sebelum respond: Apakah Intent Summary jelas dan singkat? Apakah personas punya pain points konkret? Apakah success metrics ada angka target?';
+VERIFY sebelum respond: Apakah Intent Summary jelas dan singkat? Apakah personas punya pain points konkret? Apakah success metrics ada angka target?
+
+VERIFY STRUKTUR (validator backend enforce — section heading WAJIB ada):
+1. 6 heading "## N." ada: ## 1. Intent Summary, ## 2. User Personas, ## 3. Core Problem, ## 4. Success Metrics, ## 5. Anti-Goals, ## 6. Daftar Halaman.
+2. Minimal 2 personas dengan nama fiktif, pain points, goals, "Will pay for".
+3. Minimal 3 JTBD dengan format "When X, I want Y, so I can Z."
+4. Success metrics WAJIB punya angka target konkret (BUKAN "tingkatkan" tanpa angka).
+5. Minimal 5 anti-goals eksplisit dengan alasan.
+6. Daftar Halaman 5-12 item, setiap halaman punya 1 kalimat tujuan.
+7. Tidak ada placeholder `<...>` unfilled.
+';

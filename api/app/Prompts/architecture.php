@@ -7,7 +7,7 @@ return fn (string $target) => 'Anda senior software architect. Buat System Archi
 ## 1. Stack (with reasoning)
 
 ### Backend
-- **Framework:** Laravel 11 (PHP 8.4)
+- **Framework:** Laravel 13 (PHP 8.3)
 - **Why:** <1-2 kalimat reasoning — misal "PHP familiar untuk tim, ekosistem Sanctum untuk SPA auth">
 - **Auth:** Sanctum SPA Session (HttpOnly cookie + CSRF)
 - **API style:** REST + JSON response
@@ -29,7 +29,7 @@ return fn (string $target) => 'Anda senior software architect. Buat System Archi
 
 ### Infra
 - **Containerization:** Docker Compose
-- **Services:** `aiplanstudio_web` (Next.js standalone), `aiplanstudionginx_api` (nginx front Laravel), `aiplanstudio_apifpm` (Laravel + PHP-FPM), `aiplanstudio_db` (Postgres), `aiplanstudio_redis` (Redis). Tidak ada nginx host — Cloudflare Tunnel jadi reverse proxy eksternal.
+- **Services:** `<project_slug>_web` (Next.js standalone), `<project_slug>_nginx_api` (nginx front Laravel), `<project_slug>_apifpm` (Laravel + PHP-FPM), `<project_slug>_db` (Postgres), `<project_slug>_redis` (Redis). Tidak ada nginx host — Cloudflare Tunnel jadi reverse proxy eksternal.
 - **Reverse proxy:** Cloudflare Tunnel (external container `cloudflare_tunnel_default` network). 2 ingress: web origin + API origin.
 - **Deploy target:** Self-hosted VPS (no Kubernetes, no Lambda)
 
@@ -49,7 +49,7 @@ return fn (string $target) => 'Anda senior software architect. Buat System Archi
                │ Eloquent
                ▼
 ┌─────────────────────────────────────────────────┐
-│   PostgreSQL (aiplanstudio_master/_project/_settings)│
+│   PostgreSQL (<project_slug>_master/_project/_settings)│
 └─────────────────────────────────────────────────┘
 ```
 
@@ -102,7 +102,7 @@ web/
 ## 5. Deployment Topology
 - Single VPS (2 vCPU, 4GB RAM minimal)
 - Docker Compose up all services
-- **Cloudflare Tunnel** (external reverse proxy) — 2 ingress: `aiplanstudio.arsyiladm.my.id → http://aiplanstudio_web:3000` (Next.js), `api-aiplanstudio.arsyiladm.my.id → http://aiplanstudionginx_api:8000` (Laravel via nginx → php-fpm)
+- **Cloudflare Tunnel** (external reverse proxy) — 2 ingress: `<app_domain> → http://<project_slug>_web:3000` (Next.js), `api-<app_domain> → http://<project_slug>_nginx_api:8000` (Laravel via nginx → php-fpm)
 - TLS termination di Cloudflare; nginx di belakang tunnel tetap kasih defense-in-depth headers (CSP, HSTS, X-Frame-Options, Permissions-Policy)
 - DB backup harian via cron `pg_dump`
 
@@ -127,4 +127,12 @@ web/
 - WAJIB semua 6 section terisi.
 - JANGAN basa-basi.
 
-VERIFY: Apakah setiap stack punya reasoning? Apakah module boundary jelas dengan ASCII diagram? Apakah trade-off eksplisit?';
+VERIFY: Apakah setiap stack punya reasoning? Apakah module boundary jelas dengan ASCII diagram? Apakah trade-off eksplisit?
+
+VERIFY STRUKTUR (validator backend enforce — section heading WAJIB ada):
+1. 6 heading "## N." ada: ## 1. Stack, ## 2. Module Boundaries, ## 3. Data Flow, ## 4. Folder Structure, ## 5. Deployment Topology, ## 6. Trade-offs.
+2. Trade-offs WAJIB tabel markdown dengan minimal 4 baris (Decision | Alternative | Why we chose this).
+3. Folder structure WAJIB match codebase real (lihat konteks) — JANGAN struktur fiktif.
+4. Module boundaries WAJIB ada ASCII diagram.
+5. Tidak ada placeholder `<...>` unfilled.
+';
