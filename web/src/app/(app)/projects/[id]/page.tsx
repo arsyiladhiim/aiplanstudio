@@ -27,7 +27,7 @@ type AppSpecWebLike = Parameters<typeof AppSpecWebView>[0]['data'];
 type AppSpecMobileLike = Parameters<typeof AppSpecMobileView>[0]['data'];
 type ApiContractLike = Parameters<typeof ApiContractTable>[0]['items'];
 import {
-  ArrowLeft, GitBranch, Download, Plus, Copy, ListChecks, Check, Loader2, Play, Trash2, GitCompareArrows, Smartphone, Pencil, X, History, Heart, RotateCcw, LayoutDashboard, Globe, Archive,
+  ArrowLeft, GitBranch, Download, Plus, Copy, ListChecks, Check, Loader2, Play, Trash2, GitCompareArrows, Smartphone, Pencil, X, History, Heart, RotateCcw, LayoutDashboard, Globe, Archive, BarChart3,
 } from "lucide-react";
 
 const ErdDiagram = dynamic(() => import("@/components/wizard/ErdDiagram").then(m => ({ default: m.ErdDiagram })), { ssr: false, loading: () => <div className="h-[460px] animate-pulse rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)]" /> });
@@ -49,6 +49,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
   const initialTab = (searchParams.get("tab") as TabKey) || "overview";
   const [project, setProject] = useState<Project & { versions?: Version[] } | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
+  const [showQuality, setShowQuality] = useState(false);
   const [loading, setLoading] = useState(true);
   const [versionLoading, setVersionLoading] = useState(false);
   const [error, setError] = useState("");
@@ -892,6 +893,9 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
               <Card className="p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="font-semibold">Pipeline</h3>
+                  <Button variant="ghost" size="sm" onClick={() => setShowQuality(true)} data-testid="quality-report">
+                    <BarChart3 size={13} /> Laporan Kualitas
+                  </Button>
                   {(selectedVersion.stage_status as Record<string, string>).analisa === 'done' && (
                     <Button
                       variant="ghost"
@@ -980,6 +984,50 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                     <Play size={14} /> Lanjutkan Pipeline
                   </Button>
                 )}
+              </Card>
+            )}
+
+            {/* Riwayat Versi — B1 timeline */}
+            {versions.length > 0 && (
+              <Card className="p-5">
+                <details open={false}>
+                  <summary className="flex cursor-pointer items-center gap-2 font-semibold">
+                    <GitBranch size={14} className="text-[var(--color-brand)]" />
+                    Riwayat Versi
+                    <span className="ml-auto text-xs font-normal text-[var(--color-fg-muted)]">{versions.length}</span>
+                  </summary>
+                  <div className="mt-3 space-y-2">
+                    {[...versions].sort((a, b) => (b.version_no ?? 0) - (a.version_no ?? 0)).map((v) => {
+                      const st = v.stage_status ?? {};
+                      const done = Object.values(st).filter((s) => s === "done").length;
+                      const total = Object.keys(st).length;
+                      const source = versions.find((x) => x.id === v.source_version_id);
+                      return (
+                        <div key={v.id} className="flex items-start gap-2 rounded-md border border-[var(--color-border)] px-2.5 py-2">
+                          <button
+                            onClick={() => setSelectedVersion(v)}
+                            className={`shrink-0 text-xs font-semibold ${selectedVersion?.id === v.id ? "text-[var(--color-brand)]" : "text-[var(--color-fg)] hover:text-[var(--color-brand)]"}`}
+                          >
+                            v{v.version_no}
+                          </button>
+                          <div className="min-w-0 flex-1 text-xs text-[var(--color-fg-muted)]">
+                            <div className="flex flex-wrap items-center gap-x-2">
+                              <span>{new Date(v.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>
+                              <span className="rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5">{done}/{total} tahap</span>
+                              {source && <span className="text-[var(--color-fg-subtle)]">dari v{source.version_no}</span>}
+                            </div>
+                            {v.baseline_notes && <p className="mt-0.5 truncate text-[var(--color-fg-subtle)]">“{v.baseline_notes}”</p>}
+                            {Object.keys(v.skip_reasons ?? {}).length > 0 && (
+                              <p className="mt-0.5 truncate text-[var(--color-fg-subtle)]">
+                                skip: {Object.keys(v.skip_reasons ?? {}).slice(0, 3).join(", ")}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
               </Card>
             )}
 
@@ -1174,6 +1222,54 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Quality Report — B2 */}
+      <Modal open={showQuality && !!selectedVersion} onClose={() => setShowQuality(false)} title={`Laporan Kualitas — v${selectedVersion?.version_no}`} size="lg">
+        {selectedVersion && (
+          <div className="max-h-[70vh] overflow-auto">
+            <div className="mb-3 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-xs text-[var(--color-fg-muted)]">
+              Skor = agregat validator (struktur+keyword+panjang+orisinalitas). Skor &lt; 60% → sebaiknya regenerate stage-nya.
+            </div>
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-border)] text-xs uppercase tracking-wide text-[var(--color-fg-subtle)]">
+                  <th className="py-2 pr-2 font-medium">Stage</th>
+                  <th className="py-2 pr-2 font-medium">Status</th>
+                  <th className="py-2 pr-2 font-medium">Skor</th>
+                  <th className="py-2 font-medium">Catatan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {getStages(project!.target as Target).map((s) => {
+                  const st = (selectedVersion.stage_status as Record<string, string>)[s.key] ?? "pending";
+                  const q = selectedVersion.stage_quality?.[s.key];
+                  const err = (selectedVersion.stage_errors as Record<string, string> | undefined)?.[s.key];
+                  const skipReason = selectedVersion.skip_reasons?.[s.key];
+                  const note = err
+                    ? <span className="text-[var(--color-danger)]">{err.slice(0, 90)}…</span>
+                    : skipReason
+                      ? <span className="text-[var(--color-fg-muted)]">{skipReason.slice(0, 90)}</span>
+                      : <span className="text-[var(--color-fg-subtle)]">—</span>;
+                  return (
+                    <tr key={s.key} className="border-b border-[var(--color-border)]/60">
+                      <td className="py-1.5 pr-2">{s.label}</td>
+                      <td className="py-1.5 pr-2">{st}</td>
+                      <td className="py-1.5 pr-2">
+                        {typeof q === "number" ? (
+                          <Badge tone={q >= 0.8 ? "success" : q >= 0.6 ? "warning" : "danger"}>{Math.round(q * 100)}%</Badge>
+                        ) : (
+                          <span className="text-[var(--color-fg-subtle)]">—</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-xs">{note}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Modal>
 
       <ConfirmDialog

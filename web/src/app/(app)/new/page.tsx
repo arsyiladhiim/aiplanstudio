@@ -563,6 +563,9 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       const projectTarget = v.project?.target ?? 'web';
       setTarget(projectTarget);
       if (v.answers) setAnswers(v.answers);
+      // A3: resume lite — deteksi dari skip_reasons (bukan URL param).
+      const liteReasons = Object.values(v.skip_reasons ?? {}).some(r => (r || "").includes("Lite plan"));
+      if (liteReasons) setLiteMode(true);
       setStarted(true);
 
       // Hitung stage berdasarkan target project (bukan `stages` memo yang masih

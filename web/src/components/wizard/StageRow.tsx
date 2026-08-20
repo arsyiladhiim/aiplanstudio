@@ -108,6 +108,21 @@ export function StageRow({ stageKey, label, status = "pending", quality, onRegen
           )}
         </button>
       )}
+      {status === "error" && onRegenerate && (
+        <button
+          onClick={onRegenerate}
+          disabled={isRegenerating}
+          className="shrink-0 p-1 rounded bg-[var(--color-danger)]/10 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/20 transition-colors"
+          title={`Coba lagi (dengan perbaikan) — ${label}`}
+          data-testid={`retry-${label.toLowerCase().replace(/\s+/g, "-")}`}
+        >
+          {isRegenerating ? (
+            <Loader2 size={11} className="animate-spin" />
+          ) : (
+            <RotateCcw size={11} />
+          )}
+        </button>
+      )}
       {status !== "done" && status !== "running" && status !== "error" && onSkip && (
         <button
           onClick={() => {

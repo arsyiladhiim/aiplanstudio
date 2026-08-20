@@ -137,7 +137,12 @@ export default function DashboardPage() {
                     </div>
                     <p className="mt-1 line-clamp-1 text-sm text-[var(--color-fg-muted)]">{p.idea}</p>
                   </div>
-                  <ButtonLink href={`/projects/${p.id}`} variant="secondary" size="sm" className="shrink-0">Buka</ButtonLink>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {typeof p.progress === "number" && typeof p.stage_count === "number" && p.progress < p.stage_count && p.latest_version_id ? (
+                      <ButtonLink href={`/new?resume=1&version=${p.latest_version_id}`} variant="secondary" size="sm">Lanjutkan</ButtonLink>
+                    ) : null}
+                    <ButtonLink href={`/projects/${p.id}`} variant="ghost" size="sm">Buka</ButtonLink>
+                  </div>
                 </div>
                 <div className="mt-4 flex items-center gap-4 text-xs text-[var(--color-fg-muted)]">
                   <span className="inline-flex items-center gap-1"><Clock size={12} /> {formatRelativeTime(p.updated_at)}</span>

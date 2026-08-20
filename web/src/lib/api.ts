@@ -492,10 +492,12 @@ export async function toggleTask(
 export type Version = {
   id: number
   version_no: number
+  created_at: string
   source_version_id?: number | null
   baseline_notes?: string | null
   stage_status: Record<string, string>
   stage_quality?: Record<string, number>
+  stage_errors?: Record<string, string>
   skip_reasons?: Record<string, string>
   stage_tokens?: Record<string, number>
   pertanyaan?: string
