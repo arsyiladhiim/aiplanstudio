@@ -187,7 +187,7 @@ class AiClient
         }
     }
 
-    public function stream(array $messages, callable $onToken): string
+    public function stream(array $messages, callable $onToken, ?int $maxTokens = null): string
     {
         $this->lastFinishReason = '';
 
@@ -199,34 +199,36 @@ class AiClient
             throw new \RuntimeException($check);
         }
         $this->ensureHostStillSafe($this->provider->base_url ?? '');
+        $budget = $maxTokens ?? 8192;
         $res = Http::withHeaders($this->provider->authHeaders())
             ->timeout(300)->withOptions(['stream' => true])
-            ->post($this->provider->chatEndpoint(), $this->provider->chatBody($messages, 8192, true));
+            ->post($this->provider->chatEndpoint(), $this->provider->chatBody($messages, $budget, true));
 
         if (! $res->successful()) {
             throw new \RuntimeException("AI Provider mengembalikan error (HTTP {$res->status()}). Periksa konfigurasi.");
         }
 
         $buffer = '';
+        $pending = ''; // P1: buffer baris yang belum lengkap antar pembacaan (SSE akumulator)
         $body = $res->toPsrResponse()->getBody();
         while (! $body->eof()) {
-            foreach (explode("\n", $body->read(8192)) as $chunk) {
-                if (! str_starts_with($chunk, 'data: ')) {
-                    continue;
-                }
-                $data = trim(substr($chunk, 6));
-                if ($data === '[DONE]' || $data === 'done') {
+            $raw = $body->read(1024);
+            if ($raw === '') {
+                break;
+            }
+            foreach (self::extractSseEvents($pending, $raw) as $ev) {
+                if ($ev['done']) {
                     $this->lastFinishReason = 'stop';
 
                     return $buffer;
                 }
-                $decoded = json_decode($data, true) ?? [];
+                $decoded = json_decode($ev['data'], true) ?? [];
                 if ($this->provider->isStreamDone($decoded)) {
                     $this->lastFinishReason = 'stop';
 
                     return $buffer;
                 }
-                // Track finish_reason from OpenAI streaming chunks
+                // Track finish_reason dari chunk OpenAI streaming
                 if (isset($decoded['choices'][0]['finish_reason']) && $decoded['choices'][0]['finish_reason'] !== null) {
                     $this->lastFinishReason = $decoded['choices'][0]['finish_reason'];
                 }
@@ -241,7 +243,32 @@ class AiClient
         return $buffer;
     }
 
-    public function complete(array $messages): string
+    /**
+     * P1 — SSE line accumulator: pecah aliran mentah jadi event `data:` utuh.
+     * Antarmuka statis agar dapat diuji tanpa DB/HTTP. Mutasi $pending (sisa baris).
+     */
+    public static function extractSseEvents(string &$pending, string $raw): array
+    {
+        $events = [];
+        $pending .= $raw;
+        while (($nl = strpos($pending, "\n")) !== false) {
+            $line = substr($pending, 0, $nl);
+            $pending = substr($pending, $nl + 1);
+            $line = rtrim($line, "\r");
+            if (! str_starts_with($line, 'data:')) {
+                continue;
+            }
+            $data = trim(substr($line, 5));
+            if ($data === '') {
+                continue;
+            }
+            $events[] = ['data' => $data, 'done' => ($data === '[DONE]' || $data === 'done')];
+        }
+
+        return $events;
+    }
+
+    public function complete(array $messages, ?int $maxTokens = null): string
     {
         $this->lastFinishReason = '';
 
@@ -256,7 +283,7 @@ class AiClient
 
         $res = Http::withHeaders($this->provider->authHeaders())
             ->timeout(120)
-            ->post($this->provider->chatEndpoint(), $this->provider->chatBody($messages, 4096, false));
+            ->post($this->provider->chatEndpoint(), $this->provider->chatBody($messages, $maxTokens ?? 4096, false));
 
         if (! $res->successful()) {
             throw new \RuntimeException("Provider mengembalikan error (HTTP {$res->status()}). Periksa konfigurasi.");

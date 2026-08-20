@@ -43,6 +43,32 @@ class PipelineRunner
 
     private const MAX_VALIDATE_RETRIES = 3;
 
+    /** P2 — budget token output per stage (MCQ kecil; dokumen panjang tetap tinggi agar tak tambah truncation). */
+    private const STAGE_MAX_TOKENS = [
+        'pertanyaan' => 1500,
+        'pertanyaan_mobile' => 1500,
+        'analisa' => 4096,
+        'erd' => 4096,
+        'api_contract' => 4096,
+        'app_spec_web' => 4096,
+        'app_spec_mobile' => 4096,
+        'prd' => 8192,
+        'architecture' => 8192,
+        'design_system' => 8192,
+        'design_system_mobile' => 8192,
+        'phases_web' => 8192,
+        'phases_mobile' => 8192,
+        'standards_web' => 8192,
+        'standards_mobile' => 8192,
+        'master_web' => 8192,
+        'master_mobile' => 8192,
+        'env_config' => 8192,
+        'security' => 8192,
+        'deployment' => 8192,
+        'observability' => 8192,
+        'agents' => 8192,
+    ];
+
     /** P5 — Lite plan: hanya tahap inti yang dihasilkan, sisanya di-skip. */
     private const LITE_STAGES = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'master_web'];
 
@@ -289,8 +315,9 @@ class PipelineRunner
             $sanitized = preg_replace('/\b(system|assistant|user)\b/i', '[rol]', $sanitized);
             $messages[0]['content'] = $system."\n\n[PERINGATAN TAMBAHAN]\n{$sanitized}";
         }
+
         $buffer = '';
-        $maxChunks = 3;
+        $maxChunks = 2;
         $maxBufferBytes = 10 * 1024 * 1024;
         $shouldRedactStream = in_array($key, ['master_web', 'master_mobile'], true);
 
@@ -311,22 +338,17 @@ class PipelineRunner
                 $buffer .= $delta;
                 $emitDelta = $shouldRedactStream ? $this->stripTrackingToken($delta) : $delta;
                 $this->sse->emit('token', ['stage' => $key, 'delta' => $emitDelta, 'bytes_so_far' => strlen($buffer)]);
-            });
+            }, self::STAGE_MAX_TOKENS[$key] ?? 8192);
 
             $added = strlen($buffer) - $prevLen;
-            $trimmed = trim($buffer);
-            $endsNatural = $added < 50 || preg_match('/[.\n}\]>!?]$/', $trimmed) || $trimmed === '';
 
-            if ($added > 0 && $this->client->lastFinishReason === '') {
-                break;
-            }
-
-            if ($this->client->lastFinishReason === 'stop' && $endsNatural) {
+            // P3: selesai saat finish_reason=stop — jangan tebak heuristik endsNatural (hindari re-request ganda).
+            if ($this->client->lastFinishReason === 'stop') {
                 break;
             }
             if ($this->client->lastFinishReason === 'length') {
                 // Terpotong oleh token limit → lanjut continuation
-            } elseif ($added < 20) {
+            } elseif ($added < 20 || $this->client->lastFinishReason === '') {
                 break;
             }
 

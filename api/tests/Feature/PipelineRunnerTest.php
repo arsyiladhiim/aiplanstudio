@@ -727,13 +727,18 @@ class PipelineRunnerTest extends TestCase
                 return $this->configured;
             }
 
-            public function stream(array $messages, callable $onToken): string
+            public function stream(array $messages, callable $onToken, ?int $maxTokens = null): string
             {
                 $opts = '[{"key":"A","text":"a"},{"key":"B","text":"b"},{"key":"C","text":"c"},{"key":"D","text":"d"},{"key":"E","text":"lainnya"}]';
                 $payload = sprintf('{"ambiguities":["x"],"questions":[{"id":"r1","question":"q?","options":%s},{"id":"r2","question":"q?","options":%s},{"id":"r3","question":"q?","options":%s}]}', $opts, $opts, $opts);
                 $onToken($payload);
 
                 return $payload;
+            }
+
+            public function complete(array $messages, ?int $maxTokens = null): string
+            {
+                return $this->stream($messages, fn () => null, $maxTokens);
             }
         };
 
@@ -779,12 +784,17 @@ class PipelineRunnerTest extends TestCase
                 return true;
             }
 
-            public function stream(array $messages, callable $onToken): string
+            public function stream(array $messages, callable $onToken, ?int $maxTokens = null): string
             {
                 $payload = "1. fitur?\n2. user?\n3. biaya?\n4. rilis?\n5. platform?";
                 $onToken($payload);
 
                 return $payload;
+            }
+
+            public function complete(array $messages, ?int $maxTokens = null): string
+            {
+                return $this->stream($messages, fn () => null, $maxTokens);
             }
         };
 
