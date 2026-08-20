@@ -27,7 +27,7 @@ import { StreamingMarkdown } from "@/components/wizard/StreamingMarkdown";
 import { StageThroughputBar } from "@/components/wizard/StageThroughputBar";
 import { BuildWall } from "@/components/wizard/BuildWall";
 import { getStages, type StageKey, type StageState, type Target } from "@/lib/mock";
-import { apiPost, apiGet, apiPatch, apiDelete, createSSEPost, createSSE, WEBHOOK_URL, type Project, type Template, type Version, type McqData, type McqAnswer } from "@/lib/api";
+import { apiPost, apiGet, apiPatch, apiDelete, createSSEPost, createPhaseProgressStream, WEBHOOK_URL, type Project, type Template, type Version, type McqData, type McqAnswer } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
 import { chime } from "@/lib/chime";
 import {
@@ -491,7 +491,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       if (v.stage_tokens) setStageTokens(v.stage_tokens);
     }).catch(() => {});
 
-    const es = createSSE(
+    const pp = createPhaseProgressStream(
       `/versions/${versionId}/phase-progress/stream`,
       (event, data) => {
         if (event === "phase_progress") {
@@ -508,7 +508,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         }
       },
     );
-    return () => es.close();
+    return () => pp.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [versionId]);
 

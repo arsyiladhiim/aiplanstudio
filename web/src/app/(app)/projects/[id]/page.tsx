@@ -11,7 +11,7 @@ import { TargetBadge } from "@/components/common";
 import { ApiTokenSection } from "@/components/project/ApiTokenSection";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { getStages, getStageGroups, type StageKey, type Target } from "@/lib/mock";
-import { apiGet, apiPost, apiDelete, apiPatch, createSSE, WEBHOOK_URL, type Project, type Version, type Activity } from "@/lib/api";
+import { apiGet, apiPost, apiDelete, apiPatch, createPhaseProgressStream, WEBHOOK_URL, type Project, type Version, type Activity } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
 import { TrackingPanel, type ProgressItem } from "@/components/wizard/TrackingPanel";
 import type { PhaseItem } from "@/components/wizard/PhaseBreakdownCard";
@@ -102,7 +102,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
     allDoneRef.current = stages.every(s => status[s.key] === "done");
     if (allDoneRef.current) return;
 
-    const es = createSSE(
+    const pp = createPhaseProgressStream(
       `/versions/${selectedVersion.id}/phase-progress/stream`,
       (event) => {
         if (event === "phase_progress" || event === "done") {
@@ -112,12 +112,11 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
             setSelectedVersion(v);
             setLastRefreshed(new Date());
             setCountdown(0);
-            if (allDoneRef.current) es.close();
           }).catch(() => {});
         }
       },
     );
-    return () => es.close();
+    return () => pp.abort();
     // stages is derived from selectedVersion; intentionally keyed on version id only
     // so SSE doesn't re-spawn on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps

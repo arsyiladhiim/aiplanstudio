@@ -410,6 +410,42 @@ export async function createSSEPost(
   return controller
 }
 
+/**
+ * D1 — Phase-progress realtime via POST (cookie+CSRF), bukan EventSource.
+ * Auto-reopen singkat (4s) saat stream error; caller abort() pada unmount.
+ */
+export function createPhaseProgressStream(
+  path: string,
+  onEvent: (event: string, data: unknown) => void,
+  onError?: (error: Error) => void
+): { abort: () => void } {
+  let controller: AbortController | null = null
+  let closed = false
+  let timer: ReturnType<typeof setTimeout> | null = null
+
+  const open = () => {
+    if (closed) return
+    createSSEPost(path, {}, (ev, data) => {
+      if (ev === "phase_progress") onEvent(ev, data)
+    }, (err) => {
+      onError?.(err)
+      if (!closed) {
+        timer = setTimeout(open, 4000)
+      }
+    }).then((c) => { controller = c })
+  }
+
+  open()
+
+  return {
+    abort: () => {
+      closed = true
+      if (timer) clearTimeout(timer)
+      controller?.abort()
+    },
+  }
+}
+
 export type Target = "web" | "both"
 export type User = {
   id: number

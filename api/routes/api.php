@@ -68,7 +68,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
     Route::post('/projects/{id}/versions', [VersionController::class, 'store']);
     Route::get('/versions/{id}', [VersionController::class, 'show']);
-    Route::get('/versions/{id}/phase-progress/stream', [VersionController::class, 'phaseProgressStream'])->middleware('throttle:30,1');
+    Route::match(['get', 'post'], '/versions/{id}/phase-progress/stream', [VersionController::class, 'phaseProgressStream'])->middleware('throttle:30,1');
     Route::delete('/versions/{id}', [VersionController::class, 'destroy']);
     Route::patch('/versions/{id}/answers', [VersionController::class, 'updateAnswers']);
     Route::patch('/versions/{id}/phases/{phaseKey}', [VersionController::class, 'togglePhase']);
