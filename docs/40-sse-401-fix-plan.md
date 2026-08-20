@@ -1,7 +1,8 @@
 # 40 — SSE 401 Fix — Realtime Progress (Project Detail + Wizard Master) — Build Plan & Checkpoints
 
-> **Status:** IN PROGRESS — Mode Build aktif
+> **Status:** ✅ COMPLETED
 > **Started:** 2026-08-20
+> **Completed:** 2026-08-20
 > **Scope:** Hilangkan error 401 + aktifkan realtime phase-progress di: (1) project detail "Progress Bangun", (2) wizard master_web & master_mobile TrackingPanel. Saklar EventSource (tanpa cookie cross-origin) → fetch POST + credentials + CSRF (`createSSEPost`). **Tanpa mengubah data/aturan.**
 
 ---
