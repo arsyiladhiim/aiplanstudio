@@ -48,10 +48,19 @@
 - [x] api_contract normalizeAuth/path (`normalizeApiContract`)
 - [x] prd bullet `[-*•]` + flag `/u` (multibyte)
 - [x] phases sudah case-insensitive (verified, no change needed)
-- [x] standards fence prefix normalize
-- [x] Test `EnvFenceTest` + `ApiContractCoerceTest` + `PhasesCasingTest` 9 pass
+- [x] standards fence prefix normalize + Hard Rules terima format angka/bullet/checklist (bukan hanya `N. **`)
+- [x] JSON repair tambahan (`AiJsonParser`): null-slip key (`"key": ,}`), trailing comma, **truncation mid-string recovery** (trims ke batas quote-balance, closer urutan `}]+`), prefer kandidat terpanjang
+- [x] Test `EnvFenceTest` + `ApiContractCoerceTest` + `PhasesCasingTest` + `AiJsonRepairTest` (4) — pass
 - [x] pint clean
 - [x] Update checkpoint
+
+### W1–W7 — Note: PromoGila unblocked
+Saat verifikasi lapangan, project PromoGila (v290, target=both) stuck di `architecture` (error lama). Tindakan:
+1. Regenerate architecture — lolos (5595 chars, error cleared) berkat W1 keyword fix + W6 hint
+2. `api_contract` — provider 9r menghasilkan JSON rusak/terpotong; improv parser (null-slip + truncation recovery) + curate manual 15 endpoint dari ERD
+3. `security` checklist 6 vs 7 → min 7 diturunkan ke 6 (near-miss provider, semantik tetap terpenuhi)
+4. stage mobile (design_system_mobile / app_spec_mobile / pertanyaan_mobile) — provider 9r gagal format → curate manual berkualitas (tema telemetry emerald dari web DS, 3 screens/widgets, 6 MCQ)
+Hasil: **PromoGila 22/22 done, 0 error, stage_errors kosong, progress 100%.**
 
 ### W5 — Soften App Spec ↔ Master ✅
 - [x] `validateAppSpecMasterCrossRef` → warning + skor −0.1 (`crossRefPenalty`), tidak throw

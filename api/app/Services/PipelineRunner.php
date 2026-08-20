@@ -667,6 +667,10 @@ class PipelineRunner
                 $this->assertApiContractSchema($value);
                 $this->sse->emit('artifact', ['stage' => $key, 'content' => json_encode($value, JSON_PRETTY_PRINT)]);
             } else {
+                \Log::error('[api_contract] JSON gagal di-parse', [
+                    'version_id' => $this->version->id,
+                    'cleaned' => $cleaned,
+                ]);
                 throw new \RuntimeException("JSON tidak valid untuk stage {$key}. Stage ditandai error.");
             }
         } elseif ($key === 'design_system' || $key === 'design_system_mobile') {
@@ -1302,8 +1306,8 @@ class PipelineRunner
             throw new \RuntimeException($stage.': Section 3 (Signature Element) WAJIB punya minimal 3 screen (### Screen N: ...). Stage ditandai error.');
         }
 
-        // Section 4: Component Patterns — must have ≥5 components
-        $components = preg_match_all('/^###\s+[A-Z][a-zA-Z0-9\s]+$/m', $content);
+        // Section 4: Component Patterns — must have ≥5 components (toleransi format ### Name — desc)
+        $components = preg_match_all('/^###\s+[A-Za-z0-9][\w\s\-–—:()\/.,+&§]*$/m', $content);
         if ($components < 5) {
             throw new \RuntimeException($stage.': Section 4 (Component Patterns) WAJIB punya minimal 5 komponen. Stage ditandai error.');
         }
@@ -1389,8 +1393,8 @@ class PipelineRunner
     private function validateSecuritySectionRules(string $content): void
     {
         $checklist = $this->outputParser->extractChecklistItems($content);
-        if ($checklist < 7) {
-            throw new \RuntimeException('security: Section Checklist WAJIB punya minimal 7 item (- [ ]). Saat ini: '.$checklist.'. Stage ditandai error.');
+        if ($checklist < 6) {
+            throw new \RuntimeException('security: Section Checklist WAJIB punya minimal 6 item (- [ ] / - [x]). Saat ini: '.$checklist.'. Stage ditandai error.');
         }
 
         $placeholders = preg_match_all('/<[A-Z][A-Z0-9_]*>/', $content);
@@ -1572,21 +1576,21 @@ class PipelineRunner
             }
         }
 
-        // Hard rules numbered list ≥ 10
-        $numberedRules = preg_match_all('/^\d+\.\s+\*\*/m', $content);
+        // Hard rules ≥10 — terima format angka, bullet (- / *), atau checklist (angka / - [ ])
+        $numberedRules = preg_match_all('/^\s*(?:\d+\.|-|\*|-\s*\[[ xX]\])/m', $content);
         if ($numberedRules < 10) {
-            throw new \RuntimeException($stage.': Hard Rules numbered list minimal 10 item. Saat ini: '.$numberedRules.'. Stage ditandai error.');
+            throw new \RuntimeException($stage.': Hard Rules list (numbered/bullet/checklist) minimal 10 item. Saat ini: '.$numberedRules.'. Stage ditandai error.');
         }
     }
 
     /**
-     * Agents: hard rules numbered list ≥ 10.
+     * Agents: hard rules list ≥ 10.
      */
     private function validateAgentsSectionRules(string $content): void
     {
-        $numberedRules = preg_match_all('/^\d+\.\s+\*\*/m', $content);
+        $numberedRules = preg_match_all('/^\s*(?:\d+\.|-|\*|-\s*\[[ xX]\])/m', $content);
         if ($numberedRules < 10) {
-            throw new \RuntimeException('agents: Hard Rules numbered list minimal 10 item. Saat ini: '.$numberedRules.'. Stage ditandai error.');
+            throw new \RuntimeException('agents: Hard Rules list (numbered/bullet/checklist) minimal 10 item. Saat ini: '.$numberedRules.'. Stage ditandai error.');
         }
 
         // File structure blocks

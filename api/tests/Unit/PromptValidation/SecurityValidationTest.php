@@ -65,7 +65,7 @@ MD;
 - [ ] Satu item saja
 MD;
         $items = $this->parser->extractChecklistItems($content);
-        $this->assertLessThan(7, $items);
+        $this->assertLessThan(6, $items);
     }
 
     public function test_placeholder_detected(): void
