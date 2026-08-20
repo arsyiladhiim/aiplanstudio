@@ -278,7 +278,8 @@ class AiOutputParser
     public function parsePhasesText(string $content): ?array
     {
         $phases = [];
-        $blocks = preg_split('/^-{3,}\s*$/m', $content);
+        // R3: akui delimiter `---` ATAU baris `FASE:` sebagai pemisah blok.
+        $blocks = preg_split('/^-{3,}\s*$|(?=^FASE:\s)/mi', $content);
 
         foreach ($blocks as $block) {
             $block = trim($block);

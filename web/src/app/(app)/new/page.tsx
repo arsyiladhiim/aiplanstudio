@@ -32,7 +32,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { chime } from "@/lib/chime";
 import {
   Wand2, Globe, Layers, Loader2, Check, Copy, ArrowRight,
-  RotateCcw, CircleDot, Sparkles, AlertCircle, Pencil,
+  RotateCcw, CircleDot, Sparkles, AlertCircle, Pencil, Play,
 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
@@ -64,6 +64,8 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
   const [title, setTitle] = useState("");
   const [target, setTarget] = useState<Target>("web");
   const [liteMode, setLiteMode] = useState(false);
+  const [resumeInfo, setResumeInfo] = useState<{ stage: string; remaining: number; total: number } | null>(null);
+  const [failedStage, setFailedStage] = useState<StageKey | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, McqAnswer>>({});
   const [mobileMcqAnswers, setMobileMcqAnswers] = useState<Record<string, McqAnswer>>({});
@@ -358,6 +360,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       case 'done': {
         const stage = data.stage as string | undefined;
         if (stage) {
+          setFailedStage(null);
           const stageIndex = stages.findIndex(x => x.key === stage);
           if (stageIndex >= 0) {
             setCurrent(stageIndex);
@@ -372,6 +375,7 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         { const stage = data.stage as string | undefined;
           if (stage) {
             setStatus(s => ({ ...s, [stage]: 'error' as StageState }));
+            setFailedStage(stage as StageKey);
           }
         }
         if (abortRef.current) {
@@ -570,8 +574,15 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
       setCurrent(idx);
 
       const loadedStatus = Object.fromEntries(resumeStages.map(s => [s.key, (v.stage_status as Record<string, string>)?.[s.key] || 'pending'])) as Record<StageKey, StageState>;
-      resumeStages.forEach(s => { if (loadedStatus[s.key] === 'error') loadedStatus[s.key] = 'pending'; });
+      resumeStages.forEach(s => {
+        if (loadedStatus[s.key] === 'error' || loadedStatus[s.key] === 'running') loadedStatus[s.key] = 'pending';
+      });
       setStatus(loadedStatus);
+      setResumeInfo({
+        stage: resumeStages[firstIdx]?.key ?? resumeStages[0].key,
+        remaining: resumeStages.length - firstIdx,
+        total: resumeStages.length,
+      });
 
       const colMap: Record<string, keyof Version> = {
         pertanyaan: 'pertanyaan',
@@ -907,6 +918,16 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
         </div>
         <Button variant="secondary" size="sm" onClick={() => setShowResetConfirm(true)} disabled={deleting} data-testid="reset-plan">{deleting ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />} {deleting ? "Menghapus..." : "Mulai Ulang"}</Button>
       </div>
+
+      {resumeInfo && isResume && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--color-brand)]/40 bg-[color-mix(in_oklab,var(--color-brand)_10%,transparent)] px-4 py-2.5 text-sm text-[var(--color-fg)]">
+          <Play size={14} className="text-[var(--color-brand)]" />
+          <span>
+            Melanjutkan dari <strong>{resumeInfo.stage}</strong> — {resumeInfo.remaining} dari {resumeInfo.total} tahap tersisa.
+            Tahap yang sudah selesai tidak akan diulang.
+          </span>
+        </div>
+      )}
 
       <div className={`grid gap-6 ${showTrackingPanel ? "lg:grid-cols-[260px_1fr_340px]" : "lg:grid-cols-[280px_1fr]"}`}>
         {/* Stage tracker */}
@@ -1414,12 +1435,26 @@ export default function NewPlanPage({ searchParams }: { searchParams: Promise<{ 
           )}
 
           {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-sm text-red-500">
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-sm text-red-500">
               <AlertCircle size={18} />
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="font-medium">Terjadi Kesalahan</div>
                 <div className="mt-1 text-xs opacity-90">{error}</div>
               </div>
+              {failedStage && versionId && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setFailedStage(null);
+                    setError("");
+                    doStream(versionId, failedStage);
+                  }}
+                  data-testid="retry-stage"
+                >
+                  <Play size={14} /> Coba lagi dengan perbaikan
+                </Button>
+              )}
             </div>
            )}
         </div>

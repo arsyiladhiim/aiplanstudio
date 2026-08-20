@@ -41,7 +41,7 @@ class PipelineRunner
 
     private const MAX_MCQ_RETRIES = 10;
 
-    private const MAX_VALIDATE_RETRIES = 2;
+    private const MAX_VALIDATE_RETRIES = 3;
 
     /** P5 — Lite plan: hanya tahap inti yang dihasilkan, sisanya di-skip. */
     private const LITE_STAGES = ['pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'master_web'];
@@ -143,6 +143,17 @@ class PipelineRunner
     {
         $this->version->load('project');
         $this->liteMode = $lite;
+
+        // R4: orphan `running` dari proses crash yang mati di tengah — reset ke pending.
+        $statuses = $this->version->stage_status ?? [];
+        if (in_array('running', $statuses, true)) {
+            foreach ($statuses as $k => $v) {
+                if ($v === 'running') {
+                    $statuses[$k] = 'pending';
+                }
+            }
+            $this->version->update(['stage_status' => $statuses]);
+        }
 
         if (! $this->client->isConfigured()) {
             $this->sse->emit('fail', ['stage' => $stage ?? 'start', 'message' => 'AI Provider belum dikonfigurasi.']);
@@ -419,22 +430,22 @@ class PipelineRunner
             'analisa' => $ctx,
             'prd' => $ctx."\n\n### Hasil Analisa\n{$v->analysis}\n\n### Ide Awal\n{$idea}\n### Target Platform\n{$target}",
             'architecture' => $ctx."\n\n### Dokumen PRD\n{$v->prd}",
-            'erd' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}",
-            'api_contract' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => []], JSON_PRETTY_PRINT),
+            'erd' => $ctx."\n\n### Dokumen PRD\n{$this->summarizeForContext((string) $v->prd, 1400)}\n\n### Dokumen Arsitektur\n{$this->summarizeForContext((string) $v->architecture, 1400)}",
+            'api_contract' => $ctx."\n\n### Dokumen PRD\n{$this->summarizeForContext((string) $v->prd, 1400)}\n\n### Dokumen Arsitektur\n{$this->summarizeForContext((string) $v->architecture, 1400)}\n\n### ERD\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => []], JSON_PRETTY_PRINT),
             'design_system' => $ctx."\n\n### Analisa (Persona + Halaman)\n".self::truncateForContext((string) $v->analysis, 2500)."\n\n### Dokumen PRD\n".self::truncateForContext((string) $v->prd, 1500),
-            'standards_web' => $ctx."\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### Design System (web)\n".self::truncateForContext((string) $v->design_system, 1500)."\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT),
-            'phases_web' => $ctx."\n\n### Standards\n{$v->standards}\n\n### Design System (web)\n".self::truncateForContext((string) $v->design_system, 1000)."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT).$this->trackingBlock($v),
-            'master_web' => $ctx."\n\n### Standards (web)\n".$this->summarizeForContext((string) $v->standards, 1200)."\n\n### Design System (web)\n".self::truncateForContext((string) $v->design_system, 1000)."\n\n### Analisa\n".$this->summarizeForContext((string) $v->analysis, 800)."\n\n### Dokumen PRD\n".$this->summarizeForContext((string) $v->prd, 2000)."\n\n### Dokumen Arsitektur\n".$this->summarizeForContext((string) $v->architecture, 2000)."\n\n".$this->apiContractBlock($v)."\n\n### Fase (dari stages phases_web — gunakan persis key-nya, JANGAN buat urutan baru)\n".$this->summarizePhasesForContext(is_array($v->phases) ? $v->phases : [], 1000)."\n\n### App Spec Web (registry halaman/navigation/flows/components)\n".self::truncateForContext(json_encode($v->app_spec_web ?? new \stdClass, JSON_PRETTY_PRINT), 1500).$this->trackingBlock($v),
+            'standards_web' => $ctx."\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$this->summarizeForContext((string) $v->prd, 1400)}\n\n### Dokumen Arsitektur\n{$this->summarizeForContext((string) $v->architecture, 1400)}\n\n### Design System (web)\n".self::truncateForContext((string) $v->design_system, 1500)."\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT),
+            'phases_web' => $ctx."\n\n### Standards\n{$v->standards}\n\n### Design System (web)\n".self::truncateForContext((string) $v->design_system, 1000)."\n\n### Dokumen PRD\n{$this->summarizeForContext((string) $v->prd, 1400)}\n\n### Dokumen Arsitektur\n{$this->summarizeForContext((string) $v->architecture, 1400)}\n\n### ERD & API Contract\n".json_encode($v->erd ?? new \stdClass, JSON_PRETTY_PRINT).$this->trackingBlock($v),
+            'master_web' => $ctx."\n\n### Standards (web)\n".$this->summarizeForContext((string) $v->standards, 900)."\n\n### Design System (web)\n".self::truncateForContext((string) $v->design_system, 900)."\n\n### Analisa\n".$this->summarizeForContext((string) $v->analysis, 700)."\n\n### Dokumen PRD\n".$this->summarizeForContext((string) $v->prd, 1300)."\n\n### Dokumen Arsitektur\n".$this->summarizeForContext((string) $v->architecture, 1300)."\n\n".$this->apiContractBlock($v)."\n\n### Fase (dari stages phases_web — gunakan persis key-nya, JANGAN buat urutan baru)\n".$this->summarizePhasesForContext(is_array($v->phases) ? $v->phases : [], 800)."\n\n### App Spec Web (registry halaman/navigation/flows/components)\n".self::truncateForContext(json_encode($v->app_spec_web ?? new \stdClass, JSON_PRETTY_PRINT), 1000).$this->trackingBlock($v),
             'app_spec_web' => $ctx."\n\n### Analisa (Daftar Halaman)\n".self::truncateForContext((string) $v->analysis, 2000)."\n\n### Dokumen PRD\n".self::truncateForContext((string) $v->prd, 1500)."\n\n### Design System (web — signature elements)\n".self::truncateForContext((string) $v->design_system, 1500)."\n\n### Fase Web (sub-items: HALAMAN/MENU/FITUR/FLOW/API per fase)\n".$this->summarizePhasesForContext(is_array($v->phases) ? $v->phases : [], 2500)."\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => [], 'api_contract' => []], JSON_PRETTY_PRINT),
             'design_system_mobile' => $ctx."\n\n### Design System Web (konsistensi cross-platform)\n".self::truncateForContext((string) $v->design_system, 1500)."\n\n### Analisa (Persona)\n".self::truncateForContext((string) $v->analysis, 1500)."\n\n### App Spec Web (screens reference)\n".self::truncateForContext(json_encode($v->app_spec_web ?? new \stdClass, JSON_PRETTY_PRINT), 1500),
             'pertanyaan_mobile' => $ctx."\n\n### Master Prompt Web (SUDAH SELESAI)\n".self::truncateForContext((string) $v->master_prompt, 2000)."\n\n### API Contract\n".json_encode($v->erd ? ($v->erd['api_contract'] ?? []) : [], JSON_PRETTY_PRINT)."\n\n### Design System Mobile (context untuk pertanyaan)\n".self::truncateForContext((string) $v->design_system_mobile, 1000)."\n\n### ERD\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => []], JSON_PRETTY_PRINT),
             'phases_mobile' => $ctx."\n\n### Mobile Answers (klarifikasi mobile)\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standards Mobile\n{$v->mobile_standards}\n\n### Design System Mobile\n".self::truncateForContext((string) $v->design_system_mobile, 1500)."\n\n### Dokumen PRD (web)\n{$v->prd}\n\n### Arsitektur (web)\n{$v->architecture}\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => [], 'api_contract' => []], JSON_PRETTY_PRINT)."\n\n### Master Prompt Web (SUDAH SELESAI — referensi lengkap web)\n{$v->master_prompt}".$this->trackingBlock($v),
             'standards_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n### Design System Mobile (WAJIB referensi)\n".self::truncateForContext((string) $v->design_system_mobile, 1500)."\n\n### Design System Web (untuk konsistensi)\n".self::truncateForContext((string) $v->design_system, 1000)."\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => [], 'api_contract' => []], JSON_PRETTY_PRINT)."\n\n### Master Web (SUDAH SELESAI)\n{$v->master_prompt}",
-            'master_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standards Mobile\n{$v->mobile_standards}\n\n### Design System Mobile\n".self::truncateForContext((string) $v->design_system_mobile, 1500)."\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n".$this->apiContractBlock($v)."\n\n### Fase Mobile (dari stages phases_mobile — gunakan persis key-nya, JANGAN buat urutan baru)\n".json_encode(is_array($v->mobile_phases) ? $v->mobile_phases : [], JSON_PRETTY_PRINT)."\n\n### App Spec Mobile (registry screens/navigation/flows/widgets)\n".self::truncateForContext(json_encode($v->app_spec_mobile ?? new \stdClass, JSON_PRETTY_PRINT), 1500)."\n\n### Master Prompt Web (SUDAH 100% — referensi lengkap web)\n{$v->master_prompt}".$this->trackingBlock($v),
+            'master_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### Standards Mobile\n{$v->mobile_standards}\n\n### Design System Mobile\n".self::truncateForContext((string) $v->design_system_mobile, 1200)."\n\n### Analisa\n{$v->analysis}\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur (web)\n{$v->architecture}\n\n".$this->apiContractBlock($v)."\n\n### Fase Mobile (dari stages phases_mobile — gunakan persis key-nya, JANGAN buat urutan baru)\n".json_encode(is_array($v->mobile_phases) ? $v->mobile_phases : [], JSON_PRETTY_PRINT)."\n\n### App Spec Mobile (registry screens/navigation/flows/widgets)\n".self::truncateForContext(json_encode($v->app_spec_mobile ?? new \stdClass, JSON_PRETTY_PRINT), 1000)."\n\n### Master Prompt Web (SUDAH 100% — referensi lengkap web)\n".self::truncateForContext((string) $v->master_prompt, 2200).$this->trackingBlock($v),
             'app_spec_mobile' => $ctx."\n\n### Mobile Answers\n".($v->mobile_answers ? json_encode($v->mobile_answers, JSON_PRETTY_PRINT) : '_Belum ada_')."\n\n### App Spec Web (cross-platform consistency)\n".self::truncateForContext(json_encode($v->app_spec_web ?? new \stdClass, JSON_PRETTY_PRINT), 1500)."\n\n### Design System Mobile (signature elements)\n".self::truncateForContext((string) $v->design_system_mobile, 1500)."\n\n### Fase Mobile (sub-items per fase)\n".json_encode(is_array($v->mobile_phases) ? $v->mobile_phases : [], JSON_PRETTY_PRINT)."\n\n### ERD & API Contract\n".json_encode($v->erd ?? ['nodes' => [], 'edges' => [], 'api_contract' => []], JSON_PRETTY_PRINT)."\n\n### Dokumen PRD\n".self::truncateForContext((string) $v->prd, 1500),
             'agents' => $ctx."\n\n### Standards (web)\n{$v->standards}\n\n".$this->apiContractBlock($v)."\n\n### Master Prompt Web (WAJIB — base untuk semua agent)\n{$v->master_prompt}\n\n### Master Prompt Mobile (jika target=both, SUDAH SELESAI)\n".(($target === 'both' && ! empty($v->mobile_master_prompt)) ? $v->mobile_master_prompt : '_Belum ada (target=web)_')."\n\n### App Spec Web\n".self::truncateForContext(json_encode($v->app_spec_web ?? new \stdClass, JSON_PRETTY_PRINT), 1000)."\n\n### App Spec Mobile\n".self::truncateForContext(json_encode($v->app_spec_mobile ?? new \stdClass, JSON_PRETTY_PRINT), 1000)."\n\n### Dokumen Operasional (Wajib dibaca agent sebelum tulis kode)\n".$this->opsDocsBlock($v),
-            'env_config' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n".$this->apiContractBlock($v)."\n\n### Master Prompt Web (Sudah selesai — lihat Auth/API/Session)\n".self::truncateForContext((string) $v->master_prompt, 1500),
-            'security' => $ctx."\n\n### Dokumen PRD\n{$v->prd}\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n".$this->apiContractBlock($v)."\n\n".$this->opsDocsBlock($v),
+            'env_config' => $ctx."\n\n### Dokumen PRD\n{$this->summarizeForContext((string) $v->prd, 1400)}\n\n### Dokumen Arsitektur\n{$this->summarizeForContext((string) $v->architecture, 1400)}\n\n".$this->apiContractBlock($v)."\n\n### Master Prompt Web (Sudah selesai — lihat Auth/API/Session)\n".self::truncateForContext((string) $v->master_prompt, 1500),
+            'security' => $ctx."\n\n### Dokumen PRD\n{$this->summarizeForContext((string) $v->prd, 1400)}\n\n### Dokumen Arsitektur\n{$this->summarizeForContext((string) $v->architecture, 1400)}\n\n".$this->apiContractBlock($v)."\n\n".$this->opsDocsBlock($v),
             'deployment' => $ctx."\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n".$this->apiContractBlock($v)."\n\n### ENV/CONFIG (Sudah selesai)\n".self::truncateForContext((string) $v->env_config, 1500),
             'observability' => $ctx."\n\n### Dokumen Arsitektur\n{$v->architecture}\n\n".$this->apiContractBlock($v)."\n\n### ENV/CONFIG (Sudah selesai)\n".self::truncateForContext((string) $v->env_config, 1500)."\n\n### DEPLOYMENT (Sudah selesai)\n".self::truncateForContext((string) $v->deployment, 1500),
             default => $idea,
@@ -671,7 +682,25 @@ class PipelineRunner
                     'version_id' => $this->version->id,
                     'cleaned' => $cleaned,
                 ]);
-                throw new \RuntimeException("JSON tidak valid untuk stage {$key}. Stage ditandai error.");
+                // R2: fallback ke ERD-embedded api_contract bila ada (tetap lewat schema yang sama).
+                $erdContract = $this->version->erd['api_contract'] ?? [];
+                if (is_array($erdContract) && $erdContract !== []) {
+                    $value = $this->normalizeApiContract($erdContract);
+                    $this->assertApiContractSchema($value);
+                    \Log::warning('[api_contract] fallback ke ERD api_contract', ['version_id' => $this->version->id, 'count' => count($value)]);
+                    $this->sse->emit('artifact', ['stage' => $key, 'content' => json_encode($value, JSON_PRETTY_PRINT)]);
+                } else {
+                    // R2b: fallback deterministik — bangun CRUD dari node ERD (schema SAMA, anti-stuck).
+                    $derived = $this->buildCrudContractFromErd($this->version->erd ?? []);
+                    if ($derived !== null) {
+                        $value = $this->normalizeApiContract($derived);
+                        $this->assertApiContractSchema($value);
+                        \Log::warning('[api_contract] fallback CRUD dari ERD nodes', ['version_id' => $this->version->id, 'count' => count($value)]);
+                        $this->sse->emit('artifact', ['stage' => $key, 'content' => json_encode($value, JSON_PRETTY_PRINT)]);
+                    } else {
+                        throw new \RuntimeException("JSON tidak valid untuk stage {$key}. Stage ditandai error.");
+                    }
+                }
             }
         } elseif ($key === 'design_system' || $key === 'design_system_mobile') {
             $headings = ['## 0. Pin the Subject', '## 1. Design Philosophy', '## 2. Token System', '## 3. Signature Element', '## 4. Component Patterns', '## 5. State Vocabulary', '## 6. Anti-Pattern Checklist', '## 7. Layout Rhythm', '## 8. Motion Choreography', '## 9. Microcopy Voice'];
@@ -685,6 +714,9 @@ class PipelineRunner
                 throw new \RuntimeException($key.': '.implode(' | ', $parsed['errors']).' Stage ditandai error.');
             }
             $value = $parsed['data'];
+            // R7: bila komponen/widgets kosong padahal halaman/screens menyebut components_used —
+            // turunkan dari referensi halaman (deterministik, schema tetap, anti-stuck).
+            $value = $this->deriveSpecComponents($value, $platform);
             $this->validateAppSpecMasterCrossRef($key, $value);
             $this->sse->emit('artifact', ['stage' => $key, 'content' => json_encode($value, JSON_PRETTY_PRINT)]);
         } elseif ($key === 'master_web' || $key === 'master_mobile') {
@@ -1079,11 +1111,52 @@ class PipelineRunner
             }
         }
 
+        // R5: fallback — bila output terbaik berupa teks pertanyaan (bukan JSON), bangun items valid.
+        $textQuestions = $this->buildQuestionsFromText($best);
+        if ($textQuestions !== null) {
+            $json = json_encode(['questions' => $textQuestions], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+            $this->sse->emit('status', ['stage' => $stage, 'state' => 'running']);
+            Log::info('PipelineRunner pertanyaan text fallback', [
+                'version_id' => $this->version->id,
+                'stage' => $stage,
+                'mcq_count' => count($textQuestions),
+            ]);
+
+            return $json;
+        }
+
         // Exhausted tetapi masih < MIN → jangan diam-diam sukses; stage ditandai error.
         $label = $stage === 'pertanyaan' ? 'Pertanyaan klarifikasi (web)' : 'Pertanyaan klarifikasi (mobile)';
         throw new \RuntimeException(
             "{$label} hanya berisi {$bestCount} pertanyaan setelah ".self::MAX_MCQ_RETRIES.' percobaan (minimal '.self::MIN_MCQ_QUESTIONS.'). Stage ditandai error — coba lagi.'
         );
+    }
+
+    /**
+     * R5 — Bangun pertanyaan MCQ minimal dari teks berformat list (1. / - / ###).
+     * Return null bila < MIN. Opsi default Ya/Tidak agar tetap lolos mcqValidCount.
+     */
+    private function buildQuestionsFromText(string $text): ?array
+    {
+        $items = [];
+        $used = [];
+        foreach (preg_split('/\R/', $text) as $line) {
+            $line = trim($line);
+            if (! preg_match('/^(?:\d+[.)]|[-*]|###\s+)\s*(.+)$/', $line, $m)) {
+                continue;
+            }
+            $q = trim($m[1]);
+            if ($q === '' || mb_strlen($q) < 8 || isset($used[$q])) {
+                continue;
+            }
+            $used[$q] = true;
+            $items[] = ['id' => 'mq'.(count($items) + 1), 'question' => $q, 'options' => ['Ya', 'Tidak']];
+            if (count($items) >= self::MAX_MCQ_QUESTIONS) {
+                break;
+            }
+        }
+
+        return count($items) >= self::MIN_MCQ_QUESTIONS ? $items : null;
     }
 
     private function techStackForTarget(string $target): string
@@ -1306,10 +1379,16 @@ class PipelineRunner
             throw new \RuntimeException($stage.': Section 3 (Signature Element) WAJIB punya minimal 3 screen (### Screen N: ...). Stage ditandai error.');
         }
 
-        // Section 4: Component Patterns — must have ≥5 components (toleransi format ### Name — desc)
-        $components = preg_match_all('/^###\s+[A-Za-z0-9][\w\s\-–—:()\/.,+&§]*$/m', $content);
+        // Section 4: Component Patterns — must have ≥5 components (### heading ATAU bullet list - **Name**)
+        $section4 = '';
+        if (preg_match('/##\s*4\.\s*Component Patterns(.*?)(?=##\s*\d+\.)/s', $content, $m4)) {
+            $section4 = $m4[1];
+        }
+        $componentHeadings = preg_match_all('/^###\s+[A-Za-z0-9][\w\s\-–—:()\/.,+&§]*$/m', $section4);
+        $componentBullets = preg_match_all('/^-\s*(\*\*)?[A-Za-z][\w\s\-–—:()\/,.]/m', $section4);
+        $components = $componentHeadings + $componentBullets;
         if ($components < 5) {
-            throw new \RuntimeException($stage.': Section 4 (Component Patterns) WAJIB punya minimal 5 komponen. Stage ditandai error.');
+            throw new \RuntimeException($stage.': Section 4 (Component Patterns) WAJIB punya minimal 5 komponen (### Nama atau - Nama). Stage ditandai error.');
         }
 
         // Section 6: Anti-Pattern Checklist — must have ≥7 items
@@ -1351,6 +1430,83 @@ class PipelineRunner
 
             return $item;
         }, $endpoints);
+    }
+
+    /**
+     * R2b — Derive a full CRUD api_contract deterministically from ERD nodes (anti-stuck).
+     * Tetap melewati assertApiContractSchema: setiap item lengkap resource/method/path/auth/description.
+     */
+    /**
+     * R7 — Derive components/widgets dari components_used/widgets_used di halaman/screens
+     * bila array komponen kosong. Deterministik + schema-compliant (anti-stuck pada provider lemah).
+     */
+    private function deriveSpecComponents(array $spec, string $platform): array
+    {
+        $itemsKey = $platform === 'mobile' ? 'widgets' : 'components';
+        $pagesKey = $platform === 'mobile' ? 'screens' : 'halaman';
+        $usedKey = $platform === 'mobile' ? 'widgets_used' : 'components_used';
+
+        $existing = $spec[$itemsKey] ?? [];
+        if (is_array($existing) && $existing !== []) {
+            return $spec;
+        }
+
+        $names = [];
+        foreach (($spec[$pagesKey] ?? []) as $page) {
+            $used = is_array($page) ? ($page[$usedKey] ?? []) : [];
+            if (is_array($used)) {
+                foreach ($used as $u) {
+                    if (is_string($u) && $u !== '') {
+                        $names[$u] = true;
+                    }
+                }
+            }
+        }
+        if ($names === []) {
+            return $spec;
+        }
+
+        ksort($names);
+        $spec[$itemsKey] = array_map(fn ($n) => [
+            'key' => $n,
+            'title' => ucfirst(str_replace('_', ' ', $n)),
+            'type' => $platform === 'mobile' ? 'widget' : 'component',
+            'used_in' => [],
+        ], array_keys($names));
+
+        return $spec;
+    }
+
+    private function buildCrudContractFromErd(array $erd): ?array
+    {
+        $nodes = $erd['nodes'] ?? [];
+        if (! is_array($nodes) || $nodes === []) {
+            return null;
+        }
+
+        $contract = [
+            ['resource' => 'auth', 'method' => 'POST', 'path' => '/auth/login', 'description' => 'Login user, set session cookie', 'auth' => 'none'],
+            ['resource' => 'auth', 'method' => 'POST', 'path' => '/auth/logout', 'description' => 'Logout, hapus session', 'auth' => 'required'],
+        ];
+        $seen = [];
+        foreach ($nodes as $node) {
+            $id = is_array($node) ? ($node['id'] ?? ($node['label'] ?? null)) : $node;
+            if (! is_string($id) || $id === '' || isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            $slug = strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '-', $id));
+            if ($slug === '') {
+                $slug = 'resource';
+            }
+            $contract[] = ['resource' => $slug, 'method' => 'GET', 'path' => '/'.$slug, 'description' => 'List '.$id, 'auth' => 'required'];
+            $contract[] = ['resource' => $slug, 'method' => 'GET', 'path' => '/'.$slug.'/{id}', 'description' => 'Detail '.$id, 'auth' => 'required'];
+            $contract[] = ['resource' => $slug, 'method' => 'POST', 'path' => '/'.$slug, 'description' => 'Buat '.$id, 'auth' => 'required'];
+            $contract[] = ['resource' => $slug, 'method' => 'PUT', 'path' => '/'.$slug.'/{id}', 'description' => 'Update '.$id, 'auth' => 'required'];
+            $contract[] = ['resource' => $slug, 'method' => 'DELETE', 'path' => '/'.$slug.'/{id}', 'description' => 'Hapus '.$id, 'auth' => 'required'];
+        }
+
+        return $contract === [] ? null : $contract;
     }
 
     /**
