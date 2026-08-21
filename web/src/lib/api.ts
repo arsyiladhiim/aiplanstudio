@@ -689,3 +689,23 @@ export type ResearchAiProvider = {
 export async function fetchResearchIdeas(): Promise<ResearchIdeasResponse> {
   return apiGet<ResearchIdeasResponse>("/research/ideas")
 }
+
+export type ResearchIdeasPaginated = {
+  ideas: ResearchIdea[]
+  pagination: { current_page: number; last_page: number; total: number }
+}
+
+export async function fetchResearchIdeasPaginated(params: {
+  q?: string
+  date_from?: string
+  date_to?: string
+  page?: number
+}): Promise<ResearchIdeasPaginated> {
+  const qs = new URLSearchParams()
+  if (params.q) qs.set("q", params.q)
+  if (params.date_from) qs.set("date_from", params.date_from)
+  if (params.date_to) qs.set("date_to", params.date_to)
+  if (params.page && params.page > 1) qs.set("page", String(params.page))
+  const s = qs.toString()
+  return apiGet<ResearchIdeasPaginated>(`/research/ideas${s ? `?${s}` : ""}`)
+}

@@ -15,13 +15,34 @@ class ResearchAgentController extends Controller
 {
     public function ideas(Request $request): JsonResponse
     {
-        $date = $request->query('date');
+        $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+        ]);
+
         $query = ResearchIdea::query()->latest('id');
-        if ($date) {
+
+        if ($date = $request->query('date')) {
             $query->where('window_date', $date);
         }
+        if ($q = $request->query('q')) {
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $q).'%';
+            $query->where(function ($w) use ($like) {
+                $w->where('title', 'ilike', $like)
+                    ->orWhere('problem', 'ilike', $like)
+                    ->orWhere('solution', 'ilike', $like)
+                    ->orWhere('target_users', 'ilike', $like);
+            });
+        }
+        if ($from = $request->query('date_from')) {
+            $query->whereDate('window_date', '>=', $from);
+        }
+        if ($to = $request->query('date_to')) {
+            $query->whereDate('window_date', '<=', $to);
+        }
 
-        $ideas = $query->limit(30)->get()->map(fn (ResearchIdea $i) => [
+        $mapper = fn (ResearchIdea $i) => [
             'id' => $i->id,
             'window_date' => $i->window_date->toDateString(),
             'title' => $i->title,
@@ -30,7 +51,23 @@ class ResearchAgentController extends Controller
             'solution' => $i->solution,
             'sources' => $i->sources ?? [],
             'created_at' => $i->created_at,
-        ]);
+        ];
+
+        $paginated = $request->hasAny(['q', 'date_from', 'date_to', 'page']);
+        if ($paginated) {
+            $p = $query->paginate(20);
+
+            return response()->json([
+                'ideas' => collect($p->items())->map($mapper),
+                'pagination' => [
+                    'current_page' => $p->currentPage(),
+                    'last_page' => $p->lastPage(),
+                    'total' => $p->total(),
+                ],
+            ]);
+        }
+
+        $ideas = $query->limit(30)->get()->map($mapper);
 
         $settings = ResearchAgentSettings::singleton();
         $window = ResearchIdea::currentWindowDate(now());

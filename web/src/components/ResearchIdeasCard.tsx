@@ -36,6 +36,12 @@ export function ResearchIdeasCard() {
         <Badge>
           {data.count_today}/{data.max_per_day}
         </Badge>
+        <Link
+          href="/ideas"
+          className="ml-auto text-sm font-normal text-[var(--color-fg-muted)] underline"
+        >
+          Lihat semua →
+        </Link>
       </h2>
       <Card className="divide-y divide-[var(--color-border)]">
         {todays.length === 0 ? (

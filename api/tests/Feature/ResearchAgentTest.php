@@ -122,4 +122,74 @@ class ResearchAgentTest extends TestCase
             ->assertStatus(200)
             ->assertJson(['ok' => true]);
     }
+
+    private function seedIdeas(int $count, string $window): void
+    {
+        foreach (range(1, $count) as $i) {
+            ResearchIdea::create([
+                'window_date' => $window,
+                'title' => "Ide Seed {$i} {$window}",
+                'target_users' => 'UMKM',
+                'problem' => "problem {$i}",
+                'solution' => "solution {$i}",
+            ]);
+        }
+    }
+
+    public function test_ideas_search_by_keyword(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        ResearchIdea::create(['window_date' => '2026-08-20', 'title' => 'Logistik Dingin', 'target_users' => 'Petani', 'problem' => 'rantai dingin buruk', 'solution' => 'IoT monitor']);
+        ResearchIdea::create(['window_date' => '2026-08-20', 'title' => 'Kasir Digital', 'target_users' => 'Warung', 'problem' => 'pencatatan manual', 'solution' => 'POS app']);
+
+        $json = $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/research/ideas?q=logistik')
+            ->assertStatus(200)->json();
+
+        $this->assertCount(1, $json['ideas']);
+        $this->assertSame('Logistik Dingin', $json['ideas'][0]['title']);
+    }
+
+    public function test_ideas_date_range_filter(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->seedIdeas(1, '2026-08-18');
+        $this->seedIdeas(1, '2026-08-20');
+
+        $json = $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/research/ideas?date_from=2026-08-19&date_to=2026-08-21')
+            ->assertStatus(200)->json();
+
+        $this->assertCount(1, $json['ideas']);
+        $this->assertSame('2026-08-20', $json['ideas'][0]['window_date']);
+    }
+
+    public function test_ideas_pagination(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->seedIdeas(25, '2026-08-20');
+
+        $json = $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/research/ideas?page=2')
+            ->assertStatus(200)->json();
+
+        $this->assertSame(2, $json['pagination']['current_page']);
+        $this->assertSame(2, $json['pagination']['last_page']);
+        $this->assertSame(25, $json['pagination']['total']);
+        $this->assertCount(5, $json['ideas']);
+    }
+
+    public function test_ideas_default_response_backward_compatible(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->seedIdeas(2, '2026-08-20');
+
+        $json = $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/research/ideas')
+            ->assertStatus(200)->json();
+
+        $this->assertArrayHasKey('count_today', $json);
+        $this->assertArrayHasKey('max_per_day', $json);
+        $this->assertArrayNotHasKey('pagination', $json);
+    }
 }
