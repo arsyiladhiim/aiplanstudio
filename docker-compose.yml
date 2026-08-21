@@ -79,6 +79,21 @@ services:
       retries: 3
       start_period: 10s
 
+  aiplanstudio_scheduler:
+    image: aiplanstudio-api
+    container_name: aiplanstudio_scheduler
+    command: ["php", "artisan", "schedule:work", "--no-ansi"]
+    depends_on:
+      aiplanstudio_apifpm:
+        condition: service_healthy
+    networks:
+      - aiplanstudio
+    working_dir: /app
+    volumes:
+      - ./api:/app
+    mem_limit: 128m
+    restart: unless-stopped
+
   aiplanstudio_db:
     image: postgres:16-alpine
     container_name: aiplanstudio_db

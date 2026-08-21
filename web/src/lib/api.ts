@@ -94,13 +94,13 @@ async function handleResponse<T>(res: Response, path?: string): Promise<T> {
     // Retrying with new token will fail again — surface the error instead.
     const isAuthEndpoint = path
       ? /^\/(login|register|logout|forgot-password|reset-password)(\/|$|\?)/.test(
-          path,
+          path
         )
       : false
     if (isAuthEndpoint) {
       throw new ApiError(
         "Sesi berakhir. Silakan muat ulang halaman dan coba lagi.",
-        419,
+        419
       )
     }
     throw new RetryableCsrfError()
@@ -425,14 +425,21 @@ export function createPhaseProgressStream(
 
   const open = () => {
     if (closed) return
-    createSSEPost(path, {}, (ev, data) => {
-      if (ev === "phase_progress") onEvent(ev, data)
-    }, (err) => {
-      onError?.(err)
-      if (!closed) {
-        timer = setTimeout(open, 4000)
+    createSSEPost(
+      path,
+      {},
+      (ev, data) => {
+        if (ev === "phase_progress") onEvent(ev, data)
+      },
+      (err) => {
+        onError?.(err)
+        if (!closed) {
+          timer = setTimeout(open, 4000)
+        }
       }
-    }).then((c) => { controller = c })
+    ).then((c) => {
+      controller = c
+    })
   }
 
   open()
@@ -640,4 +647,45 @@ export async function fetchAppVersion(): Promise<AppVersion | null> {
   } catch {
     return null
   }
+}
+
+export type ResearchIdeaSource = { title: string; url: string }
+
+export type ResearchIdea = {
+  id: number
+  window_date: string
+  title: string
+  target_users: string
+  problem: string
+  solution: string
+  sources: ResearchIdeaSource[]
+  created_at: string
+}
+
+export type ResearchIdeasResponse = {
+  ideas: ResearchIdea[]
+  window_date: string
+  count_today: number
+  max_per_day: number
+}
+
+export type ResearchSettings = {
+  enabled: boolean
+  search_provider: "tavily" | "brave"
+  search_api_key_masked: string
+  ai_provider_id: number | null
+  max_per_day: number
+  last_run_at: string | null
+  last_run_status: string | null
+}
+
+export type ResearchAiProvider = {
+  id: number
+  name: string
+  model: string
+  provider_type: string
+}
+
+export async function fetchResearchIdeas(): Promise<ResearchIdeasResponse> {
+  return apiGet<ResearchIdeasResponse>("/research/ideas")
 }
