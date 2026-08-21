@@ -106,4 +106,20 @@ class ResearchAgentTest extends TestCase
         $this->assertSame('BSA••••••-123', $json['search_api_key_masked']);
         $this->assertSame(8, $json['max_per_day']);
     }
+
+    public function test_admin_can_test_search(): void
+    {
+        Http::fake([
+            'api.tavily.com/*' => Http::response(['results' => [
+                ['title' => 'T1', 'url' => 'https://ex.com/1', 'content' => 'snip'],
+            ]]),
+        ]);
+        $this->settings();
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/research/test-search')
+            ->assertStatus(200)
+            ->assertJson(['ok' => true]);
+    }
 }

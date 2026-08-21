@@ -92,7 +92,7 @@ class ResearchAgentController extends Controller
 
         try {
             $results = (new WebSearchClient($s->search_provider, $s->decryptedSearchKey()))
-                ->search($data['query'] ?: 'digitalisasi UMKM Indonesia', 3);
+                ->search(($data['query'] ?? '') ?: 'digitalisasi UMKM Indonesia', 3);
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         }

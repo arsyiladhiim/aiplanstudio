@@ -132,8 +132,8 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::get('/research/settings', [\App\Http\Controllers\Admin\ResearchAgentController::class, 'showSettings']);
         Route::patch('/research/settings', [\App\Http\Controllers\Admin\ResearchAgentController::class, 'updateSettings']);
         Route::get('/research/ai-providers', [\App\Http\Controllers\Admin\ResearchAgentController::class, 'aiProviders']);
-        Route::post('/research/test-search', [\App\Http\Controllers\Admin\ResearchAgentController::class, 'testSearch'])->middleware('throttle:10,1');
-        Route::post('/research/run-now', [\App\Http\Controllers\Admin\ResearchAgentController::class, 'runNow'])->middleware('throttle:5,1');
+        Route::post('/research/test-search', [\App\Http\Controllers\Admin\ResearchAgentController::class, 'testSearch'])->middleware('throttle:research');
+        Route::post('/research/run-now', [\App\Http\Controllers\Admin\ResearchAgentController::class, 'runNow'])->middleware('throttle:research');
         Route::get('/settings/provider', [ProviderSettingsController::class, 'index']);
         Route::post('/settings/provider', [ProviderSettingsController::class, 'store']);
         Route::patch('/settings/provider/{id}', [ProviderSettingsController::class, 'update']);

@@ -60,5 +60,10 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(Project::class, ProjectPolicy::class);
         Gate::policy(Version::class, VersionPolicy::class);
+
+        // Research Agent: limiter named agar tidak berbagi bucket dgn throttle:10,1 numeric.
+        RateLimiter::for('research', function (Request $request) {
+            return Limit::perMinute(10)->by('research:'.($request->user()?->id ?: $request->ip()));
+        });
     }
 }
