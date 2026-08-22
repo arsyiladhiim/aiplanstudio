@@ -705,7 +705,7 @@ export async function fetchResearchIdeasPaginated(params: {
   if (params.q) qs.set("q", params.q)
   if (params.date_from) qs.set("date_from", params.date_from)
   if (params.date_to) qs.set("date_to", params.date_to)
-  if (params.page && params.page > 1) qs.set("page", String(params.page))
+  if (params.page) qs.set("page", String(params.page))
   const s = qs.toString()
   return apiGet<ResearchIdeasPaginated>(`/research/ideas${s ? `?${s}` : ""}`)
 }
