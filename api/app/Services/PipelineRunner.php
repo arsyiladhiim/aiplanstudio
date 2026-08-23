@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Activity;
 use App\Models\PhaseProgress;
 use App\Models\Version;
+use App\Services\Validators\TestingStrategyValidator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -95,16 +96,18 @@ class PipelineRunner
     /**
      * Stage dependents: when a stage is regenerated, its dependents (stages that reference its output)
      * should be reset to 'pending' to force re-generation with fresh context.
+     * CP-46.C: testing_strategy + verify.* + smoke_test added to dependency chains.
      */
     private const STAGE_DEPENDENTS = [
-        'analisa' => ['prd', 'architecture', 'erd', 'api_contract', 'design_system', 'phases_web', 'standards_web', 'master_web', 'app_spec_web', 'design_system_mobile', 'pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile', 'app_spec_mobile', 'env_config', 'security', 'deployment', 'observability', 'agents'],
-        'prd' => ['architecture', 'erd', 'api_contract', 'design_system', 'phases_web', 'standards_web', 'master_web', 'app_spec_web', 'design_system_mobile', 'pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile', 'app_spec_mobile', 'env_config', 'security', 'deployment', 'observability', 'agents'],
-        'architecture' => ['erd', 'api_contract', 'design_system', 'phases_web', 'standards_web', 'master_web', 'app_spec_web', 'design_system_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile', 'app_spec_mobile', 'env_config', 'security', 'deployment', 'observability', 'agents'],
-        'erd' => ['api_contract', 'phases_web', 'master_web', 'app_spec_web', 'phases_mobile', 'master_mobile', 'app_spec_mobile'],
-        'api_contract' => ['phases_web', 'master_web', 'app_spec_web', 'phases_mobile', 'master_mobile', 'app_spec_mobile'],
+        'analisa' => ['prd', 'architecture', 'erd', 'api_contract', 'design_system', 'phases_web', 'standards_web', 'testing_strategy', 'master_web', 'app_spec_web', 'design_system_mobile', 'pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile', 'app_spec_mobile', 'env_config', 'security', 'deployment', 'observability', 'agents', 'verify.review', 'smoke_test', 'verify.production_readiness'],
+        'prd' => ['architecture', 'erd', 'api_contract', 'design_system', 'phases_web', 'standards_web', 'testing_strategy', 'master_web', 'app_spec_web', 'design_system_mobile', 'pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile', 'app_spec_mobile', 'env_config', 'security', 'deployment', 'observability', 'agents'],
+        'architecture' => ['erd', 'api_contract', 'design_system', 'phases_web', 'standards_web', 'testing_strategy', 'master_web', 'app_spec_web', 'design_system_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile', 'app_spec_mobile', 'env_config', 'security', 'deployment', 'observability', 'agents'],
+        'erd' => ['api_contract', 'phases_web', 'master_web', 'app_spec_web', 'phases_mobile', 'master_mobile', 'app_spec_mobile', 'testing_strategy'],
+        'api_contract' => ['phases_web', 'master_web', 'app_spec_web', 'phases_mobile', 'master_mobile', 'app_spec_mobile', 'testing_strategy'],
         'design_system' => ['standards_web', 'master_web', 'app_spec_web', 'design_system_mobile'],
-        'phases_web' => ['standards_web', 'master_web', 'app_spec_web'],
-        'standards_web' => ['master_web', 'standards_mobile', 'master_mobile'],
+        'phases_web' => ['standards_web', 'testing_strategy', 'master_web', 'app_spec_web'],
+        'standards_web' => ['testing_strategy', 'master_web', 'standards_mobile', 'master_mobile'],
+        'testing_strategy' => [],
         'master_web' => ['app_spec_web', 'pertanyaan_mobile', 'phases_mobile', 'standards_mobile', 'master_mobile', 'app_spec_mobile', 'env_config', 'security', 'deployment', 'observability', 'agents'],
         'app_spec_web' => [],
         'design_system_mobile' => ['standards_mobile', 'master_mobile', 'app_spec_mobile'],
@@ -243,6 +246,13 @@ class PipelineRunner
                 continue;
             }
 
+            // CP-46.C: composite gates (verify.* + smoke_test) — agent posts evidence, no AI text gen.
+            if (in_array($key, ['verify.review', 'smoke_test', 'verify.production_readiness'], true)) {
+                $this->processCompositeGate($key);
+
+                continue;
+            }
+
             $this->sse->emit('status', ['stage' => $key, 'state' => 'running']);
             $this->updateStageStatus($key, 'running');
 
@@ -273,6 +283,42 @@ class PipelineRunner
             if (! $auto) {
                 return;
             }
+        }
+    }
+
+    /**
+     * CP-46.C: composite gate handler — no AI text generation; result driven by agent evidence.
+     */
+    private function processCompositeGate(string $key): void
+    {
+        $this->sse->emit('status', ['stage' => $key, 'state' => 'running']);
+        $this->updateStageStatus($key, 'running');
+
+        $gateResult = $this->gateRegistry->check($this->version, $key);
+        $this->gateRegistry->assert($this->version, $key);
+
+        if ($gateResult['passes']) {
+            $this->sse->emit('done', ['stage' => $key]);
+            $this->sse->emit('status', [
+                'stage' => $key,
+                'state' => 'done',
+                'gate' => $gateResult['gate'],
+                'reason' => $gateResult['reason'],
+            ]);
+            $this->updateStageStatus($key, 'done');
+
+            // CP-46.E precursor: production readiness sets the timestamp.
+            if ($key === 'verify.production_readiness') {
+                $this->version->update(['production_ready_at' => now()]);
+            }
+        } else {
+            $this->sse->emit('status', [
+                'stage' => $key,
+                'state' => Version::STAGE_BLOCKED,
+                'gate' => $gateResult['gate'],
+                'reason' => $gateResult['reason'],
+            ]);
+            $this->updateStageStatus($key, Version::STAGE_BLOCKED);
         }
     }
 
@@ -586,6 +632,7 @@ class PipelineRunner
             'design_system_mobile' => 'design_system_mobile',
             'phases_web' => 'phases',
             'standards_web' => 'standards',
+            'testing_strategy' => 'testing_strategy',
             'master_web' => 'master_prompt',
             'app_spec_web' => 'app_spec_web',
             'phases_mobile' => 'mobile_phases',
@@ -727,6 +774,10 @@ class PipelineRunner
             $this->sse->emit('artifact', ['stage' => $key, 'content' => $content]);
         } elseif ($key === 'observability') {
             $this->validateMarkdownArtifact($key, $content, ['## 1. Health Checks', '## 2. Structured Logging', '## 3. Error Monitoring', '## 4. Uptime', '## 5. Slow Query', '## 6. Dashboard', '## 7. Runbook', '## 8. Alerting', '## 9. Post-Incident']);
+            $this->sse->emit('artifact', ['stage' => $key, 'content' => $content]);
+        } elseif ($key === 'testing_strategy') {
+            // CP-46.C: dedicated validator (10 headings, ≥5 critical paths).
+            (new TestingStrategyValidator($this->validator))->validate($key, $content);
             $this->sse->emit('artifact', ['stage' => $key, 'content' => $content]);
         } elseif ($key === 'agents') {
             $this->validateAgentsSectionRules($content);

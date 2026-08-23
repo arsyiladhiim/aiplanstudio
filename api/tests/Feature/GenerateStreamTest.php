@@ -64,7 +64,7 @@ class GenerateStreamTest extends TestCase
             ->postJson("/api/generate/stream?version={$this->version->id}&stage=invalid");
 
         $response->assertStatus(422);
-        $response->assertJson(['message' => 'Stage tidak valid. Pilih: pertanyaan, analisa, prd, architecture, erd, api_contract, design_system, phases_web, standards_web, master_web, app_spec_web, design_system_mobile, pertanyaan_mobile, standards_mobile, phases_mobile, master_mobile, app_spec_mobile, env_config, security, deployment, observability, agents']);
+        $response->assertJson(['message' => 'Stage tidak valid. Pilih: pertanyaan, analisa, prd, architecture, erd, api_contract, design_system, phases_web, standards_web, testing_strategy, master_web, app_spec_web, design_system_mobile, pertanyaan_mobile, standards_mobile, phases_mobile, master_mobile, app_spec_mobile, env_config, security, deployment, observability, agents, verify.review, smoke_test, verify.production_readiness']);
     }
 
     public function test_returns_streamed_response_with_correct_headers(): void

@@ -15,8 +15,8 @@ class StageRegistryTest extends TestCase
 
     public function test_counts(): void
     {
-        $this->assertCount(22, StageRegistry::keys());
-        $this->assertCount(16, StageRegistry::keysForTarget('web'));
+        $this->assertCount(26, StageRegistry::keys());
+        $this->assertCount(20, StageRegistry::keysForTarget('web'));
         $this->assertSame(StageRegistry::keys(), StageRegistry::keysForTarget('both'));
     }
 

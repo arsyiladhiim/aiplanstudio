@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'standards', 'agents', 'tracking_token',
     'mobile_phases', 'mobile_master_prompt', 'mobile_standards', 'mobile_agents',
     'env_config', 'security', 'deployment', 'observability',
+    'testing_strategy',
     'source_version_id', 'baseline_notes', 'skip_reasons', 'stage_quality', 'stage_errors',
     'gate_states', 'production_ready_at',
 ])]

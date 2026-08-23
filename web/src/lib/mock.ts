@@ -1,7 +1,7 @@
 export type { Target, Template } from './api';
 import type { Target } from './api';
 
-export type StageKey = "pertanyaan" | "analisa" | "prd" | "architecture" | "erd" | "api_contract" | "design_system" | "phases_web" | "standards_web" | "master_web" | "app_spec_web" | "design_system_mobile" | "pertanyaan_mobile" | "phases_mobile" | "standards_mobile" | "master_mobile" | "app_spec_mobile" | "env_config" | "security" | "deployment" | "observability" | "agents";
+export type StageKey = "pertanyaan" | "analisa" | "prd" | "architecture" | "erd" | "api_contract" | "design_system" | "phases_web" | "standards_web" | "testing_strategy" | "master_web" | "app_spec_web" | "design_system_mobile" | "pertanyaan_mobile" | "phases_mobile" | "standards_mobile" | "master_mobile" | "app_spec_mobile" | "env_config" | "security" | "deployment" | "observability" | "agents" | "verify.review" | "smoke_test" | "verify.production_readiness";
 export type StageState = "pending" | "ready" | "running" | "done" | "error" | "skipped" | "blocked" | "retrying";
 export type StageGateName = "DiscoveryGate" | "SpecGate" | "ArchGate" | "SecurityGate" | "DeployGate" | "ReviewGate" | "SmokeTestGate" | "ProductionReadinessGate" | null;
 
@@ -12,9 +12,10 @@ export const STAGE_GROUPS: StageGroup[] = [
   { key: "discovery", label: "Klarifikasi & Analisa", stages: ["pertanyaan", "analisa"] },
   { key: "definition", label: "Dokumen Produk", stages: ["prd"] },
   { key: "design", label: "Arsitektur & Desain", stages: ["architecture", "erd", "api_contract", "design_system"] },
-  { key: "web-build", label: "Web — Rencana Bangun", stages: ["phases_web", "standards_web", "master_web", "app_spec_web"] },
+  { key: "web-build", label: "Web — Rencana Bangun", stages: ["phases_web", "standards_web", "testing_strategy", "master_web", "app_spec_web"] },
   { key: "mobile-build", label: "Mobile — Rencana Bangun", stages: ["design_system_mobile", "pertanyaan_mobile", "standards_mobile", "phases_mobile", "master_mobile", "app_spec_mobile"] },
   { key: "launch", label: "Operasional & Keamanan", stages: ["env_config", "security", "deployment", "observability", "agents"] },
+  { key: "verification", label: "Verifikasi & Production Readiness", stages: ["verify.review", "smoke_test", "verify.production_readiness"] },
 ];
 
 export function getStageGroups(target: Target): StageGroup[] {
@@ -41,6 +42,7 @@ const GATE_MAP: Record<StageKey, StageGateName> = {
   standards_mobile: "SpecGate",
   phases_web: "SpecGate",
   phases_mobile: "SpecGate",
+  testing_strategy: "SpecGate",
   architecture: "ArchGate",
   erd: "ArchGate",
   api_contract: "ArchGate",
@@ -51,6 +53,9 @@ const GATE_MAP: Record<StageKey, StageGateName> = {
   agents: "DeployGate",
   master_web: null,
   master_mobile: null,
+  "verify.review": "ReviewGate",
+  smoke_test: "SmokeTestGate",
+  "verify.production_readiness": "ProductionReadinessGate",
 };
 
 const ALL_STAGES: { key: StageKey; label: string; desc: string; gate: StageGateName }[] = [
@@ -63,6 +68,7 @@ const ALL_STAGES: { key: StageKey; label: string; desc: string; gate: StageGateN
   { key: "design_system", label: "Design System", desc: "Design tokens + signature element + anti-pattern checklist untuk web.", gate: GATE_MAP.design_system },
   { key: "phases_web", label: "Web — Phases", desc: "Breakdown fase pembangunan web.", gate: GATE_MAP.phases_web },
   { key: "standards_web", label: "Web — Standards", desc: "STANDARDS.md untuk proyek web.", gate: GATE_MAP.standards_web },
+  { key: "testing_strategy", label: "Testing Strategy", desc: "Strategi pengujian: pyramid, coverage target, critical paths, smoke test scope.", gate: GATE_MAP.testing_strategy },
   { key: "master_web", label: "Web — Master Prompt", desc: "Master prompt self-contained untuk AI agent web.", gate: GATE_MAP.master_web },
   { key: "app_spec_web", label: "App Spec — Web", desc: "Registry halaman, navigation, flows, dan components (JSON).", gate: GATE_MAP.app_spec_web },
   { key: "design_system_mobile", label: "Design System Mobile", desc: "Design tokens Material 3 + signature element untuk Flutter.", gate: GATE_MAP.design_system_mobile },
@@ -76,6 +82,9 @@ const ALL_STAGES: { key: StageKey; label: string; desc: string; gate: StageGateN
   { key: "deployment", label: "Deployment", desc: "Guide deploy Docker + Tunnel + backup + rollback.", gate: GATE_MAP.deployment },
   { key: "observability", label: "Observability", desc: "Health check + Sentry + runbook.", gate: GATE_MAP.observability },
   { key: "agents", label: "Agents", desc: "AGENTS.md — spesifikasi AI agent.", gate: GATE_MAP.agents },
+  { key: "verify.review", label: "Verify — Code/Sec/Perf Review", desc: "Composite gate: agent posts code/security/performance review evidence (security_passed + perf_passed).", gate: GATE_MAP["verify.review"] },
+  { key: "smoke_test", label: "Smoke Test", desc: "Composite gate: agent runs smoke tests dan posts evidence (tests_passed + build_passed).", gate: GATE_MAP.smoke_test },
+  { key: "verify.production_readiness", label: "Verify — Production Readiness", desc: "Aggregate gate 7-day window: semua verify.* evidence passed.", gate: GATE_MAP["verify.production_readiness"] },
 ];
 
 const WEB_STAGES = ALL_STAGES.filter(s => !s.key.includes('mobile'));

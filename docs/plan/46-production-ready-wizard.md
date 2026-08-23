@@ -301,6 +301,19 @@ Files:
 - `web/src/components/wizard/WizardEvidenceBadge.tsx` (new).
 - `api/tests/Feature/EvidenceControllerTest.php`.
 
+### CP-46.B — Evidence Model ✅ DONE 2026-08-23
+
+Files created:
+- ✅ `api/database/migrations/2026_08_23_120000_create_version_stage_evidence_table.php` (table + UNIQUE per stage)
+- ✅ `api/app/Models/VersionStageEvidence.php` (fillable + casts)
+- ✅ `api/app/Http/Controllers/EvidenceController.php` (HMAC store + sanctum index)
+- ✅ `api/routes/api.php` (`POST /api/versions/{id}/evidence` + `GET .../evidence`)
+- ✅ `web/src/hooks/useStageEvidence.ts` (fetch + cache)
+- ✅ `web/src/components/wizard/WizardEvidenceBadge.tsx` (per-check badge cluster)
+- ✅ `api/tests/Feature/EvidenceControllerTest.php` (8 tests: 200, upsert, 422, 401, 409 replay, sanctum, 404, optional URL)
+
+Verification: 445/446 tests pass (1 flake SocialiteController). Web lint+tsc clean.
+
 ### CP-46.C — 4 New Verification Stages
 Files:
 - `api/app/Services/StageRegistry.php` — add 4 stages.

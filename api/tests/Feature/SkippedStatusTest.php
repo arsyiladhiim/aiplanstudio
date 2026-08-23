@@ -71,7 +71,7 @@ class SkippedStatusTest extends TestCase
         $project = Project::factory()->create(['user_id' => $this->user->id, 'target' => 'web']);
         $version = Version::factory()->create(['project_id' => $project->id]);
 
-        $this->assertSame(16, $version->visibleStageCount());
+        $this->assertSame(20, $version->visibleStageCount());
     }
 
     public function test_visible_stage_count_both_counts_all(): void
@@ -79,6 +79,6 @@ class SkippedStatusTest extends TestCase
         $project = Project::factory()->create(['user_id' => $this->user->id, 'target' => 'both']);
         $version = Version::factory()->create(['project_id' => $project->id]);
 
-        $this->assertSame(22, $version->visibleStageCount());
+        $this->assertSame(26, $version->visibleStageCount());
     }
 }

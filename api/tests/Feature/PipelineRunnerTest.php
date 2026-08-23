@@ -138,7 +138,7 @@ class PipelineRunnerTest extends TestCase
         $expected = [
             'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
             'design_system',
-            'phases_web', 'standards_web', 'master_web',
+            'phases_web', 'standards_web', 'testing_strategy', 'master_web',
             'app_spec_web',
             'design_system_mobile',
             'pertanyaan_mobile',
@@ -146,6 +146,7 @@ class PipelineRunnerTest extends TestCase
             'app_spec_mobile',
             'env_config', 'security', 'deployment', 'observability',
             'agents',
+            'verify.review', 'smoke_test', 'verify.production_readiness',
         ];
         $const = (new \ReflectionClass(Version::class))->getConstant('ALL_STAGES');
         $this->assertEquals($expected, $const);

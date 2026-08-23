@@ -23,6 +23,7 @@ class StageRegistry
         ['key' => 'design_system', 'group' => 'design', 'label' => 'Design System', 'mobile' => false],
         ['key' => 'phases_web', 'group' => 'web-build', 'label' => 'Web — Phases', 'mobile' => false],
         ['key' => 'standards_web', 'group' => 'web-build', 'label' => 'Web — Standards', 'mobile' => false],
+        ['key' => 'testing_strategy', 'group' => 'web-build', 'label' => 'Testing Strategy', 'mobile' => false],
         ['key' => 'master_web', 'group' => 'web-build', 'label' => 'Web — Master Prompt', 'mobile' => false],
         ['key' => 'app_spec_web', 'group' => 'web-build', 'label' => 'App Spec — Web', 'mobile' => false],
         ['key' => 'design_system_mobile', 'group' => 'mobile-build', 'label' => 'Design System Mobile', 'mobile' => true],
@@ -36,19 +37,24 @@ class StageRegistry
         ['key' => 'deployment', 'group' => 'launch', 'label' => 'Deployment', 'mobile' => false],
         ['key' => 'observability', 'group' => 'launch', 'label' => 'Observability', 'mobile' => false],
         ['key' => 'agents', 'group' => 'launch', 'label' => 'Agents', 'mobile' => false],
+        // CP-46.C: verification stages (composite gates — agent posts evidence).
+        ['key' => 'verify.review', 'group' => 'verification', 'label' => 'Verify — Code/Sec/Perf Review', 'mobile' => false],
+        ['key' => 'smoke_test', 'group' => 'verification', 'label' => 'Smoke Test', 'mobile' => false],
+        ['key' => 'verify.production_readiness', 'group' => 'verification', 'label' => 'Verify — Production Readiness', 'mobile' => false],
     ];
 
     /** @var array<int, string> */
     public const KEYS = [
         'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
         'design_system',
-        'phases_web', 'standards_web', 'master_web',
+        'phases_web', 'standards_web', 'testing_strategy', 'master_web',
         'app_spec_web',
         'design_system_mobile',
         'pertanyaan_mobile', 'standards_mobile', 'phases_mobile', 'master_mobile',
         'app_spec_mobile',
         'env_config', 'security', 'deployment', 'observability',
         'agents',
+        'verify.review', 'smoke_test', 'verify.production_readiness',
     ];
 
     /** @return array<int, string> */
