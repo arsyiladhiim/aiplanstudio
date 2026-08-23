@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AgentEventController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ChangelogController;
+use App\Http\Controllers\EvidenceController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\GenerateStreamController;
 use App\Http\Controllers\ProfileController;
@@ -53,6 +54,10 @@ Route::post('/webhooks/phase-complete', [WebhookController::class, 'phaseComplet
     ->middleware(['auth.project-token', 'throttle:60,1']);
 // CP-44 CP-07: Agent Event Protocol v1 — telemetry granular dari coding agent.
 Route::post('/agent/events', [AgentEventController::class, 'store'])
+    ->middleware(['auth.project-token', 'throttle:120,1']);
+// CP-46.B: Evidence endpoint — agent posts per-stage verification result.
+Route::post('/versions/{versionId}/evidence', [EvidenceController::class, 'store'])
+    ->whereNumber('versionId')
     ->middleware(['auth.project-token', 'throttle:120,1']);
 
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
@@ -112,6 +117,8 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     });
     // CP-44 CP-07: agent event feed untuk UI tracking.
     Route::get('/versions/{versionId}/agent-events', [AgentEventController::class, 'index'])->whereNumber('versionId');
+    // CP-46.B: list evidence per version (sanctum user).
+    Route::get('/versions/{versionId}/evidence', [EvidenceController::class, 'index'])->whereNumber('versionId');
     Route::get('/templates', [TemplateController::class, 'index']);
     Route::get('/templates/{id}', [TemplateController::class, 'show']);
     Route::post('/templates/{id}/instantiate', [TemplateController::class, 'instantiate']);
