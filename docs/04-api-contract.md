@@ -97,7 +97,7 @@
 
 ## Pipeline (SSE — streaming realtime)
 
-> Frontend konsumsi direct: `GET /api/generate/stream?version={id}&stage={key}&auto={0|1}` via `NEXT_PUBLIC_API_URL` dengan `credentials: "include"`. Auth via cookies. EventSource native (no BFF buffering).
+> Frontend konsumsi direct: `GET /api/generate/stream?version={id}&stage={key}&auto={0|1}` via `NEXT_PUBLIC_API_URL` dengan `credentials: "include"`. Auth via cookies. EventSource native.
 
 | Method | Path | Auth | Query | Response |
 |--------|------|------|-------|----------|

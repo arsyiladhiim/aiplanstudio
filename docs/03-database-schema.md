@@ -103,7 +103,7 @@ sessions, personal_access_tokens (Sanctum)
 | version_no | integer | 1, 2, 3 … ("update ke Versi 2") |
 | source_version_id | bigint FK → versions (nullOnDelete) | versi asal utk baseline clone (R1) |
 | baseline_notes | string(500) nullable | catatan revisi saat clone from_last |
-| stage_status | jsonb | status 14 tahap (both) / 10 tahap (web): `{pertanyaan:'pending', analisa:'done', ...}` |
+| stage_status | jsonb | status 22 tahap (both) / 16 tahap (web): `{pertanyaan:'pending', analisa:'done', ...}` |
 
 Stage status keys: `pertanyaan`, `analisa`, `prd`, `architecture`, `erd`, `api_contract`, `phases_web`, `standards_web`, `master_web`, `pertanyaan_mobile`, `phases_mobile`, `standards_mobile`, `master_mobile`, `agents`. Nilai: `pending` | `running` | `done` | `error`.
 

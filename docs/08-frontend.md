@@ -6,7 +6,7 @@
 - Next.js (App Router) + Tailwind CSS v4.
 - **React Flow** — render ERD diagram.
 - **react-markdown** — terdaftar di dependency (belum dipakai; artefak dirender sebagai `<pre>` plain text).
-- Client SPA; semua data lewat REST `/api` direct ke Laravel via `NEXT_PUBLIC_API_URL` dengan `credentials: "include"` (no BFF layer).
+- Client SPA; semua data lewat REST `/api` direct ke Laravel via `NEXT_PUBLIC_API_URL` dengan `credentials: "include".
 
 ## Struktur Aktual
 ```
@@ -64,7 +64,7 @@ web/
 4. Browser handle response (success / 401 redirect / error)
 
 ## Login page (`/login`)
-- Form submit → fetch POST `${NEXT_PUBLIC_API_URL}/api/login` ← direct call, bukan via BFF
+- Form submit → fetch POST `${NEXT_PUBLIC_API_URL}/api/login` ← direct call ke Laravel
 - Laravel set session cookie (HttpOnly + `SameSite=None; Secure` cross-origin) via Set-Cookie response
 - Redirect ke `/dashboard`
 
@@ -76,7 +76,7 @@ web/
 - `new EventSource(`${NEXT_PUBLIC_API_URL}/api/generate/stream?version=..&stage=..&auto=..`, { withCredentials: true })`
 - Handle event: `status`, `token` (append streaming), `artifact` (set final), `done`, `error`.
 - Auth via **cookies** (`withCredentials: true`), bukan Bearer token.
-- Native EventSource (no BFF buffering risk — Phase 7).
+- Native EventSource.
 
 ## Projects
 - `/projects`: daftar project + buat baru.

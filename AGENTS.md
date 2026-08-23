@@ -15,11 +15,11 @@
 - Use `/test` to run Laravel tests, `/lint` for frontend lint, `/tsc` for TypeScript check, `/build` for frontend build.
 
 ## Architecture
-- BFF (Backend-for-Frontend): nginx → Next.js (BFF) → Laravel API
+- **Direct routing**: browser fetch langsung ke Laravel API via `NEXT_PUBLIC_API_URL` + Sanctum session cookie (HttpOnly) + CSRF header. Next.js hanya UI — lihat docs/25-bypass-bff.md.
 - Auth: Sanctum SPA Session (HttpOnly cookie + CSRF), NOT Bearer token
-- All API calls go through Next.js route handlers, never direct to Laravel
-- AI pipeline (14 stages): pertanyaan → analisa → prd → architecture → erd → api_contract → phases_web → standards_web → master_web → pertanyaan_mobile → phases_mobile → standards_mobile → master_mobile → agents
-- Mobile stages (10-13) only for target 'both', gated on master_web done
+- Production: API `https://api-aiplanstudio.arsyiladm.my.id` · Frontend `https://aiplanstudio.arsyiladm.my.id` · Webhook tracking: set `TRACKING_BASE_URL=https://api-aiplanstudio.arsyiladm.my.id`
+- Single source of truth stage pipeline: `api/app/Services/StageRegistry.php` (22 stages target both / 16 web), exposed via `GET /api/stages`. Frontend mirror: `web/src/lib/mock.ts`.
+- AI pipeline: 22 stages target `both` / 16 web — urutan & key lihat `StageRegistry` (jangan hardcode di sini). Mobile track gated menunggu `master_web` done.
 - [PATCH] /api/projects/{id} — update project title/idea/target
 - [DELETE] /api/versions/{id} — hapus versi (tidak bisa hapus versi terakhir)
 - [GET/PATCH] /api/settings/profile — lihat/edit profil user

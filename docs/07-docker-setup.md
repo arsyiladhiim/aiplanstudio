@@ -47,7 +47,7 @@ services:
   web:                      # Next.js — standalone, user nextjs
     build: { context: ./web, dockerfile: Dockerfile, args: { NEXT_PUBLIC_API_URL } }
     expose: ["3000"]
-    # Browser fetch direct ke Laravel via NEXT_PUBLIC_API_URL (no BFF).
+    # Browser fetch direct ke Laravel via NEXT_PUBLIC_API_URL.
 
   api:                      # nginx front untuk Laravel
     image: nginx:alpine
@@ -129,17 +129,17 @@ docker compose run --rm migrate
 # 4. Cek tabel
 docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\dt'
 
-# 5. Antar-service via hostname (uji direct routing, no BFF)
+# 5. Antar-service via hostname (uji direct routing)
 curl http://localhost:8000/api/health                 # nginx_api → api-fpm → "ok" (direct)
 docker compose exec web wget -qO- http://aiplanstudionginx_api:8000/api/health  # internal OK
 ```
 
 ## Catatan Arsitektur Direct Routing
-- **Tidak ada BFF layer.** Browser fetch langsung ke `NEXT_PUBLIC_API_URL` (= `http://localhost:8000` dev / `https://api-aiplanstudio.arsyiladm.my.id` prod).
+- **Direct routing.** Browser fetch langsung ke `NEXT_PUBLIC_API_URL` (= `http://localhost:8000` dev / `https://api-aiplanstudio.arsyiladm.my.id` prod).
 - `web/src/lib/api.ts` pakai `fetch(url, { credentials: "include" })` untuk cookie session + CSRF.
 - Sanctum stateful domain (`SANCTUM_STATEFUL_DOMAINS`) di backend allowlist frontend origin.
 - CORS allowlist (`api/config/cors.php`) + `supports_credentials: true` untuk cross-origin.
-- Detail lengkap migration BFF → direct: `docs/25-bypass-bff.md`.
+- Detail lengkap migrasi ke direct routing: `docs/25-bypass-bff.md`.
 
 ## Checklist Keamanan Infra
 - [x] Tidak ada service yang publish port ke host (`docker compose ps` — semua `0.0.0.0:xxx` kosong); akses publik via Cloudflare Tunnel.
@@ -148,7 +148,7 @@ docker compose exec web wget -qO- http://aiplanstudionginx_api:8000/api/health  
 - [x] Healthcheck di `aiplanstudio_db` (`pg_isready`) & `aiplanstudionginx_api` (wget `/api/health`).
 - [x] `mem_limit` di semua service; `restart: unless-stopped` untuk daemon.
 - [x] Rahasia via env (`.env`/`.env.production`), tidak di-commit; `REDIS_PASSWORD` via compose.
-- [x] BFF removed (Phase 7): request publik masuk via Cloudflare Tunnel → `aiplanstudio_web:3000` (web) atau `aiplanstudionginx_api:8000` (API), tidak ada reverse-proxy di repo.
+- [x] Phase 7 (routing langsung): request publik masuk via Cloudflare Tunnel → `aiplanstudio_web:3000` (web) atau `aiplanstudionginx_api:8000` (API), tidak ada reverse-proxy di repo.
 - [x] Semua volume pakai bind mount ke `./docker/*/` (postgres, redis, glitchtip) — tidak ada named Docker volume.
 
 ### Host Permission (root-owned files)
@@ -218,7 +218,7 @@ php artisan serve --port=8000
 cd web
 npm run dev
 
-# 4. Akses (direct routing, no BFF)
+# 4. Akses (direct routing)
 # Frontend: http://localhost:3000
 # API:      http://localhost:8000/api/health → {"status":"ok"}
 # Browser → fetch(`${NEXT_PUBLIC_API_URL}/api/...`) dengan credentials: "include"

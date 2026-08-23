@@ -3,7 +3,7 @@
 > Lihat juga: [06-ai-pipeline](06-ai-pipeline.md) · [04-api-contract](04-api-contract.md) · [08-frontend](08-frontend.md)
 
 ## Prinsip
-- **Wizard 18 tahap** (target `both`) / **14 tahap** (target `web`) — semua tahap dijalankan **per-stage manual** (default; toggle "Auto" di checkpoint bar untuk auto-advance antar tahap non-MCQ): setelah setiap tahap selesai, user meninjau lalu klik **Approve & Lanjut** (atau Analisa Ulang / Edit inline). Stage akhir menghasilkan dokumen operasional: `env_config`, `security`, `deployment`, `observability`.
+- **Wizard 22 tahap** (target `both`) / **16 tahap** (target `web`) — semua tahap dijalankan **per-stage manual** (default; toggle "Auto" di checkpoint bar untuk auto-advance antar tahap non-MCQ): setelah setiap tahap selesai, user meninjau lalu klik **Approve & Lanjut** (atau Analisa Ulang / Edit inline). Stage akhir menghasilkan dokumen operasional: `env_config`, `security`, `deployment`, `observability`.
 - Untuk target `both`, mobile track (stage 10-13) menghasilkan phases, standards, agents & master prompt untuk platform mobile. Mobile track menunggu web track (`master_web`) selesai (gate), dan wizard meminta **konfirmasi** bila tracking fase web belum selesai.
 
 ## Input Awal
@@ -39,8 +39,8 @@ Sebelum tahap 1, user isi:
 | 17 | `agents` | AI Agent Spec | master_web (+ master_mobile jika both) + ops docs | `agents` | Render via `AgentsView` (role cards dengan handoff arrows). |
 
 **Wizard Stages per Version** (frontend `getStages()`):
-- target `web` → 14 stages visible (web track + ops docs + agents).
-- target `both` → 18 stages visible (web + mobile + ops docs + agents).
+- target `web` → 16 stages visible (web track + ops docs + agents). Sumber: StageRegistry.
+- target `both` → 22 stages visible (web + mobile + ops docs + agents).
 - `api_contract` (CP-10) tidak visible di kedua target (collapsed ke tab ERD).
 
 ### Stage Keys (PipelineRunner backend order)
@@ -95,7 +95,7 @@ Setelah tiap stage `done`, wizard berhenti (tanpa auto-run). User dapat:
 | Phases | …→ deploy web/hosting | …→ build APK/IPA, signing, store submission |
 | Master Prompt | instruksi lengkap untuk web stack | instruksi lengkap untuk mobile stack |
 
-> **CP-12 note:** Mobile track (Flutter) consume API **direct** ke Laravel domain (TIDAK melalui Next.js/BFF layer apapun). Backend reference sudah live dan mobile adalah client-only. Cookie manager di dio (`dio_cookie_manager`) handle HttpOnly session cookie + CSRF. Detail cross-origin setup: `docs/25-bypass-bff.md` (Sanctum stateful domain + CORS allowlist).
+> **CP-12 note:** Mobile track (Flutter) consume API **direct** ke Laravel domain (bukan lewat Next.js). Backend reference sudah live dan mobile adalah client-only. Cookie manager di dio (`dio_cookie_manager`) handle HttpOnly session cookie + CSRF. Detail cross-origin setup: `docs/25-bypass-bff.md` (Sanctum stateful domain + CORS allowlist).
 
 `Both` → dua jalur: tahap 1-12 untuk web+mobile track, lalu tahap 13-16 dokumen operasional (env_config, security, deployment, observability), lalu tahap 17 `agents`. Gate: mobile track menunggu `master_web` done.
 

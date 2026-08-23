@@ -5,7 +5,7 @@
 
 ## Status Global
 - **Terakhir diupdate:** 2026-08-15
-- **Kode aplikasi:** Backend 100% ✅, Frontend UI 100% ✅, **Direct Routing (no BFF) 100% ✅** (Phase 7), **Error Monitoring 100% ✅** (P8 GlitchTip — DISABLED saat ini, SDK kept)
+- **Kode aplikasi:** Backend 100% ✅, Frontend UI 100% ✅, **Direct Routing 100% ✅** (Phase 7), **Error Monitoring 100% ✅** (P8 GlitchTip — DISABLED saat ini, SDK kept)
 - **Lint:** 0 errors ✅
 - **TypeScript:** 0 errors ✅
 - **Build:** 17/17 pages ✅
@@ -30,11 +30,11 @@ Setiap fase baru boleh ditandai `[x]` bila:
 - [x] 12-security-checklist, 13-backend-testing, 14-frontend-testing, 15-dev-log
 - [x] AUTH.md (root, auth flow lengkap)
 
-### [x] F1 — Skeleton Docker + Full BFF Pattern (DEPRECATED by Phase 7)
+### [x] F1 — Skeleton Docker + proxy pattern awal (digantikan Phase 7)
 - [x] `docker-compose.yml` dengan services: nginx, web, api, migrate, db, redis
-- **Update (Phase 7, 2026-08-14):** BFF pattern dihapus. Migrasi ke Direct Routing (Cloudflare Tunnel + nginx_api + CORS). See `docs/25-bypass-bff.md` untuk migration detail.
-- [x] **Full BFF:** nginx routes SEMUA ke Next.js → proxy `/api/*` ke Laravel internal
-- [x] **~60 BFF routes** di Next.js proxy ke Laravel
+- **Update (Phase 7, 2026-08-14):** pattern proxy dihapus. Migrasi ke Direct Routing (Cloudflare Tunnel + nginx_api + CORS). See `docs/25-bypass-bff.md` untuk migration detail.
+- [x] **Proxy penuh:** nginx routes SEMUA ke Next.js → proxy `/api/*` ke Laravel internal
+- [x] **~60 route proxy** di Next.js ke Laravel
 - [x] Laravel (api:8000) HANYA accessible dari internal containers
 - [x] Only nginx expose port 4197:80
 
@@ -90,7 +90,7 @@ Setiap fase baru boleh ditandai `[x]` bila:
 - [x] Backend tests: AuthTest, ProjectTest, SettingsTest, TemplateTest, HealthCheckTest, VersionTest, GenerateStreamTest, PipelineRunnerTest, AiClientTest, ModelTest, dll.
 - [x] Playwright config + 1 smoke spec
 - [x] SESSION_DRIVER=database, StartSession middleware
-- [x] BFF cookie forwarding working
+- [x] Cookie forwarding via proxy working
 
 ### [x] F10 — Dashboard, Inline Editing, Diff, Token Management
 - [x] Dashboard analytics with recent_activities
@@ -145,12 +145,12 @@ Setiap fase baru boleh ditandai `[x]` bila:
 - [x] Backend test 246 pass (+3 baru), frontend lint/tsc clean
 - [x] Plan saved di `docs/24-pertanyaan-performance.md`
 
-### [x] Phase 7 — Bypass BFF + Direct Domain Routing (2026-08-14)
+### [x] Phase 7 — Direct Domain Routing (2026-08-14)
 - [x] Backend CORS config (`config/cors.php`): allowlist `https://aiplanstudio.arsyiladm.my.id` + localhost dev
 - [x] Backend session config: `SESSION_SAME_SITE=none`, `SESSION_DOMAIN=null`, `SESSION_SECURE_COOKIE=true`
 - [x] Frontend `NEXT_PUBLIC_API_URL` env (production + development)
-- [x] Frontend `api.ts`: BASE = env var (direct, no BFF)
-- [x] Hapus `web/src/lib/bff.ts` + `web/src/app/api/**` (40+ BFF routes)
+- [x] Frontend `api.ts`: BASE = env var (direct)
+- [x] Hapus `web/src/lib/bff.ts` + `web/src/app/api/**` (40+ route proxy)
 - [x] Frontend `middleware.ts`: pass-through (cookie cross-origin tidak readable)
 - [x] Frontend `next.config.ts`: CSP `connect-src ${API_URL}`, `frame-ancestors 'none'`
 - [x] Docker compose: build arg `NEXT_PUBLIC_API_URL`

@@ -21,7 +21,7 @@
 | Dependency audit | ✅ `composer audit` + `npm audit` 0 vuln | command audit |
 | Persistent volume | ✅ semua data → host `./docker/` | docker inspect mount |
 | Cloudflare Tunnel | ✅ 2 ingress: `aiplanstudio.arsyiladm.my.id` → Next.js :3000 + `api-aiplanstudio.arsyiladm.my.id` → Laravel via nginx :80 | `docker logs` cloudflared |
-| Direct routing (no BFF) | ✅ frontend → API direct via Cloudflare Tunnel, CORS configured | `curl https://api-aiplanstudio.arsyiladm.my.id/api/version` |
+| Direct routing | ✅ frontend → API direct via Cloudflare Tunnel, CORS configured | `curl https://api-aiplanstudio.arsyiladm.my.id/api/version` |
 | CSP/Security headers | ✅ `connect-src https://api-aiplanstudio.arsyiladm.my.id`, `frame-ancestors 'none'`, `SameSite=None; Secure` cookies | `curl -I https://aiplanstudio.arsyiladm.my.id` |
 
 ---
@@ -240,7 +240,7 @@ Dasar tujuan (`docs/01-overview.md`): *"Membantu solo developer menghasilkan dok
 ### E4. Stack & Network
 - [ ] 5 containers aktif (web, api, api-fpm, db, redis) — glitchtip DISABLED; tanpa `aiplanstudio-migrate`
 - [ ] aiplanstudionginx_api reachable dari tunnel container (`docker network inspect aiplanstudio_aiplanstudio` confirm `cloudflare_tunnel-cloudflare-tunnel-1` attached)
-- [ ] `curl http://localhost:8000/api/health` → `{"status":"ok"}` (direct nginx_api, no BFF)
+- [ ] `curl http://localhost:8000/api/health` → `{"status":"ok"}` (direct nginx_api)
 
 ### E5. Auth & RBAC
 - [ ] Login session cookie (Sanctum) berhasil (login admin dev)

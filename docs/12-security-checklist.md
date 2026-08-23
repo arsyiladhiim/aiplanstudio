@@ -46,7 +46,7 @@
 ## F. Transport & Header
 - [x] (Produksi) HTTPS + redirect http→https. **Handled by Cloudflare Tunnel edge** — semua traffic masuk HTTPS-only; HTTP (port 80) di Cloudflare otomatis redirect ke HTTPS. App-layer tidak perlu redirect logic karena tidak reachable langsung dari publik (no `ports:` di docker-compose, hanya tunnel).
 - [x] Header keamanan via nginx: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`.
-- [x] CORS: cross-origin karena BFF removed (Phase 7) — Next.js (`aiplanstudio.arsyiladm.my.id`) call API (`api-aiplanstudio.arsyiladm.my.id`) dengan Sanctum stateful domain + cookie `SameSite=None; Secure`. `allowed_origins` allowlist eksplisit (no `*`).
+- [x] CORS: cross-origin sejak direct routing (Phase 7) — Next.js (`aiplanstudio.arsyiladm.my.id`) call API (`api-aiplanstudio.arsyiladm.my.id`) dengan Sanctum stateful domain + cookie `SameSite=None; Secure`. `allowed_origins` allowlist eksplisit (no `*`).
 - [x] SSE header aman (`X-Accel-Buffering: no`) tanpa membocorkan info.
 - [x] Session cookie HttpOnly + SameSite=None (cross-origin). CSRF: `GET /api/csrf-token` (raw session token) → header `X-CSRF-TOKEN` (CP-13).
 
@@ -80,6 +80,6 @@ docker compose exec web wget -qO- http://aiplanstudionginx_api:8000/api/health  
 curl http://localhost:8000              # connection refused ✅
 psql -h localhost -p 5432               # connection refused ✅
 curl http://localhost:3000/api/user     # 401 (no session) ✅
-# Direct API call (no BFF) bekerja via Cloudflare Tunnel:
+# Direct API call bekerja via Cloudflare Tunnel:
 curl -c /tmp/cookies -b /tmp/cookies https://api-aiplanstudio.arsyiladm.my.id/api/user  # harus login dulu ✅
 ```
