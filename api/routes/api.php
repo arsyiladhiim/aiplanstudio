@@ -5,6 +5,7 @@ use App\Http\Controllers\AgentEventController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\EvidenceController;
+use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\GenerateStreamController;
 use App\Http\Controllers\ProfileController;
@@ -119,6 +120,9 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/versions/{versionId}/agent-events', [AgentEventController::class, 'index'])->whereNumber('versionId');
     // CP-46.B: list evidence per version (sanctum user).
     Route::get('/versions/{versionId}/evidence', [EvidenceController::class, 'index'])->whereNumber('versionId');
+    // CP-46.E: export package ZIP + production-readiness composite state.
+    Route::get('/versions/{versionId}/export-package', [ExportController::class, 'package'])->whereNumber('versionId');
+    Route::get('/versions/{versionId}/production-readiness', [ExportController::class, 'productionReadiness'])->whereNumber('versionId');
     Route::get('/templates', [TemplateController::class, 'index']);
     Route::get('/templates/{id}', [TemplateController::class, 'show']);
     Route::post('/templates/{id}/instantiate', [TemplateController::class, 'instantiate']);

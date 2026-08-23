@@ -344,14 +344,41 @@ Strategy: extract 1 hook + 1 component per commit, page stays working.
 10. `<WizardError>` + `<WizardCompleteCard>` → commit
 11. Final cleanup → commit
 
-### CP-46.E — Production-Ready Verification (final wiring)
-Files:
-- `api/app/Http/Controllers/ExportController.php` (new) — `GET /api/versions/{id}/export-package` returning ZIP.
-- `api/app/Services/ProductionReadinessAggregator.php` (new) — composite gate (7-day window hardcoded).
-- `api/app/Http/Controllers/VersionController.php` — `production_ready_at` set on gate pass.
-- `web/src/components/wizard/WizardCompleteCard.tsx` (full impl).
-- `api/tests/Feature/ProductionReadinessAggregatorTest.php`.
-- `api/tests/Feature/ExportPackageTest.php`.
+### CP-46.E — Production-Ready Verification (final wiring) ✅ DONE 2026-08-23
+
+Files created:
+- ✅ `api/app/Http/Controllers/ExportController.php` (export-package ZIP + production-readiness state)
+- ✅ `api/tests/Feature/ExportControllerTest.php` (5 tests: ZIP contents, marker injection, 404 cross-user, readiness blocked, readiness pass)
+
+Files modified:
+- ✅ `api/routes/api.php` (2 endpoints: GET /versions/{id}/export-package, GET /versions/{id}/production-readiness)
+
+Endpoint behavior:
+- `GET /api/versions/{id}/export-package` returns ZIP berisi 21 file:
+  - PRD.md, analysis.md, architecture.md, ERD.json, API-CONTRACT.json
+  - DESIGN-SYSTEM.md, DESIGN-SYSTEM-MOBILE.md
+  - STANDARDS.md, STANDARDS-MOBILE.md
+  - PHASES.json, PHASES-MOBILE.json
+  - APP-SPEC-WEB.json, APP-SPEC-MOBILE.json
+  - TESTING-STRATEGY.md (CP-46.C)
+  - ENV-CONFIG.md, SECURITY-CHECKLIST.md, DEPLOYMENT.md, OBSERVABILITY.md
+  - AGENTS.md, AGENTS-MOBILE.md
+  - MASTER-INJECTED.md (server-side tracking live — CP-45.A)
+  - MASTER-MOBILE-INJECTED.md
+  - TRACKING.md (narasi + endpoint reference)
+  - MANIFEST.json (version + gate_states + evidence_count)
+- `GET /api/versions/{id}/production-readiness` returns composite gate state:
+  - production_ready bool
+  - production_ready_at timestamp
+  - gate (ProductionReadinessGate)
+  - reason
+  - evidence_count
+  - gate_states dict
+  - evidence[] array (per-stage flags)
+
+Verification: 462/463 tests pass (1 flake SocialiteController). Web lint+tsc clean (lint: pre-existing set-state-in-effect warnings di hooks lama, tidak introduced oleh CP-46.E).
+
+### ✅ ALL CP-46 checkpoints complete. Plan 46 closed.
 
 ## 10. Checkpoint Plan
 
