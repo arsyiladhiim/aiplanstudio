@@ -64,23 +64,25 @@ export default function DiffPage() {
   const searchParams = useSearchParams();
   const id = params.id as string;
   const compare = searchParams.get('compare');
+  // CP-44 CP-05: route `id` = project id; endpoint butuh version id → wajib query `current`.
+  const currentVersionId = searchParams.get('current');
 
   const [data, setData] = useState<DiffResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!compare) return;
-    apiGet<DiffResponse>(`/versions/${id}/diff?compare=${compare}`)
+    if (!compare || !currentVersionId) return;
+    apiGet<DiffResponse>(`/versions/${currentVersionId}/diff?compare=${compare}`)
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "Gagal memuat diff"))
       .finally(() => setLoading(false));
-  }, [id, compare]);
+  }, [id, compare, currentVersionId]);
 
-  if (!compare) {
+  if (!compare || !currentVersionId) {
     return (
       <div className="rounded-lg border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-4 py-3 text-sm text-[var(--color-danger)]">
-        Parameter <code>compare</code> diperlukan.
+        Parameter <code>current</code> dan <code>compare</code> diperlukan.
       </div>
     );
   }

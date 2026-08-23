@@ -34,7 +34,15 @@ import {
   MasterPromptViewer,
   hasMasterPromptArtifact,
 } from "@/components/wizard/MasterPromptViewer"
-import type { ProgressItem } from "@/components/wizard/TrackingPhases"
+// CP-44 CP-05: tipe lokal (TrackingPhases dihapus); bentuk sempit untuk phase-progress stream.
+interface ProgressItem {
+  phase_key: string;
+  done: boolean;
+  status?: "pending" | "running" | "done" | "error";
+  output?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
 import { TrackingPanel } from "@/components/wizard/TrackingPanel"
 import { McqForm } from "@/components/wizard/McqForm"
 import { StreamingMarkdown } from "@/components/wizard/StreamingMarkdown"
@@ -527,13 +535,23 @@ export default function NewPlanPage({
           { version: versionId, stage, auto: 1, lite: liteMode ? 1 : 0 },
           handleSSEEvent,
           (err) => {
-            if (retries < 3 && !cancelled.current) {
+            if (
+              retries < 3 &&
+              !cancelled.current &&
+              err.name !== "TooManyRequests"
+            ) {
               retryCountRef.current = retries + 1
               console.warn(`SSE retry ${retries + 1}/3:`, err.message)
               setTimeout(() => attempt(retries + 1), 2000 * (retries + 1))
             } else {
               console.error("SSE error (max retries):", err)
-              setError("Koneksi SSE terputus setelah 3x retry.")
+              setStatus((s) => ({ ...s, [stage]: "error" as StageState }))
+              setFailedStage(stage as StageKey)
+              setError(
+                err.name === "TooManyRequests"
+                  ? "Terlalu banyak permintaan. Tunggu ±1 menit, lalu klik Coba Lagi."
+                  : `Koneksi SSE terputus setelah 3x retry. (${err.message})`
+              )
             }
           }
         ).then((ctrl) => {
@@ -788,6 +806,10 @@ export default function NewPlanPage({
           security: "security",
           deployment: "deployment",
           observability: "observability",
+          design_system: "design_system",
+          design_system_mobile: "design_system_mobile",
+          app_spec_web: "app_spec_web",
+          app_spec_mobile: "app_spec_mobile",
           agents: "agents",
         }
         const loaded: Record<string, string> = {}
@@ -2169,6 +2191,7 @@ export default function NewPlanPage({
                   projectId={projectId}
                   versionId={versionId}
                   versionLabel={masterModalTarget === "web" ? "Web" : "Mobile"}
+                  stage={masterModalTarget === "web" ? "master_web" : "master_mobile"}
                   artifact={artifact}
                 />
               )

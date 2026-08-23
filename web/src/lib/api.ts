@@ -213,94 +213,6 @@ export async function apiSetupAutoTracking(
   )
 }
 
-export function createSSE(
-  path: string,
-  onEvent: (event: string, data: unknown) => void,
-  onError?: (error: Event) => void
-): EventSource {
-  const url = `${BASE}/api${path}`
-  const es = new EventSource(url)
-  let receivedAnyEvent = false
-  let finished = false
-  let closed = false
-
-  es.onopen = () => {
-    console.log("SSE connection opened:", url)
-  }
-
-  ;["status", "token", "artifact"].forEach((eventType) => {
-    es.addEventListener(eventType, (e: MessageEvent) => {
-      if (finished) return
-      receivedAnyEvent = true
-      try {
-        const data = JSON.parse(e.data)
-        onEvent(eventType, data)
-      } catch (err) {
-        console.error("SSE parse error:", eventType, e.data, err)
-      }
-    })
-  })
-
-  es.addEventListener("done", (e: MessageEvent) => {
-    if (finished) return
-    finished = true
-    receivedAnyEvent = true
-    try {
-      const data = JSON.parse(e.data)
-      onEvent("done", data)
-    } catch (err) {
-      console.error("SSE parse error: done", e.data, err)
-    }
-    es.close()
-  })
-
-  es.addEventListener("fail", (e: MessageEvent) => {
-    if (finished) return
-    finished = true
-    receivedAnyEvent = true
-    try {
-      const data = JSON.parse(e.data)
-      onEvent("fail", data)
-    } catch (err) {
-      console.error("SSE parse error: fail", e.data, err)
-    }
-    es.close()
-  })
-
-  es.onerror = () => {
-    if (finished || closed) return
-    if (!receivedAnyEvent) {
-      console.error("SSE connection error. readyState:", es.readyState)
-      onError?.(new Event("error"))
-    }
-    if (es.readyState === EventSource.CLOSED) {
-      console.error(
-        "SSE connection closed permanently. Attempting manual reconnect..."
-      )
-      es.close()
-      closed = true
-      setTimeout(() => {
-        if (finished) return
-        const es2 = createSSE(path, onEvent, onError)
-        es2.addEventListener("done", () => {
-          es2.close()
-        })
-        es2.addEventListener("fail", () => {
-          es2.close()
-        })
-      }, 3000)
-    }
-  }
-
-  // Patch close: set closed=true agar onerror tidak reconnect setelah manual close.
-  const origClose = es.close.bind(es)
-  es.close = () => {
-    closed = true
-    origClose()
-  }
-
-  return es
-}
 
 /** POST-based SSE stream (alternative to EventSource, supports CSRF) */
 export async function createSSEPost(
@@ -315,6 +227,8 @@ export async function createSSEPost(
   await ensureFreshCsrf()
 
   // Retry-once untuk transient network error (TypeError fetch) sebelum menyerah.
+  // CP-44 CP-05: AbortController baru per attempt — signal yang sudah aborted
+  // tidak boleh dipakai ulang; abort pada controller luar membatalkan retry juga.
   let res: Response
   try {
     res = await fetch(`${BASE}/api${path}`, {
@@ -327,13 +241,17 @@ export async function createSSEPost(
   } catch (err) {
     if (err instanceof TypeError && !controller.signal.aborted) {
       try {
+        const retryController = new AbortController()
+        const onOuterAbort = () => retryController.abort()
+        controller.signal.addEventListener("abort", onOuterAbort, { once: true })
         res = await fetch(`${BASE}/api${path}`, {
           method: "POST",
           headers: csrfHeaders("POST"),
           credentials: "include",
           body: JSON.stringify(body),
-          signal: controller.signal,
+          signal: retryController.signal,
         })
+        controller.signal.removeEventListener("abort", onOuterAbort)
       } catch (err2) {
         const e = err2 instanceof Error ? err2 : new Error(String(err2))
         onError?.(e)
@@ -355,6 +273,7 @@ export async function createSSEPost(
       msg = b.message || msg
     } catch {}
     const err = new Error(msg)
+    if (res.status === 429) err.name = "TooManyRequests"
     onError?.(err)
     return controller
   }

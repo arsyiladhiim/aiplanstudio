@@ -2,16 +2,27 @@
 import { useMemo, useState } from "react";
 import { Card, Badge } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
-import { CopyField } from "./CopyField";
 import { SetupTrackingCard } from "./SetupTrackingCard";
 import { parseSections } from "./SectionRenderer";
-import { ChevronDown, ChevronRight, Copy, Check, Download, Edit3, X, Save } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, Check, Download, Edit3, X, Save, ShieldOff } from "lucide-react";
+import { apiPatch } from "@/lib/api";
 
 interface Props {
   projectId: number;
   versionId: number;
   versionLabel: string;
   artifact: string;
+  stage?: "master_web" | "master_mobile";
+}
+
+/** CP-44 CP-02: redaksi kredensial tracking untuk salinan aman (tanpa secret). */
+export function stripTrackingCredentials(text: string): string {
+  return text
+    .replace(/(Authorization:\s*Bearer\s+)[a-f0-9]{16,}/gi, "$1<REDACTED>")
+    .replace(/(X-Token-Secret:\s*)[a-f0-9]{16,}/gi, "$1<REDACTED>")
+    .replace(/(-hmac\s+')([a-f0-9]{16,})(')/gi, "$1<REDACTED>$3")
+    .replace(/(-H\s+"Authorization:\s*Bearer\s+)[a-f0-9]{16,}(")/gi, "$1<REDACTED>$2")
+    .replace(/(-H\s+"X-Token-Secret:\s*)[a-f0-9]{16,}(")/gi, "$1<REDACTED>$2");
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -39,11 +50,13 @@ function getSectionLabel(title: string): string {
   return trimmed;
 }
 
-export function MasterPromptViewer({ projectId, versionId, versionLabel, artifact }: Props) {
+export function MasterPromptViewer({ projectId, versionId, versionLabel, artifact, stage }: Props) {
   const [editing, setEditing] = useState(false);
   const [editedSections, setEditedSections] = useState<Record<number, string>>({});
   const [globalEdit, setGlobalEdit] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copiedSafe, setCopiedSafe] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const { beforeFirstSection, sections } = useMemo(() => parseSections(artifact), [artifact]);
   const [openMap, setOpenMap] = useState<Record<number, boolean>>(() => {
@@ -79,8 +92,21 @@ export function MasterPromptViewer({ projectId, versionId, versionLabel, artifac
     setEditing(false);
   }
 
-  function saveEdit() {
-    setEditing(false);
+  async function saveEdit() {
+    if (!stage) {
+      // ponytail: tanpa stage, edit hanya lokal (pemanggil lama belum kirim stage).
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPatch(`/versions/${versionId}/artifacts`, { stage, content: fullText });
+      setEditing(false);
+    } catch {
+      // biarkan modal terbuka; user bisa retry
+    } finally {
+      setSaving(false);
+    }
   }
 
   function updateSection(index: number, value: string) {
@@ -95,6 +121,28 @@ export function MasterPromptViewer({ projectId, versionId, versionLabel, artifac
     } catch {
       // silent fail
     }
+  }
+
+  async function handleCopySafe() {
+    try {
+      await navigator.clipboard.writeText(stripTrackingCredentials(fullText));
+      setCopiedSafe(true);
+      setTimeout(() => setCopiedSafe(false), 1500);
+    } catch {
+      // silent fail
+    }
+  }
+
+  function handleDownloadSafe() {
+    const blob = new Blob([stripTrackingCredentials(fullText)], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `master-prompt-${versionLabel}-safe.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   function handleDownload() {
@@ -114,11 +162,14 @@ export function MasterPromptViewer({ projectId, versionId, versionLabel, artifac
       <div className="space-y-3">
         <MasterHeader
           versionLabel={versionLabel}
-          fullText={artifact}
           editing={false}
           copied={copied}
+          copiedSafe={copiedSafe}
+          saving={saving}
           onCopy={handleCopyAll}
+          onCopySafe={handleCopySafe}
           onDownload={handleDownload}
+          onDownloadSafe={handleDownloadSafe}
           onStartEdit={startEdit}
         />
         <SetupTrackingCard projectId={projectId} versionId={versionId} />
@@ -138,8 +189,8 @@ export function MasterPromptViewer({ projectId, versionId, versionLabel, artifac
             <Button variant="ghost" size="sm" onClick={cancelEdit}>
               <X size={12} /> Batal
             </Button>
-            <Button variant="primary" size="sm" onClick={saveEdit}>
-              <Save size={12} /> Simpan
+            <Button variant="primary" size="sm" onClick={saveEdit} disabled={saving}>
+              <Save size={12} /> {saving ? "Menyimpan..." : "Simpan"}
             </Button>
           </div>
         )}
@@ -151,11 +202,14 @@ export function MasterPromptViewer({ projectId, versionId, versionLabel, artifac
     <div className="space-y-3">
       <MasterHeader
         versionLabel={versionLabel}
-        fullText={fullText}
         editing={editing}
         copied={copied}
+        copiedSafe={copiedSafe}
+        saving={saving}
         onCopy={handleCopyAll}
+        onCopySafe={handleCopySafe}
         onDownload={handleDownload}
+        onDownloadSafe={handleDownloadSafe}
         onStartEdit={startEdit}
       />
 
@@ -212,19 +266,25 @@ export function MasterPromptViewer({ projectId, versionId, versionLabel, artifac
 
 function MasterHeader({
   versionLabel,
-  fullText,
   editing,
   copied,
+  copiedSafe,
+  saving,
   onCopy,
+  onCopySafe,
   onDownload,
+  onDownloadSafe,
   onStartEdit,
 }: {
   versionLabel: string;
-  fullText: string;
   editing: boolean;
   copied: boolean;
+  copiedSafe: boolean;
+  saving: boolean;
   onCopy: () => void;
+  onCopySafe: () => void;
   onDownload: () => void;
+  onDownloadSafe: () => void;
   onStartEdit: () => void;
 }) {
   return (
@@ -236,11 +296,18 @@ function MasterHeader({
       <div className="flex items-center gap-2">
         {!editing && (
           <>
-            <Button variant="ghost" size="sm" onClick={onStartEdit} data-testid="edit-master-prompt">
+            <Button variant="ghost" size="sm" onClick={onStartEdit} disabled={saving} data-testid="edit-master-prompt">
               <Edit3 size={12} /> Edit
             </Button>
             <Button variant="outline" size="sm" onClick={onDownload} data-testid="download-master-prompt">
               <Download size={12} /> .md
+            </Button>
+            <Button variant="outline" size="sm" onClick={onCopySafe} data-testid="copy-master-prompt-safe" title="Salin tanpa kredensial tracking (token/secret disensor)">
+              {copiedSafe ? <Check size={12} /> : <ShieldOff size={12} />}
+              {copiedSafe ? "Copied" : "Copy Aman"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onDownloadSafe} title="Unduh tanpa kredensial">
+              <ShieldOff size={12} /> .md aman
             </Button>
             <Button variant="primary" size="sm" onClick={onCopy} data-testid="copy-master-prompt">
               {copied ? <Check size={12} /> : <Copy size={12} />}
@@ -257,8 +324,4 @@ export function hasMasterPromptArtifact(artifact: string | null | undefined): bo
   if (!artifact) return false;
   const trimmed = artifact.trim();
   return trimmed.length > 50;
-}
-
-export function masterPromptCharCount(artifact: string | null | undefined): number {
-  return artifact?.trim().length ?? 0;
 }

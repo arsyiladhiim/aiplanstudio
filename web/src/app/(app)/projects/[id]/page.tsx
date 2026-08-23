@@ -11,9 +11,10 @@ import { TargetBadge } from "@/components/common";
 import { ApiTokenSection } from "@/components/project/ApiTokenSection";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { getStages, getStageGroups, type StageKey, type Target } from "@/lib/mock";
-import { apiGet, apiPost, apiDelete, apiPatch, createPhaseProgressStream, WEBHOOK_URL, type Project, type Version, type Activity } from "@/lib/api";
+import { API_BASE_URL, apiGet, apiPost, apiDelete, apiPatch, createPhaseProgressStream, WEBHOOK_URL, type Project, type Version, type Activity } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
 import { TrackingPanel, type ProgressItem } from "@/components/wizard/TrackingPanel";
+import { AgentEventFeed } from "@/components/wizard/AgentEventFeed";
 import type { PhaseItem } from "@/components/wizard/PhaseBreakdownCard";
 import { ApiContractTable } from "@/components/wizard/ApiContractTable";
 import { DesignSystemView } from "@/components/wizard/DesignSystemView";
@@ -213,12 +214,12 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
 
   function handleExport(format: 'md' | 'zip') {
     if (!selectedVersion) return;
-    window.open(`/api/versions/${selectedVersion.id}/export?format=${format}`, '_blank');
+    window.open(`${API_BASE_URL}/api/versions/${selectedVersion.id}/export?format=${format}`, '_blank');
   }
 
   function handleExportAll() {
     if (!project) return;
-    window.open(`/api/projects/${project.id}/export-all`, '_blank');
+    window.open(`${API_BASE_URL}/api/projects/${project.id}/export-all`, '_blank');
   }
 
   if (loading) {
@@ -395,7 +396,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
           <button
             onClick={() => {
               if (diffMode && diffVersionId && selectedVersion) {
-                router.push(`/projects/${id}/diff?compare=${diffVersionId}`);
+                router.push(`/projects/${id}/diff?current=${selectedVersion.id}&compare=${diffVersionId}`);
               } else {
                 setDiffMode(!diffMode);
                 setDiffVersionId(null);
@@ -736,6 +737,11 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                       webhookUrl={WEBHOOK_URL}
                     />
                   )}
+                  {/* CP-44 CP-07: feed telemetry coding agent */}
+                  <div className="mt-4 space-y-2">
+                    <h3 className="text-sm font-semibold">Agent Events</h3>
+                    <AgentEventFeed versionId={selectedVersion.id} />
+                  </div>
                 </div>
               )}
               {tab === "activities" && (
@@ -803,7 +809,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                     </div>
                     {selectedVersion.standards ? (
                       <div className="flex gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => window.open(`/api/versions/${selectedVersion.id}/standards`, '_blank')}>
+                        <Button variant="secondary" size="sm" onClick={() => window.open(`${API_BASE_URL}/api/versions/${selectedVersion.id}/standards`, '_blank')}>
                           <Copy size={13} /> Download
                         </Button>
                         <Button variant="secondary" size="sm" disabled={regeneratingWeb} onClick={async () => {
@@ -830,7 +836,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                       <span className="text-xs">{selectedVersion.agents ? 'AGENTS.md tersedia' : 'AGENTS.md belum tersedia'}</span>
                     </div>
                     {selectedVersion.agents ? (
-                      <Button variant="secondary" size="sm" onClick={() => window.open(`/api/versions/${selectedVersion.id}/agents`, '_blank')}>
+                      <Button variant="secondary" size="sm" onClick={() => window.open(`${API_BASE_URL}/api/versions/${selectedVersion.id}/agents`, '_blank')}>
                         <Copy size={13} /> Download
                       </Button>
                     ) : (
@@ -848,7 +854,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                         </div>
                         {selectedVersion.mobile_standards ? (
                           <div className="flex gap-2">
-                            <Button variant="secondary" size="sm" onClick={() => window.open(`/api/versions/${selectedVersion.id}/standards/mobile`, '_blank')}>
+                            <Button variant="secondary" size="sm" onClick={() => window.open(`${API_BASE_URL}/api/versions/${selectedVersion.id}/standards/mobile`, '_blank')}>
                               <Copy size={13} /> Download
                             </Button>
                             <Button variant="secondary" size="sm" disabled={regeneratingMobile} onClick={async () => {
@@ -875,7 +881,7 @@ export default function ProjectDetail({ params }: { params: Promise<{ id: string
                           <span className="text-xs">{selectedVersion.mobile_agents ? 'AGENTS-MOBILE.md tersedia' : 'AGENTS-MOBILE.md belum tersedia'}</span>
                         </div>
                         {selectedVersion.mobile_agents ? (
-                          <Button variant="secondary" size="sm" onClick={() => window.open(`/api/versions/${selectedVersion.id}/agents/mobile`, '_blank')}>
+                          <Button variant="secondary" size="sm" onClick={() => window.open(`${API_BASE_URL}/api/versions/${selectedVersion.id}/agents/mobile`, '_blank')}>
                             <Copy size={13} /> Download
                           </Button>
                         ) : (
