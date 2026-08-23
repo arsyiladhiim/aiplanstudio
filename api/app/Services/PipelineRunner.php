@@ -27,6 +27,8 @@ class PipelineRunner
 
     private StageArtifactValidator $validator;
 
+    private TrackingInjector $trackingInjector;
+
     /** Plain tracking token — kept in-memory only, never persisted plaintext */
     private ?string $plainTrackingToken = null;
 
@@ -165,6 +167,7 @@ class PipelineRunner
         $this->jsonParser = new AiJsonParser;
         $this->outputParser = new AiOutputParser($this->jsonParser);
         $this->validator = new StageArtifactValidator($this->outputParser);
+        $this->trackingInjector = new TrackingInjector;
     }
 
     public function run(?string $stage, bool $auto, bool $lite = false): void
@@ -679,6 +682,8 @@ class PipelineRunner
             $value = $content;
             $this->validateMasterPrompt($key, $value);
             $this->validateMasterStandardsCrossRef($key, $value);
+            // CP-45.A: injeksi blok tracking live deterministik (server-side, idempotent).
+            $value = $this->trackingInjector->inject($this->version, $value);
             $this->sse->emit('artifact', ['stage' => $key, 'content' => $value]);
         } elseif ($key === 'analisa') {
             $this->validateMarkdownArtifact($key, $content, ['## 1. Intent Summary', '## 2. User Personas', '## 3. Core Problem', '## 4. Success Metrics', '## 5. Anti-Goals', '## 6. Daftar Halaman']);

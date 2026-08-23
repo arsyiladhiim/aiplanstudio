@@ -100,19 +100,18 @@ Untuk SETIAP fase:
 Lanjutkan untuk SEMUA fase sampai habis. Setelah fase terakhir, tambahkan marker "## SELESAI_ALL".
 
 ## 6. Tracking Webhook (WAJIB per fase + sub-item)
-Sama dengan master prompt web (mobile kirim direct ke Laravel, no Next.js layer). URL absolut sudah diberikan di konteks (bagian WEBHOOK TRACKING) — gunakan persis dari sana. JANGAN pakai path relative tanpa domain:
-- Headers (WAJIB semua):
-  - `Authorization: Bearer <TOKEN>`
-  - `X-Token-Secret: <SECRET>`
+Sama dengan master prompt web (mobile kirim direct ke Laravel, no Next.js layer). URL absolut + token + secret SUDAH ter-embed di master prompt ini dalam blok TRACKING CREDENTIALS — gunakan PERSIS nilai dari blok tersebut (jangan mengarang, jangan ubah). Jalankan snippet siap-pakai di blok TRACKING CREDENTIALS; JANGAN membentuk ulang path/header secara manual.
+- Headers (sudah disiapkan snippet di TRACKING CREDENTIALS):
+  - `Authorization: Bearer <TOKEN>` (dari blok TRACKING CREDENTIALS)
+  - `X-Token-Secret: <SECRET>` (dari blok TRACKING CREDENTIALS)
   - `X-Timestamp: <unix_seconds>`
   - `X-Signature: hmac_sha256("<X-Timestamp>.<raw_body>", "<X-Token-Secret>")`
 - Body per fase: `{"version_id": <int>, "phase_key": "<key>", "status": "done", "output": "<ringkasan>"}`
 - Body per sub-item: `{"version_id": <int>, "phase_key": "<key>", "task_key": "<sub_item_key>", "task_type": "halaman|menu|fitur|flow|api", "title": "<judul>", "status": "done", "output": "<ringkasan>"}`
 
-`phase_key` HARUS key PERSIS dari daftar fase mobile. JANGAN re-nomor.
+`version_id`, `phase_key`, dan `task_key` HARUS diambil dari prompt ini (lihat blok TRACKING CREDENTIALS untuk version_id, dan §4 untuk daftar phase_key + sub-item task_key). JANGAN re-nomor.
 
-Token + Secret: bila konteks memuat blok "TRACKING CREDENTIALS", SALIN PERSIS nilai token & secret dari blok tersebut ke bagian ini (termasuk contoh curl). Bila TIDAK ada, tulis instruksi agar user melakukan Setup Tracking di website — JANGAN mengarang nilai.
-SERTAKAN aturan error handling webhook (retry 3x backoff 1s/2s/4s, timeout 10s, 409 = sudah tercatat lanjut, 422 = perbaiki key, gagal total = catat dan lanjut — JANGAN berhenti permanen).
+Aturan error handling webhook: retry 3x backoff 1s/2s/4s, timeout 10s, 409 = sudah tercatat lanjut, 422 = perbaiki key, gagal total = catat dan lanjut — JANGAN berhenti permanen. Bila blok TRACKING CREDENTIALS tidak ada atau TOKEN kosong, JANGAN mengarang nilai — berhenti, minta user melakukan Setup Tracking di website sebelum build.
 
 ## 7. Operational Readiness (WAJIB baca sebelum build)
 Sebelum menulis kode, BACA dokumen operasional dari wizard (web track sudah selesai):

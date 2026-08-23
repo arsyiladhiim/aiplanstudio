@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\Version;
 use App\Services\AiClient;
 use App\Services\PipelineRunner;
+use App\Services\TrackingInjector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -75,6 +76,14 @@ class VersionController extends Controller
         $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
             ->with(['phaseProgress', 'project'])
             ->findOrFail($id);
+
+        $injector = new TrackingInjector;
+        if (is_string($version->master_prompt) && $version->master_prompt !== '') {
+            $version->master_prompt = $injector->inject($version, $version->master_prompt);
+        }
+        if (is_string($version->mobile_master_prompt) && $version->mobile_master_prompt !== '') {
+            $version->mobile_master_prompt = $injector->inject($version, $version->mobile_master_prompt);
+        }
 
         return response()->json($version);
     }
@@ -472,6 +481,11 @@ class VersionController extends Controller
             if ($decoded !== null) {
                 $value = $decoded;
             }
+        }
+
+        if ($data['stage'] === 'master_web' || $data['stage'] === 'master_mobile') {
+            // CP-45.A: PATCH master prompt → injeksi tracking live sebelum persist (idempotent).
+            $value = (new TrackingInjector)->inject($version, (string) $value);
         }
 
         $version->update([$col => $value]);

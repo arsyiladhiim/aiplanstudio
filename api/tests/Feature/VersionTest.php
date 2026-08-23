@@ -6,6 +6,7 @@ use App\Models\AiProvider;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\Version;
+use App\Services\TrackingInjector;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -400,6 +401,11 @@ class VersionTest extends TestCase
             $updated = Version::find($version->id);
             if (in_array($stage, ['erd', 'api_contract', 'phases_web', 'phases_mobile'])) {
                 $this->assertNotNull($updated->{$column}, "Column {$column} is null for stage {$stage}");
+            } elseif (in_array($stage, ['master_web', 'master_mobile'])) {
+                // CP-45.A: PATCH master auto-injects tracking block (server-side, deterministic).
+                $this->assertStringContainsString((string) $updated->id, (string) $updated->{$column}, "Version ID harus ada di master prompt yang di-inject.");
+                $this->assertStringContainsString(TrackingInjector::MARKER_START, (string) $updated->{$column}, "Marker tracking harus ada.");
+                $this->assertStringContainsString($content, (string) $updated->{$column}, "Konten asli harus dipertahankan.");
             } else {
                 $this->assertEquals($content, $updated->{$column}, "Column {$column} mismatch for stage {$stage}");
             }

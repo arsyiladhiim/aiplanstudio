@@ -166,6 +166,7 @@ export function MasterPromptViewer({ projectId, versionId, versionLabel, artifac
           copied={copied}
           copiedSafe={copiedSafe}
           saving={saving}
+          trackingState={getTrackingState(artifact)}
           onCopy={handleCopyAll}
           onCopySafe={handleCopySafe}
           onDownload={handleDownload}
@@ -206,6 +207,7 @@ export function MasterPromptViewer({ projectId, versionId, versionLabel, artifac
         copied={copied}
         copiedSafe={copiedSafe}
         saving={saving}
+        trackingState={getTrackingState(artifact)}
         onCopy={handleCopyAll}
         onCopySafe={handleCopySafe}
         onDownload={handleDownload}
@@ -270,6 +272,7 @@ function MasterHeader({
   copied,
   copiedSafe,
   saving,
+  trackingState,
   onCopy,
   onCopySafe,
   onDownload,
@@ -281,6 +284,7 @@ function MasterHeader({
   copied: boolean;
   copiedSafe: boolean;
   saving: boolean;
+  trackingState: TrackingState;
   onCopy: () => void;
   onCopySafe: () => void;
   onDownload: () => void;
@@ -289,9 +293,20 @@ function MasterHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] pb-3">
-      <div>
-        <h2 className="text-lg font-semibold">Master Prompt</h2>
-        <p className="text-xs text-[var(--color-fg-subtle)]">{versionLabel}</p>
+      <div className="flex items-center gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Master Prompt</h2>
+          <p className="text-xs text-[var(--color-fg-subtle)]">{versionLabel}</p>
+        </div>
+        {trackingState === "injected" ? (
+          <Badge tone="success" data-testid="tracking-badge-injected" title="Blok tracking live + token tersinkronisasi server-side">
+            Tracking Live: siap
+          </Badge>
+        ) : trackingState === "no-token" ? (
+          <Badge tone="warning" data-testid="tracking-badge-no-token" title="Belum ada token tracking — buka Setup Tracking untuk generate">
+            Token belum ada
+          </Badge>
+        ) : null}
       </div>
       <div className="flex items-center gap-2">
         {!editing && (
@@ -324,4 +339,13 @@ export function hasMasterPromptArtifact(artifact: string | null | undefined): bo
   if (!artifact) return false;
   const trimmed = artifact.trim();
   return trimmed.length > 50;
+}
+
+type TrackingState = "injected" | "no-token" | "absent";
+
+function getTrackingState(text: string): TrackingState {
+  if (text.includes("cp45:tracking-live:start")) return "injected";
+  if (/Authorization:\s*Bearer\s+[a-f0-9]{16,}/i.test(text)) return "injected";
+  if (/TRACKING CREDENTIALS/i.test(text)) return "no-token";
+  return "absent";
 }

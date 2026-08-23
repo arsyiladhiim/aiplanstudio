@@ -99,10 +99,10 @@ Lanjutkan untuk SEMUA fase sampai habis. Setelah fase terakhir, tambahkan marker
 - Commit message: Conventional Commits (`feat:`, `fix:`, `chore:`)
 
 ## 6. Tracking Webhook (WAJIB per fase + sub-item)
-Setelah SETIAP fase selesai, kirim HTTP POST ke endpoint webhook. URL absolut sudah diberikan di konteks (bagian WEBHOOK TRACKING) — gunakan persis dari sana (contoh: `https://api-aiplanstudio.arsyiladm.my.id/api/webhooks/phase-complete`). JANGAN pakai path relative tanpa domain.
-- Headers (case-sensitive, semua WAJIB):
-  - `Authorization: Bearer <TOKEN>`
-  - `X-Token-Secret: <SECRET>`
+Setelah SETIAP fase selesai, kirim HTTP POST ke endpoint webhook. URL absolut + token + secret SUDAH ter-embed di master prompt ini dalam blok TRACKING CREDENTIALS — gunakan PERSIS nilai dari blok tersebut (jangan mengarang, jangan ubah). Jalankan snippet siap-pakai yang ada di blok TRACKING CREDENTIALS untuk setiap fase/sub-item; JANGAN membentuk ulang path/header secara manual.
+- Headers (case-sensitive, sudah disiapkan snippet di TRACKING CREDENTIALS):
+  - `Authorization: Bearer <TOKEN>` (dari blok TRACKING CREDENTIALS)
+  - `X-Token-Secret: <SECRET>` (dari blok TRACKING CREDENTIALS)
   - `X-Timestamp: <unix_seconds>`
   - `X-Signature: hmac_sha256("<X-Timestamp>.<raw_body>", "<X-Token-Secret>")`
   - `Content-Type: application/json`
@@ -115,14 +115,12 @@ Setelah SETIAP fase selesai, kirim HTTP POST ke endpoint webhook. URL absolut su
   {"version_id": <int>, "phase_key": "<key>", "task_key": "<sub_item_key>", "task_type": "halaman|menu|fitur|flow|api", "title": "<judul>", "status": "done", "output": "<ringkasan>"}
   ```
 
-Token + Secret: bila konteks memuat blok "TRACKING CREDENTIALS", SALIN PERSIS nilai token & secret dari blok tersebut ke dalam bagian ini (format persis seperti contoh curl yang diberikan) — agent pembaca butuh nilai nyata, bukan placeholder. Bila blok TIDAK ada, tulis instruksi agar user melakukan Setup Tracking di website sebelum build, JANGAN mengarang nilai token.
-
 PENTING:
-- `phase_key` HARUS key PERSIS dari daftar fase di §4 (contoh: `fase1_setup`). JANGAN pakai `phase-1`.
-- `task_key` HARUS key PERSIS dari sub-item di fase.
+- `version_id`, `phase_key`, dan `task_key` HARUS diambil dari prompt ini (lihat blok TRACKING CREDENTIALS untuk version_id, dan §4 untuk daftar phase_key + sub-item task_key). JANGAN pakai `phase-1`.
 - Status: `running` saat mulai, `done` saat selesai, `error` saat gagal.
 - Hanya LANJUT fase berikutnya setelah webhook `done` untuk fase saat ini sukses.
-- SERTAKAN aturan error handling webhook di bagian ini (retry 3x backoff 1s/2s/4s, timeout 10s, 409 = sudah tercatat lanjut, 422 = perbaiki key, gagal total = catat dan lanjut — JANGAN berhenti permanen).
+- Aturan error handling: retry 3x backoff 1s/2s/4s, timeout 10s, 409 = sudah tercatat lanjut, 422 = perbaiki key, gagal total = catat dan lanjut — JANGAN berhenti permanen.
+- Bila blok TRACKING CREDENTIALS tidak ada atau TOKEN kosong, JANGAN mengarang nilai — berhenti, minta user melakukan Setup Tracking di website sebelum build.
 
 ## 7. Operational Readiness (WAJIB baca sebelum build — artefak dari stage terpisah)
 Sebelum menulis kode, BACA dokumen operasional yang sudah di-generate wizard:
