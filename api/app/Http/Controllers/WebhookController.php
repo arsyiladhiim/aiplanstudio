@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Activity;
+use App\Models\AgentEvent;
 use App\Models\Version;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,8 @@ class WebhookController extends Controller
         $data = $request->validate([
             'version_id' => ['required', 'integer'],
             'phase_key' => ['required', 'string'],
+            // CP-44 CP-03: idempotency key opsional dari agent, dicatat di metadata Activity.
+            'event_id' => ['nullable', 'string', 'max:255'],
             'task_key' => ['nullable', 'string', 'max:255'],
             'task_type' => ['nullable', 'string', 'in:halaman,menu,fitur,flow,api'],
             'title' => ['nullable', 'string', 'max:255'],
@@ -66,6 +69,35 @@ class WebhookController extends Controller
                 ], 422);
             }
             $phaseKey = $resolved;
+        }
+
+        // CP-44 CP-03: task_key WAJIB milik phase yang dirujuk (sub-item dari
+        // tasks/halaman/menu/fitur/flow/api pada fase tersebut).
+        if (! empty($data['task_key'])) {
+            $phaseDef = null;
+            foreach ($allPhases as $p) {
+                if (($p['key'] ?? null) === $phaseKey) {
+                    $phaseDef = $p;
+                    break;
+                }
+            }
+            $allowedTaskKeys = [];
+            if ($phaseDef !== null) {
+                foreach (['tasks', 'halaman', 'menu', 'fitur', 'flow', 'api'] as $group) {
+                    foreach ((array) ($phaseDef[$group] ?? []) as $item) {
+                        if (is_string($item)) {
+                            $allowedTaskKeys[] = $item;
+                        } elseif (is_array($item) && isset($item['key'])) {
+                            $allowedTaskKeys[] = $item['key'];
+                        }
+                    }
+                }
+            }
+            if ($phaseDef === null || ! in_array($data['task_key'], $allowedTaskKeys, true)) {
+                return response()->json([
+                    'message' => "Task key '{$data['task_key']}' bukan sub-item dari fase '{$phaseKey}'. Gunakan key persis dari daftar HALAMAN/MENU/FITUR/FLOW/API fase tersebut.",
+                ], 422);
+            }
         }
 
         $status = $data['status'] ?? 'done';
@@ -109,15 +141,37 @@ class WebhookController extends Controller
                 'token_name' => $projectToken->name,
                 'phase_key' => $phaseKey,
                 'task_key' => $data['task_key'] ?? null,
+                'event_id' => $data['event_id'] ?? null,
                 'status' => $status,
                 'remote_ip' => $request->ip(),
             ],
         ]);
 
+        // CP-44 CP-07: tulis event ekuivalen ke agent_events (single source telemetry).
+        // phase-complete menjadi adapter — feed UI cukup membaca agent_events.
+        try {
+            $mapStatus = ['done' => 'completed', 'error' => 'failed', 'running' => 'started'];
+            $scope = ! empty($data['task_key']) ? 'task' : 'phase';
+            AgentEvent::create([
+                'project_id' => $request->project_id,
+                'version_id' => $version->id,
+                'run_id' => 'webhook-'.$projectToken->id,
+                'event_id' => $data['event_id'] ?? sprintf('wh:%d:%s:%s:%s:%d', $projectToken->id, $phaseKey, $data['task_key'] ?? '-', $status, time()),
+                'event' => $scope.'.'.($mapStatus[$status] ?? $status),
+                'phase_key' => $phaseKey,
+                'task_key' => $data['task_key'] ?? null,
+                'status' => $status,
+                'payload' => ['output' => $data['output'] ?? null, 'task_type' => $data['task_type'] ?? null, 'title' => $data['title'] ?? null],
+            ]);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+            // replay dengan event_id sama — sudah tercatat.
+        }
+
         return response()->json([
             'ok' => true,
             'phase_key' => $phaseKey,
             'task_key' => $data['task_key'] ?? null,
+            'event_id' => $data['event_id'] ?? null,
             'status' => $status,
         ]);
     }

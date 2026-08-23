@@ -115,13 +115,14 @@ Setelah SETIAP fase selesai, kirim HTTP POST ke endpoint webhook. URL absolut su
   {"version_id": <int>, "phase_key": "<key>", "task_key": "<sub_item_key>", "task_type": "halaman|menu|fitur|flow|api", "title": "<judul>", "status": "done", "output": "<ringkasan>"}
   ```
 
-Token + Secret sudah diberikan user via UI (lihat tombol Setup Tracking). AMBIL dari situ sebelum panggil webhook.
+Token + Secret: bila konteks memuat blok "TRACKING CREDENTIALS", SALIN PERSIS nilai token & secret dari blok tersebut ke dalam bagian ini (format persis seperti contoh curl yang diberikan) — agent pembaca butuh nilai nyata, bukan placeholder. Bila blok TIDAK ada, tulis instruksi agar user melakukan Setup Tracking di website sebelum build, JANGAN mengarang nilai token.
 
 PENTING:
 - `phase_key` HARUS key PERSIS dari daftar fase di §4 (contoh: `fase1_setup`). JANGAN pakai `phase-1`.
 - `task_key` HARUS key PERSIS dari sub-item di fase.
 - Status: `running` saat mulai, `done` saat selesai, `error` saat gagal.
 - Hanya LANJUT fase berikutnya setelah webhook `done` untuk fase saat ini sukses.
+- SERTAKAN aturan error handling webhook di bagian ini (retry 3x backoff 1s/2s/4s, timeout 10s, 409 = sudah tercatat lanjut, 422 = perbaiki key, gagal total = catat dan lanjut — JANGAN berhenti permanen).
 
 ## 7. Operational Readiness (WAJIB baca sebelum build — artefak dari stage terpisah)
 Sebelum menulis kode, BACA dokumen operasional yang sudah di-generate wizard:

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\StageRegistry;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,17 +22,8 @@ class Version extends Model
 {
     use HasFactory;
 
-    public const ALL_STAGES = [
-        'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
-        'design_system',
-        'phases_web', 'standards_web', 'master_web',
-        'app_spec_web',
-        'design_system_mobile',
-        'pertanyaan_mobile', 'standards_mobile', 'phases_mobile', 'master_mobile',
-        'app_spec_mobile',
-        'env_config', 'security', 'deployment', 'observability',
-        'agents',
-    ];
+    /** @var array<int, string> Single source of truth: StageRegistry (lihat CP-44). */
+    public const ALL_STAGES = StageRegistry::KEYS;
 
     protected function casts(): array
     {
@@ -70,30 +62,7 @@ class Version extends Model
     /** Status default sebelum pipeline dijalankan. */
     public static function defaultStageStatus(): array
     {
-        return [
-            'pertanyaan' => 'pending',
-            'analisa' => 'pending',
-            'prd' => 'pending',
-            'architecture' => 'pending',
-            'erd' => 'pending',
-            'api_contract' => 'pending',
-            'design_system' => 'pending',
-            'phases_web' => 'pending',
-            'standards_web' => 'pending',
-            'master_web' => 'pending',
-            'app_spec_web' => 'pending',
-            'design_system_mobile' => 'pending',
-            'pertanyaan_mobile' => 'pending',
-            'standards_mobile' => 'pending',
-            'phases_mobile' => 'pending',
-            'master_mobile' => 'pending',
-            'app_spec_mobile' => 'pending',
-            'env_config' => 'pending',
-            'security' => 'pending',
-            'deployment' => 'pending',
-            'observability' => 'pending',
-            'agents' => 'pending',
-        ];
+        return array_fill_keys(self::ALL_STAGES, 'pending');
     }
 
     /**

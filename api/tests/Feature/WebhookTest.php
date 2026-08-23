@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Activity;
 use App\Models\Project;
 use App\Models\ProjectApiToken;
 use App\Models\User;
 use App\Models\Version;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class WebhookTest extends TestCase
@@ -34,24 +36,34 @@ class WebhookTest extends TestCase
         $this->version = Version::factory()->create([
             'project_id' => $this->project->id,
             'phases' => [
-                ['key' => 'fase1_setup', 'title' => 'Fase 1 Setup', 'tasks' => [], 'prompt' => ''],
-                ['key' => 'fase2_front', 'title' => 'Fase 2 Front', 'tasks' => [], 'prompt' => ''],
-                ['key' => 'fase3_backend', 'title' => 'Fase 3 Backend', 'tasks' => [], 'prompt' => ''],
-                ['key' => 'fase4_feature', 'title' => 'Fase 4 Fitur', 'tasks' => [], 'prompt' => ''],
-                ['key' => 'fase5_deploy', 'title' => 'Fase 5 Deploy', 'tasks' => [], 'prompt' => ''],
+                [
+                    'key' => 'fase1_setup', 'title' => 'Fase 1 Setup',
+                    'tasks' => ['setup_repo'],
+                    'halaman' => [['key' => 'pg_login', 'title' => 'Login']],
+                    'menu' => [['key' => 'mn_main', 'title' => 'Main Menu', 'parent' => '-']],
+                    'fitur' => [['key' => 'ft_auth', 'title' => 'Auth', 'func' => '-']],
+                    'flow' => [['key' => 'fl_login', 'title' => 'Login Flow', 'steps' => '-']],
+                    'api' => [['key' => 'api_login', 'endpoint' => '/login', 'method' => 'POST', 'desc' => '-']],
+                    'prompt' => '',
+                ],
+                ['key' => 'fase2_front', 'title' => 'Fase 2 Front', 'tasks' => [], 'halaman' => [], 'menu' => [], 'fitur' => [], 'flow' => [], 'api' => [], 'prompt' => ''],
+                ['key' => 'fase3_backend', 'title' => 'Fase 3 Backend', 'tasks' => [], 'halaman' => [], 'menu' => [], 'fitur' => [], 'flow' => [], 'api' => [], 'prompt' => ''],
+                ['key' => 'fase4_feature', 'title' => 'Fase 4 Fitur', 'tasks' => [], 'halaman' => [], 'menu' => [], 'fitur' => [], 'flow' => [], 'api' => [], 'prompt' => ''],
+                ['key' => 'fase5_deploy', 'title' => 'Fase 5 Deploy', 'tasks' => [], 'halaman' => [], 'menu' => [], 'fitur' => [], 'flow' => [], 'api' => [], 'prompt' => ''],
             ],
         ]);
 
-        $result = \App\Models\ProjectApiToken::generate($this->project, 'test');
+        $result = ProjectApiToken::generate($this->project, 'test');
         $this->token = $result['token'];
         $this->secret = $result['secret'];
         $this->tokenSecretHash = hash('sha256', $this->secret);
     }
 
-    private function webhook(array $body): \Illuminate\Testing\TestResponse
+    private function webhook(array $body, ?string $forcedTimestamp = null): TestResponse
     {
         $bodyJson = json_encode($body, JSON_UNESCAPED_UNICODE);
-        $timestamp = (string) time();
+        // CP-44: timestamp bisa dipaksa agar test replay deterministik (tak lintas detik).
+        $timestamp = $forcedTimestamp ?? (string) time();
         $signature = hash_hmac('sha256', $timestamp.'.'.$bodyJson, $this->secret);
 
         return $this->call(
@@ -183,30 +195,33 @@ class WebhookTest extends TestCase
         ];
 
         // First call succeeds
-        $first = $this->webhook($body);
+        $ts = (string) time();
+        $first = $this->webhook($body, $ts);
         $first->assertStatus(200);
 
         // Replay with same timestamp+signature must be rejected
-        $second = $this->webhook($body);
+        $second = $this->webhook($body, $ts);
         $second->assertStatus(409)
             ->assertJsonFragment(['message' => 'Webhook duplikat terdeteksi. Permintaan sudah diproses.']);
     }
 
     public function test_webhook_persists_all_granular_task_types(): void
     {
-        foreach (['halaman', 'menu', 'fitur', 'flow', 'api'] as $i => $type) {
+        // CP-44 CP-03: task_key kini harus anggota fase — pakai key nyata dari fixture.
+        $keys = ['halaman' => 'pg_login', 'menu' => 'mn_main', 'fitur' => 'ft_auth', 'flow' => 'fl_login', 'api' => 'api_login'];
+        foreach ($keys as $type => $key) {
             $response = $this->webhook([
                 'version_id' => $this->version->id,
                 'phase_key' => 'fase1_setup',
-                'task_key' => "sub_{$type}_{$i}",
+                'task_key' => $key,
                 'task_type' => $type,
-                'title' => "Sub item {$type} {$i}",
+                'title' => "Sub item {$type}",
                 'status' => 'done',
                 'output' => "output {$type}",
             ]);
             $response->assertStatus(200);
             $this->assertDatabaseHas('task_progress', [
-                'task_key' => "sub_{$type}_{$i}",
+                'task_key' => $key,
                 'task_type' => $type,
                 'status' => 'done',
             ]);
@@ -223,5 +238,49 @@ class WebhookTest extends TestCase
             'status' => 'done',
         ]);
         $response->assertStatus(422);
+    }
+
+    /** CP-44 CP-03: task_key harus milik phase yang dirujuk. */
+    public function test_webhook_rejects_task_key_from_other_phase(): void
+    {
+        $this->webhook([
+            'version_id' => $this->version->id,
+            'phase_key' => 'fase2_front',
+            'task_key' => 'pg_login',
+            'task_type' => 'halaman',
+            'status' => 'done',
+        ])->assertStatus(422);
+    }
+
+    public function test_webhook_accepts_sub_item_task_key_of_phase(): void
+    {
+        $resp = $this->webhook([
+            'version_id' => $this->version->id,
+            'phase_key' => 'fase1_setup',
+            'task_key' => 'pg_login',
+            'task_type' => 'halaman',
+            'title' => 'Login',
+            'status' => 'done',
+        ]);
+        $resp->assertStatus(200)->assertJsonFragment(['task_key' => 'pg_login']);
+    }
+
+    /** CP-44 CP-03: event_id opsional tercatat di metadata Activity. */
+    public function test_webhook_records_event_id_in_activity(): void
+    {
+        $resp = $this->webhook([
+            'version_id' => $this->version->id,
+            'phase_key' => 'fase1_setup',
+            'event_id' => 'fase1_setup:done:1700000000',
+            'status' => 'done',
+        ]);
+        $resp->assertStatus(200)->assertJsonFragment(['event_id' => 'fase1_setup:done:1700000000']);
+
+        $activity = Activity::where('project_id', $this->project->id)
+            ->where('action', Activity::ACTION_WEBHOOK_RECEIVED)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($activity);
+        $this->assertSame('fase1_setup:done:1700000000', $activity->metadata['event_id'] ?? null);
     }
 }

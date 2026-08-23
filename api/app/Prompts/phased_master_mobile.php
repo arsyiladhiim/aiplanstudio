@@ -111,6 +111,9 @@ Sama dengan master prompt web (mobile kirim direct ke Laravel, no Next.js layer)
 
 `phase_key` HARUS key PERSIS dari daftar fase mobile. JANGAN re-nomor.
 
+Token + Secret: bila konteks memuat blok "TRACKING CREDENTIALS", SALIN PERSIS nilai token & secret dari blok tersebut ke bagian ini (termasuk contoh curl). Bila TIDAK ada, tulis instruksi agar user melakukan Setup Tracking di website — JANGAN mengarang nilai.
+SERTAKAN aturan error handling webhook (retry 3x backoff 1s/2s/4s, timeout 10s, 409 = sudah tercatat lanjut, 422 = perbaiki key, gagal total = catat dan lanjut — JANGAN berhenti permanen).
+
 ## 7. Operational Readiness (WAJIB baca sebelum build)
 Sebelum menulis kode, BACA dokumen operasional dari wizard (web track sudah selesai):
 - **`env-config.md`** — bagian Mobile (`--dart-define=API_BASE_URL`, APP_ENV, Firebase/FCM, keystore signing).

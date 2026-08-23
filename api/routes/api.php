@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\AgentEventController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\ForgotPasswordController;
@@ -50,6 +51,9 @@ Route::get('/csrf-token', function (Request $r) {
 // Webhook — external access via Project API Token (not session auth)
 Route::post('/webhooks/phase-complete', [WebhookController::class, 'phaseComplete'])
     ->middleware(['auth.project-token', 'throttle:60,1']);
+// CP-44 CP-07: Agent Event Protocol v1 — telemetry granular dari coding agent.
+Route::post('/agent/events', [AgentEventController::class, 'store'])
+    ->middleware(['auth.project-token', 'throttle:120,1']);
 
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -93,12 +97,16 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/versions/{id}/agents/mobile', [VersionController::class, 'downloadMobileAgents']);
     Route::post('/versions/{id}/regenerate-standards/mobile', [VersionController::class, 'regenerateMobileStandards']);
     Route::get('/dashboard/stats', [ProjectController::class, 'dashboardStats']);
+    // CP-44 CP-01: single stage registry exposed to frontend.
+    Route::get('/stages', fn () => response()->json(['data' => \App\Services\StageRegistry::all()]));
+    // CP-44 CP-07: agent event feed untuk UI tracking.
+    Route::get('/versions/{versionId}/agent-events', [AgentEventController::class, 'index'])->whereNumber('versionId');
     Route::get('/templates', [TemplateController::class, 'index']);
     Route::get('/templates/{id}', [TemplateController::class, 'show']);
     Route::post('/templates/{id}/instantiate', [TemplateController::class, 'instantiate']);
 
     // AI endpoints — tighter rate limit (expensive calls)
-    Route::post('/generate/stream', GenerateStreamController::class)->middleware('throttle:10,1');
+    Route::post('/generate/stream', GenerateStreamController::class)->middleware('throttle:30,1');
 
     // Project API Token management
     Route::get('/projects/{id}/tokens', function (Request $request, int $id) {

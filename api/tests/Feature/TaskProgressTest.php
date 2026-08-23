@@ -9,6 +9,7 @@ use App\Models\TaskProgress;
 use App\Models\User;
 use App\Models\Version;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class TaskProgressTest extends TestCase
@@ -34,7 +35,17 @@ class TaskProgressTest extends TestCase
         $this->version = Version::factory()->create([
             'project_id' => $this->project->id,
             'phases' => [
-                ['key' => 'fase1_setup', 'title' => 'Fase 1 Setup', 'tasks' => [], 'prompt' => ''],
+                // CP-44 CP-03: sub-item nyata agar task_key lolos validasi keanggotaan fase.
+                [
+                    'key' => 'fase1_setup', 'title' => 'Fase 1 Setup',
+                    'tasks' => [],
+                    'halaman' => [['key' => 'fase1_setup_halaman_1', 'title' => 'Halaman 1'], ['key' => 'fase1_setup_halaman_2', 'title' => 'Settings']],
+                    'fitur' => [['key' => 'fase1_setup_fitur_1', 'title' => 'Fitur 1', 'func' => '-']],
+                    'menu' => [['key' => 'fase1_setup_menu_1', 'title' => 'Menu 1', 'parent' => '-']],
+                    'flow' => [['key' => 'fase1_setup_flow_1', 'title' => 'Flow 1', 'steps' => '-']],
+                    'api' => [['key' => 'fase1_setup_api_1', 'endpoint' => '/x', 'method' => 'GET', 'desc' => '-']],
+                    'prompt' => '',
+                ],
             ],
         ]);
         $result = ProjectApiToken::generate($this->project, 'test');
@@ -42,7 +53,7 @@ class TaskProgressTest extends TestCase
         $this->secret = $result['secret'];
     }
 
-    private function webhook(array $body): \Illuminate\Testing\TestResponse
+    private function webhook(array $body): TestResponse
     {
         $bodyJson = json_encode($body, JSON_UNESCAPED_UNICODE);
         $timestamp = (string) time();

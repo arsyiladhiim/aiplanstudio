@@ -527,9 +527,48 @@ class PipelineRunnerTest extends TestCase
 
         $this->assertStringContainsString('phase-complete', $prompt);
         $this->assertStringContainsString('X-Token-Secret: <SECRET>', $prompt);
-        $this->assertStringContainsString('PERHATIAN: Token tracking BELUM dibuat', $prompt);
+        $this->assertStringContainsString('Token tracking BELUM tersedia', $prompt);
         $this->assertStringContainsString('Setup Tracking', $prompt);
         $this->assertSame(0, $this->project->apiTokens()->count());
+    }
+
+    /** CP-44 CP-02: kredensial tersimpan terenkripsi dan disematkan ke master prompt + URL publik dipakai. */
+    public function test_tracking_block_embeds_credentials_and_public_url(): void
+    {
+        config(['app.tracking_base_url' => 'https://tracking.example.com']);
+        $expectedName = 'auto-tracking-'.substr(md5((string) $this->version->id), 0, 8);
+        $result = ProjectApiToken::generate($this->project, $expectedName);
+
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'contextPrompt');
+        $ref->setAccessible(true);
+
+        $prompt = $ref->invoke($runner, 'master_web', $this->version);
+
+        $this->assertStringContainsString('https://tracking.example.com/api/webhooks/phase-complete', $prompt);
+        $this->assertStringContainsString('TRACKING CREDENTIALS', $prompt);
+        $this->assertStringContainsString($result['token'], $prompt);
+        $this->assertStringContainsString($result['secret'], $prompt);
+        // Kontrak error handling CP-03 hadir di prompt.
+        $this->assertStringContainsString('exponential backoff', $prompt);
+        $this->assertStringContainsString('HTTP 409', $prompt);
+        $this->assertStringNotContainsString('dan berhenti', $prompt);
+    }
+
+    /** CP-44 CP-02: tanpa TRACKING_BASE_URL, fallback ke APP_URL. */
+    public function test_tracking_block_falls_back_to_app_url(): void
+    {
+        config(['app.tracking_base_url' => null]);
+        config(['app.url' => 'http://localhost:8000']);
+
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'contextPrompt');
+        $ref->setAccessible(true);
+
+        $prompt = $ref->invoke($runner, 'master_web', $this->version);
+        $this->assertStringContainsString('http://localhost:8000/api/webhooks/phase-complete', $prompt);
     }
 
     public function test_master_web_context_includes_phases_breakdown(): void

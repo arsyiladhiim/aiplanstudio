@@ -54,6 +54,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // CP-44 CP-02: URL publik yang dapat dijangkau coding agent eksternal untuk
+    // webhook tracking. Kosong = fallback ke APP_URL.
+    'tracking_base_url' => rtrim((string) env('TRACKING_BASE_URL', ''), '/'),
+
     'frontend_url' => env('FRONTEND_URL', env('APP_URL', 'http://localhost')),
 
     /*

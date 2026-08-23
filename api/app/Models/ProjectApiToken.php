@@ -5,13 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Crypt;
 
 #[Fillable(['name', 'expires_at'])]
 class ProjectApiToken extends Model
 {
     protected $table = 'aiplanstudio_project.project_api_tokens';
 
-    protected $hidden = ['token_hash', 'secret_hash', 'secret_salt'];
+    protected $hidden = ['token_hash', 'secret_hash', 'secret_salt', 'token_encrypted', 'secret_encrypted'];
 
     protected function casts(): array
     {
@@ -37,6 +38,9 @@ class ProjectApiToken extends Model
         $token->token_hash = hash('sha256', $rawToken);
         $token->secret_salt = $salt;
         $token->secret_hash = hash_hmac('sha256', $rawSecret, $salt);
+        // CP-44: salinan terenkripsi untuk penyematan kredensial ke master prompt.
+        $token->token_encrypted = Crypt::encryptString($rawToken);
+        $token->secret_encrypted = Crypt::encryptString($rawSecret);
         $token->expires_at = $expiresAt ?? now()->addDays(90);
         $token->project()->associate($project);
         $token->save();
@@ -46,6 +50,26 @@ class ProjectApiToken extends Model
             'secret' => $rawSecret,
             'model' => $token,
         ];
+    }
+
+    /** Token plaintext dari salinan terenkripsi (untuk embed di master prompt). */
+    public function revealStoredToken(): ?string
+    {
+        try {
+            return $this->token_encrypted ? Crypt::decryptString($this->token_encrypted) : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /** Secret plaintext dari salinan terenkripsi (untuk embed di master prompt). */
+    public function revealStoredSecret(): ?string
+    {
+        try {
+            return $this->secret_encrypted ? Crypt::decryptString($this->secret_encrypted) : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function verifySignature(string $timestamp, string $body, string $providedSignature): bool
