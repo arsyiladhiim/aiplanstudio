@@ -29,6 +29,8 @@ class PipelineRunner
 
     private TrackingInjector $trackingInjector;
 
+    private StageGateRegistry $gateRegistry;
+
     /** Plain tracking token — kept in-memory only, never persisted plaintext */
     private ?string $plainTrackingToken = null;
 
@@ -168,6 +170,7 @@ class PipelineRunner
         $this->outputParser = new AiOutputParser($this->jsonParser);
         $this->validator = new StageArtifactValidator($this->outputParser);
         $this->trackingInjector = new TrackingInjector;
+        $this->gateRegistry = new StageGateRegistry;
     }
 
     public function run(?string $stage, bool $auto, bool $lite = false): void
@@ -203,6 +206,14 @@ class PipelineRunner
         foreach (array_slice(Version::ALL_STAGES, $startIdx) as $key) {
             $target = $this->version->project->target ?? 'web';
 
+            // Lite + Mobile skip filter dulu — gate check jalan hanya untuk stage yang benar-benar akan dieksekusi.
+            if ($this->liteMode && ! in_array($key, self::LITE_STAGES, true)) {
+                $this->updateStageStatus($key, 'skipped');
+                $this->recordSkipReason($key, 'Lite plan — hanya tahap inti dihasilkan');
+
+                continue;
+            }
+
             if (in_array($key, self::MOBILE_STAGES, true)) {
                 if ($target !== 'both') {
                     $this->updateStageStatus($key, 'skipped');
@@ -217,9 +228,17 @@ class PipelineRunner
                 }
             }
 
-            if ($this->liteMode && ! in_array($key, self::LITE_STAGES, true)) {
-                $this->updateStageStatus($key, 'skipped');
-                $this->recordSkipReason($key, 'Lite plan — hanya tahap inti dihasilkan');
+            // CP-46.A: Quality Gate check — bila gate blocked, set status blocked + continue.
+            $gateResult = $this->gateRegistry->check($this->version, $key);
+            if (! $gateResult['passes']) {
+                $this->gateRegistry->assert($this->version, $key);
+                $this->sse->emit('status', [
+                    'stage' => $key,
+                    'state' => 'blocked',
+                    'gate' => $gateResult['gate'],
+                    'reason' => $gateResult['reason'],
+                ]);
+                $this->updateStageStatus($key, Version::STAGE_BLOCKED);
 
                 continue;
             }

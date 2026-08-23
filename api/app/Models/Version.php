@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'mobile_phases', 'mobile_master_prompt', 'mobile_standards', 'mobile_agents',
     'env_config', 'security', 'deployment', 'observability',
     'source_version_id', 'baseline_notes', 'skip_reasons', 'stage_quality', 'stage_errors',
+    'gate_states', 'production_ready_at',
 ])]
 class Version extends Model
 {
@@ -24,6 +25,11 @@ class Version extends Model
 
     /** @var array<int, string> Single source of truth: StageRegistry (lihat CP-44). */
     public const ALL_STAGES = StageRegistry::KEYS;
+
+    // CP-46.A: tambahan stage state untuk gate system.
+    public const STAGE_BLOCKED = 'blocked';
+
+    public const STAGE_RETRYING = 'retrying';
 
     protected function casts(): array
     {
@@ -33,6 +39,7 @@ class Version extends Model
             'stage_errors' => 'array',
             'stage_tokens' => 'array',
             'skip_reasons' => 'array',
+            'gate_states' => 'array',
             'answers' => 'array',
             'mobile_answers' => 'array',
             'erd' => 'array',
@@ -41,6 +48,7 @@ class Version extends Model
             'mobile_phases' => 'array',
             'app_spec_web' => 'array',
             'app_spec_mobile' => 'array',
+            'production_ready_at' => 'datetime',
         ];
     }
 

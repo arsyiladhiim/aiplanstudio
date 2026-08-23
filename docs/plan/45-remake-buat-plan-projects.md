@@ -3,6 +3,8 @@
 > Konteks: master prompt v306 §6 berisi placeholder `<TOKEN>`/`<SECRET>` dan tanpa `version_id` → webhook agent gagal → tracking null. Root cause: penyematan data teknis diserahkan ke kepatuhan LLM (tidak deterministik). Prinsip perbaikan: **server-side injection; AI hanya naratif**.
 >
 > Target agent: OpenCode serve + ChatGPT/Claude Code (multi). Snippet koneksi disediakan 3 varian: bash/curl, python, node.
+>
+> **Status**: CP-45.A (Tracking Deterministik) selesai 2026-08-23. CP-45.B (Wizard Buat Plan) dan CP-45.C (Projects) **di-supersede** oleh Plan 46 — lihat `docs/plan/46-production-ready-wizard.md`. Plan 46 adalah single source of truth untuk semua perubahan wizard/projects setelah CP-45.A.
 
 ## Fase 0 — CP-45.A Tracking Deterministik (P0)
 

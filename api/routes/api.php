@@ -98,7 +98,18 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::post('/versions/{id}/regenerate-standards/mobile', [VersionController::class, 'regenerateMobileStandards']);
     Route::get('/dashboard/stats', [ProjectController::class, 'dashboardStats']);
     // CP-44 CP-01: single stage registry exposed to frontend.
-    Route::get('/stages', fn () => response()->json(['data' => \App\Services\StageRegistry::all()]));
+    // CP-46.A: enrich dengan `gate` field per stage (null bila tanpa gate).
+    Route::get('/stages', function () {
+        $gateMap = (new \App\Services\StageGateRegistry)->gateMap();
+
+        $data = array_map(function ($stage) use ($gateMap) {
+            $stage['gate'] = $gateMap[$stage['key']] ?? null;
+
+            return $stage;
+        }, \App\Services\StageRegistry::all());
+
+        return response()->json(['data' => $data]);
+    });
     // CP-44 CP-07: agent event feed untuk UI tracking.
     Route::get('/versions/{versionId}/agent-events', [AgentEventController::class, 'index'])->whereNumber('versionId');
     Route::get('/templates', [TemplateController::class, 'index']);
