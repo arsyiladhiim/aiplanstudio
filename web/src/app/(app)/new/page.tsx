@@ -2,6 +2,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo, use } from "react"
 import { useRouter } from "next/navigation"
 import { useResume } from "@/hooks/useResume"
+import { usePipelineStream } from "@/hooks/usePipelineStream"
 import { Card, Badge, Textarea, Label, Markdown, Modal } from "@/components/ui"
 import { Button } from "@/components/ui/Button"
 import dynamic from "next/dynamic"
@@ -60,7 +61,6 @@ import {
   apiGet,
   apiPatch,
   apiDelete,
-  createSSEPost,
   createPhaseProgressStream,
   WEBHOOK_URL,
   type Project,
@@ -289,7 +289,6 @@ export default function NewPlanPage({
   const abortRef = useRef<AbortController | null>(null)
   const cancelled = useRef(false)
   const creatingRef = useRef(false)
-  const retryCountRef = useRef(0)
   const fallbackFetched = useRef(new Set<string>())
   const outputRef = useRef<HTMLDivElement>(null)
   const webPhasesRef = useRef<PhaseItem[]>([])
@@ -408,176 +407,79 @@ export default function NewPlanPage({
     }
   }, [])
 
-  // handleSSEEvent must be defined before startPipeline
-  const handleSSEEvent = useCallback(
-    (event: string, rawData: unknown) => {
-      if (cancelled.current) return
-      const data = rawData as Record<string, unknown>
-
-      switch (event) {
-        case "status": {
-          const stage = data.stage as string | undefined
-          if (stage) {
-            const state = data.state as string
-            if (state === "retrying") {
-              // Retry: buat buffer baru agar attempt baru tidak menumpuk → JSON korup.
-              // Status tetap 'running' agar modal loading tampil; retryInfo menampilkan percobaan.
-              setArtifacts((prev) => ({ ...prev, [stage as StageKey]: "" }))
-              const attemptRaw = Number(data.attempt ?? 1)
-              const maxRaw = Number(data.max ?? 0)
-              setRetryInfo({
-                attempt: Number.isFinite(attemptRaw) ? attemptRaw : 1,
-                max: Number.isFinite(maxRaw) ? maxRaw : 0,
-              })
-              setStatus((s) => ({ ...s, [stage]: "running" as StageState }))
-            } else {
-              setStatus((s) => ({ ...s, [stage]: state as StageState }))
-            }
-            if (data.state === "running") {
-              const idx = stages.findIndex((x) => x.key === stage)
-              if (idx >= 0) setCurrent(idx)
-              setStartedAt((prev) => prev ?? Date.now())
-            }
-            if (data.state === "done") {
-              setRetryInfo(null)
-              chime()
-              // CP-9 M-5: auto-open MasterPromptViewer saat master_* selesai (sekali per target).
-              if (stage === "master_web" && !masterAutoOpenedRef.current.web) {
-                masterAutoOpenedRef.current.web = true
-                setMasterModalTarget("web")
-                setMasterModalOpen(true)
-              } else if (
-                stage === "master_mobile" &&
-                !masterAutoOpenedRef.current.mobile
-              ) {
-                masterAutoOpenedRef.current.mobile = true
-                setMasterModalTarget("mobile")
-                setMasterModalOpen(true)
-              }
-            }
-          }
-          break
+  // CP-46.D step 2 — wire usePipelineStream.
+  const streamApi = usePipelineStream(liteMode, useMemo(() => ({
+    onStatus: (stage, state) => {
+      setStatus((s) => ({ ...s, [stage]: state }))
+      if (state === "retrying") {
+        setArtifacts((prev) => ({ ...prev, [stage]: "" }))
+      }
+      if (state === "running") {
+        const idx = stages.findIndex((x) => x.key === stage)
+        if (idx >= 0) setCurrent(idx)
+        setStartedAt((prev) => prev ?? Date.now())
+      }
+      if (state === "done") {
+        setRetryInfo(null)
+        chime()
+        if (stage === "master_web" && !masterAutoOpenedRef.current.web) {
+          masterAutoOpenedRef.current.web = true
+          setMasterModalTarget("web")
+          setMasterModalOpen(true)
+        } else if (
+          stage === "master_mobile" &&
+          !masterAutoOpenedRef.current.mobile
+        ) {
+          masterAutoOpenedRef.current.mobile = true
+          setMasterModalTarget("mobile")
+          setMasterModalOpen(true)
         }
-
-        case "token": {
-          const stage = data.stage as string | undefined
-          if (stage) {
-            setArtifacts((prev) => {
-              const key = stage as StageKey
-              return {
-                ...prev,
-                [key]: (prev[key] || "") + String(data.delta ?? ""),
-              }
-            })
-          }
-          break
-        }
-
-        case "artifact": {
-          const stage = data.stage as string | undefined
-          if (stage) {
-            setArtifacts((prev) => ({
-              ...prev,
-              [stage as StageKey]: String(data.content ?? ""),
-            }))
-          }
-          break
-        }
-
-        case "stage_tokens": {
-          const stage = data.stage as string | undefined
-          const tokens = Number(data.tokens ?? 0)
-          if (stage && Number.isFinite(tokens) && tokens > 0) {
-            setStageTokens((prev) => ({ ...prev, [stage]: tokens }))
-          }
-          break
-        }
-
-        case "done": {
-          const stage = data.stage as string | undefined
-          if (stage) {
-            setFailedStage(null)
-            const stageIndex = stages.findIndex((x) => x.key === stage)
-            if (stageIndex >= 0) {
-              setCurrent(stageIndex)
-              setStatus((s) => ({ ...s, [stage]: "done" as StageState }))
-            }
-          }
-          break
-        }
-
-        case "fail":
-          setError(String(data.message ?? "Terjadi kesalahan."))
-          {
-            const stage = data.stage as string | undefined
-            if (stage) {
-              setStatus((s) => ({ ...s, [stage]: "error" as StageState }))
-              setFailedStage(stage as StageKey)
-            }
-          }
-          if (abortRef.current) {
-            abortRef.current.abort()
-            abortRef.current = null
-          }
-          break
       }
     },
-    [stages]
-  )
-
-  const doStream = useCallback(
-    (versionId: number, stage: string) => {
-      retryCountRef.current = 0
-      const attempt = (retries: number) => {
-        if (abortRef.current) abortRef.current.abort()
-        if (cancelled.current) return
-        createSSEPost(
-          `/generate/stream`,
-          { version: versionId, stage, auto: 1, lite: liteMode ? 1 : 0 },
-          handleSSEEvent,
-          (err) => {
-            if (
-              retries < 3 &&
-              !cancelled.current &&
-              err.name !== "TooManyRequests"
-            ) {
-              retryCountRef.current = retries + 1
-              console.warn(`SSE retry ${retries + 1}/3:`, err.message)
-              setTimeout(() => attempt(retries + 1), 2000 * (retries + 1))
-            } else {
-              console.error("SSE error (max retries):", err)
-              setStatus((s) => ({ ...s, [stage]: "error" as StageState }))
-              setFailedStage(stage as StageKey)
-              setError(
-                err.name === "TooManyRequests"
-                  ? "Terlalu banyak permintaan. Tunggu ±1 menit, lalu klik Coba Lagi."
-                  : `Koneksi SSE terputus setelah 3x retry. (${err.message})`
-              )
-            }
-          }
-        ).then((ctrl) => {
-          abortRef.current = ctrl
-        })
-      }
-      attempt(0)
+    onToken: (stage, delta) => {
+      setArtifacts((prev) => {
+        const key = stage as StageKey
+        return {
+          ...prev,
+          [key]: (prev[key] || "") + delta,
+        }
+      })
     },
-    [handleSSEEvent, liteMode]
-  )
+    onArtifact: (stage, content) => {
+      setArtifacts((prev) => ({ ...prev, [stage]: content }))
+    },
+    onStageTokens: (stage, tokens) => {
+      setStageTokens((prev) => ({ ...prev, [stage]: tokens }))
+    },
+    onDone: (stage) => {
+      setFailedStage(null)
+      const stageIndex = stages.findIndex((x) => x.key === stage)
+      if (stageIndex >= 0) {
+        setCurrent(stageIndex)
+        setStatus((s) => ({ ...s, [stage]: "done" as StageState }))
+      }
+    },
+    onFail: (stage, message) => {
+      setError(message)
+      if (stage) {
+        setStatus((s) => ({ ...s, [stage]: "error" as StageState }))
+        setFailedStage(stage as StageKey)
+      }
+    },
+    onRetryInfo: (attempt, max) => {
+      setRetryInfo({ attempt, max })
+    },
+  }), [stages]))
 
   const startPipeline = useCallback(
     (versionId: number, stage?: string) => {
-      if (abortRef.current) {
-        abortRef.current.abort()
-      }
-
       const s = stage || stages[0].key
       const idx = stages.findIndex((x) => x.key === s)
       if (idx >= 0) setCurrent(idx)
       setStatus((prev) => ({ ...prev, [s]: "running" }))
-
-      doStream(versionId, s)
+      streamApi.startPipeline(versionId, s)
     },
-    [doStream, stages]
+    [streamApi, stages]
   )
 
   // Apply template seed when selected
@@ -764,7 +666,12 @@ export default function NewPlanPage({
     setCurrent(r.currentStageIdx)
     setStatus(r.status)
     setArtifacts(r.artifacts)
-    setPhaseProg(r.phaseProg)
+    setPhaseProg(
+      r.phaseProg.map((p) => ({
+        ...p,
+        done: p.done ?? false,
+      })) as Version["phase_progress"]
+    )
     setResumeInfo(r.resumeInfo)
 
     if (r.resumeError) {
@@ -848,7 +755,7 @@ export default function NewPlanPage({
       abortRef.current.abort()
     }
 
-    doStream(versionId, nextStage)
+    startPipeline(versionId, nextStage)
   }
 
   function proceedAfterMasterConfirm() {
@@ -858,7 +765,7 @@ export default function NewPlanPage({
     if (abortRef.current) {
       abortRef.current.abort()
     }
-    doStream(versionId, nextStage)
+    startPipeline(versionId, nextStage)
   }
 
   function retryStage() {
@@ -878,7 +785,7 @@ export default function NewPlanPage({
       abortRef.current.abort()
     }
 
-    doStream(versionId, currentStage)
+    startPipeline(versionId, currentStage)
   }
 
   function cancelGeneration() {
@@ -1350,7 +1257,7 @@ export default function NewPlanPage({
                                 [nextStage]: "running",
                               }))
                               setCurrent(current + 1)
-                              doStream(versionId, nextStage)
+                              startPipeline(versionId, nextStage)
                             }
                           }}
                           submitLabel="Kirim Jawaban & Lanjutkan"
@@ -1411,7 +1318,7 @@ export default function NewPlanPage({
                                   [nextStage]: "running",
                                 }))
                                 setCurrent(current + 1)
-                                doStream(versionId, nextStage)
+                                startPipeline(versionId, nextStage)
                               }
                             }}
                             disabled={
@@ -1469,7 +1376,7 @@ export default function NewPlanPage({
                                 [nextStage]: "running",
                               }))
                               setCurrent(current + 1)
-                              doStream(versionId, nextStage)
+                              startPipeline(versionId, nextStage)
                             }
                           }}
                           submitLabel="Kirim Jawaban Mobile & Lanjutkan"
@@ -1536,7 +1443,7 @@ export default function NewPlanPage({
                                   [nextStage]: "running",
                                 }))
                                 setCurrent(current + 1)
-                                doStream(versionId, nextStage)
+                                startPipeline(versionId, nextStage)
                               }
                             }}
                             disabled={
@@ -1896,7 +1803,7 @@ export default function NewPlanPage({
                     onClick={() => {
                       setFailedStage(null)
                       setError("")
-                      doStream(versionId, failedStage)
+                      startPipeline(versionId, failedStage)
                     }}
                     data-testid="retry-stage"
                   >
