@@ -1,6 +1,6 @@
 "use client";
 import { Badge } from "@/components/ui";
-import { Check, X, ShieldCheck, FlaskConical, Rocket, Gauge, Database, FileCode2, type LucideIcon } from "lucide-react";
+import { X, ShieldCheck, FlaskConical, Rocket, Gauge, Database, FileCode2, type LucideIcon } from "lucide-react";
 import type { StageEvidence } from "@/hooks/useStageEvidence";
 
 interface FlagMeta {

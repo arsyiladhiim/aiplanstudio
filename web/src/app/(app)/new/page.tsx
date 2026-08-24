@@ -1,6 +1,7 @@
 "use client"
 import { useState, useRef, useCallback, useEffect, useMemo, use } from "react"
 import { useRouter } from "next/navigation"
+import { useResume } from "@/hooks/useResume"
 import { Card, Badge, Textarea, Label, Markdown, Modal } from "@/components/ui"
 import { Button } from "@/components/ui/Button"
 import dynamic from "next/dynamic"
@@ -734,135 +735,52 @@ export default function NewPlanPage({
       .catch((err) => console.error("Failed to fetch artifact fallback:", err))
   }, [status, versionId, stages])
 
-  // Resume mode: load existing version data
+  // Resume mode: load existing version data via useResume hook (CP-46.D step 1).
+  const { result: resumeResult, error: resumeError } = useResume(
+    resumeVersionId,
+    isResume,
+    started
+  )
+
   useEffect(() => {
-    if (!isResume || !resumeVersionId || started) return
+    if (!resumeResult) return
+    const r = resumeResult
 
     // Reset fallback cache agar resume bisa re-fetch artifact dari DB bila SSE
     // 'artifact' event hilang saat restart.
     fallbackFetched.current.clear()
 
-    apiGet<Version>(`/versions/${resumeVersionId}`)
-      .then((v) => {
-        setProjectId(v.project?.id ?? null)
-        setVersionId(v.id)
-        setTitle(v.project?.title ?? "")
-        setIdea(v.project?.idea ?? "")
-        const projectTarget = v.project?.target ?? "web"
-        setTarget(projectTarget)
-        if (v.answers) setAnswers(v.answers)
-        // A3: resume lite — deteksi dari skip_reasons (bukan URL param).
-        const liteReasons = Object.values(v.skip_reasons ?? {}).some((r) =>
-          (r || "").includes("Lite plan")
-        )
-        if (liteReasons) setLiteMode(true)
-        setStarted(true)
+    setProjectId(r.projectId)
+    setVersionId(r.versionId)
+    setTitle(r.title)
+    setIdea(r.idea)
+    setTarget(r.target)
+    if (r.answers && Object.keys(r.answers).length > 0) {
+      setAnswers(r.answers as Record<string, string>)
+    }
+    if (r.liteMode) setLiteMode(true)
+    setStarted(r.started)
 
-        // Hitung stage berdasarkan target project (bukan `stages` memo yang masih
-        // stale ke target default 'web' saat effect jalan) — agar resume lanjut ke
-        // stage sebenarnya (mis. pertanyaan_mobile utk target both).
-        const resumeStages = getStages(projectTarget)
-        let firstIdx = resumeStages.findIndex(
-          (s) => (v.stage_status as Record<string, string>)?.[s.key] !== "done"
-        )
-        let idx = firstIdx >= 0 ? firstIdx : resumeStages.length - 1 // semua done → stage terakhir
-        setCurrent(idx)
+    setCurrent(r.currentStageIdx)
+    setStatus(r.status)
+    setArtifacts(r.artifacts)
+    setPhaseProg(r.phaseProg)
+    setResumeInfo(r.resumeInfo)
 
-        const loadedStatus = Object.fromEntries(
-          resumeStages.map((s) => [
-            s.key,
-            (v.stage_status as Record<string, string>)?.[s.key] || "pending",
-          ])
-        ) as Record<StageKey, StageState>
-        resumeStages.forEach((s) => {
-          if (
-            loadedStatus[s.key] === "error" ||
-            loadedStatus[s.key] === "running"
-          )
-            loadedStatus[s.key] = "pending"
-        })
-        setStatus(loadedStatus)
-        setResumeInfo({
-          stage: resumeStages[firstIdx]?.key ?? resumeStages[0].key,
-          remaining: resumeStages.length - firstIdx,
-          total: resumeStages.length,
-        })
+    if (r.resumeError) {
+      setError(r.resumeError)
+      setStatus((s) => ({ ...s, master_web: "running" as StageState }))
+    }
 
-        const colMap: Record<string, keyof Version> = {
-          pertanyaan: "pertanyaan",
-          pertanyaan_mobile: "pertanyaan_mobile",
-          analisa: "analysis",
-          prd: "prd",
-          architecture: "architecture",
-          erd: "erd",
-          api_contract: "api_contract",
-          phases_web: "phases",
-          standards_web: "standards",
-          master_web: "master_prompt",
-          phases_mobile: "mobile_phases",
-          standards_mobile: "mobile_standards",
-          master_mobile: "mobile_master_prompt",
-          env_config: "env_config",
-          security: "security",
-          deployment: "deployment",
-          observability: "observability",
-          design_system: "design_system",
-          design_system_mobile: "design_system_mobile",
-          app_spec_web: "app_spec_web",
-          app_spec_mobile: "app_spec_mobile",
-          agents: "agents",
-        }
-        const loaded: Record<string, string> = {}
-        resumeStages.forEach((s) => {
-          const col = colMap[s.key]
-          if (!col) return
-          const val = v[col]
-          if (val)
-            loaded[s.key] =
-              typeof val === "object" ? JSON.stringify(val) : String(val)
-        })
-        setArtifacts(loaded as Record<StageKey, string>)
+    // Auto-start pipeline jika ada stage belum done.
+    if (r.resumeInfo && r.currentStageIdx < r.resumeInfo.total) {
+      startPipeline(r.versionId, r.resumeInfo.stage)
+    }
+  }, [resumeResult, startPipeline])
 
-        // Gate tracking: muat phase_progress; bila ada fase web belum selesai dan firstIdx
-        // sudah melampaui master_web (ke mobile), jangan auto-lanjut — tahan di master_web.
-        const prog = v.phase_progress ?? []
-        setPhaseProg(prog)
-        let resumeWebPhases: PhaseItem[] = []
-        try {
-          const p = JSON.parse(String(loaded.phases_web || "[]"))
-          resumeWebPhases = Array.isArray(p) ? (p as PhaseItem[]) : []
-        } catch {
-          resumeWebPhases = []
-        }
-        const webKeySet = new Set(resumeWebPhases.map((ph) => ph.key ?? ""))
-        const webDoneCount =
-          webKeySet.size > 0
-            ? prog.filter((pp) => webKeySet.has(pp.phase_key) && pp.done).length
-            : 0
-        const resumeWebTrackingDone =
-          webKeySet.size === 0 || webDoneCount >= webKeySet.size
-
-        const masterWebIdx = resumeStages.findIndex(
-          (s) => s.key === "master_web"
-        )
-        if (!resumeWebTrackingDone && masterWebIdx >= 0 && idx > masterWebIdx) {
-          idx = masterWebIdx
-          firstIdx = -1 // jangan auto-start pipeline; biarkan user konfirmasi
-          setCurrent(idx)
-          setStatus((s) => ({ ...s, master_web: "running" as StageState }))
-          setError(
-            "Tracking fase web belum selesai. Lanjutkan hanya setelah kamu yakin web sudah jadi."
-          )
-        }
-
-        if (firstIdx >= 0) startPipeline(v.id, resumeStages[firstIdx].key)
-      })
-      .catch((err) =>
-        setError(
-          err instanceof Error ? err.message : "Gagal memuat data project"
-        )
-      )
-  }, [isResume, resumeVersionId, started, startPipeline])
+  useEffect(() => {
+    if (resumeError) setError(resumeError)
+  }, [resumeError])
 
   // Auto-scroll modal output
   const activeArtifact = artifacts[activeKey]

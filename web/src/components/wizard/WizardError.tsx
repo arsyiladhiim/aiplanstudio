@@ -1,5 +1,6 @@
 "use client";
-import { Badge, Button, Card } from "@/components/ui";
+import { Badge, Card } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
 import { AlertTriangle, Check, ClipboardCopy } from "lucide-react";
 import { useState } from "react";
 

@@ -1,5 +1,6 @@
 "use client";
-import { Badge, Button } from "@/components/ui";
+import { Badge } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
 import { AlertCircle, Loader2 } from "lucide-react";
 import type { StageKey, StageState } from "@/lib/mock";
 
