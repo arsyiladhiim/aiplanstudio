@@ -38,12 +38,12 @@ import {
 } from "@/components/wizard/MasterPromptViewer"
 // CP-44 CP-05: tipe lokal (TrackingPhases dihapus); bentuk sempit untuk phase-progress stream.
 interface ProgressItem {
-  phase_key: string;
-  done: boolean;
-  status?: "pending" | "running" | "done" | "error";
-  output?: string | null;
-  started_at?: string | null;
-  finished_at?: string | null;
+  phase_key: string
+  done: boolean
+  status?: "pending" | "running" | "done" | "error"
+  output?: string | null
+  started_at?: string | null
+  finished_at?: string | null
 }
 import { TrackingPanel } from "@/components/wizard/TrackingPanel"
 import { McqForm } from "@/components/wizard/McqForm"
@@ -409,68 +409,74 @@ export default function NewPlanPage({
   }, [])
 
   // CP-46.D step 2 — wire usePipelineStream.
-  const streamApi = usePipelineStream(liteMode, useMemo(() => ({
-    onStatus: (stage, state) => {
-      setStatus((s) => ({ ...s, [stage]: state }))
-      if (state === "retrying") {
-        setArtifacts((prev) => ({ ...prev, [stage]: "" }))
-      }
-      if (state === "running") {
-        const idx = stages.findIndex((x) => x.key === stage)
-        if (idx >= 0) setCurrent(idx)
-        setStartedAt((prev) => prev ?? Date.now())
-      }
-      if (state === "done") {
-        setRetryInfo(null)
-        chime()
-        if (stage === "master_web" && !masterAutoOpenedRef.current.web) {
-          masterAutoOpenedRef.current.web = true
-          setMasterModalTarget("web")
-          setMasterModalOpen(true)
-        } else if (
-          stage === "master_mobile" &&
-          !masterAutoOpenedRef.current.mobile
-        ) {
-          masterAutoOpenedRef.current.mobile = true
-          setMasterModalTarget("mobile")
-          setMasterModalOpen(true)
-        }
-      }
-    },
-    onToken: (stage, delta) => {
-      setArtifacts((prev) => {
-        const key = stage as StageKey
-        return {
-          ...prev,
-          [key]: (prev[key] || "") + delta,
-        }
-      })
-    },
-    onArtifact: (stage, content) => {
-      setArtifacts((prev) => ({ ...prev, [stage]: content }))
-    },
-    onStageTokens: (stage, tokens) => {
-      setStageTokens((prev) => ({ ...prev, [stage]: tokens }))
-    },
-    onDone: (stage) => {
-      setFailedStage(null)
-      const stageIndex = stages.findIndex((x) => x.key === stage)
-      if (stageIndex >= 0) {
-        setCurrent(stageIndex)
-        setStatus((s) => ({ ...s, [stage]: "done" as StageState }))
-      }
-    },
-    onFail: (stage, message) => {
-      setError(message)
-      if (stage) {
-        setStatus((s) => ({ ...s, [stage]: "error" as StageState }))
-        setFailedStage(stage as StageKey)
-      }
-    },
-    onRetryInfo: (attempt, max) => {
-      setRetryInfo({ attempt, max })
-    },
-  }), [stages]))
+  const streamApi = usePipelineStream(
+    liteMode,
+    useMemo(
+      () => ({
+        onStatus: (stage, state) => {
+          setStatus((s) => ({ ...s, [stage]: state }))
+          if (state === "retrying") {
+            setArtifacts((prev) => ({ ...prev, [stage]: "" }))
+          }
+          if (state === "running") {
+            const idx = stages.findIndex((x) => x.key === stage)
+            if (idx >= 0) setCurrent(idx)
+            setStartedAt((prev) => prev ?? Date.now())
+          }
+          if (state === "done") {
+            setRetryInfo(null)
+            chime()
+            if (stage === "master_web" && !masterAutoOpenedRef.current.web) {
+              masterAutoOpenedRef.current.web = true
+              setMasterModalTarget("web")
+              setMasterModalOpen(true)
+            } else if (
+              stage === "master_mobile" &&
+              !masterAutoOpenedRef.current.mobile
+            ) {
+              masterAutoOpenedRef.current.mobile = true
+              setMasterModalTarget("mobile")
+              setMasterModalOpen(true)
+            }
+          }
+        },
+        onToken: (stage, delta) => {
+          setArtifacts((prev) => {
+            const key = stage as StageKey
+            return {
+              ...prev,
+              [key]: (prev[key] || "") + delta,
+            }
+          })
+        },
+        onArtifact: (stage, content) => {
+          setArtifacts((prev) => ({ ...prev, [stage]: content }))
+        },
+        onStageTokens: (stage, tokens) => {
+          setStageTokens((prev) => ({ ...prev, [stage]: tokens }))
+        },
+        onDone: (stage) => {
+          setFailedStage(null)
+          const stageIndex = stages.findIndex((x) => x.key === stage)
+          if (stageIndex >= 0) {
+            setCurrent(stageIndex)
+            setStatus((s) => ({ ...s, [stage]: "done" as StageState }))
+          }
+        },
+        onFail: (stage, message) => {
+          setError(message)
+          if (stage) {
+            setStatus((s) => ({ ...s, [stage]: "error" as StageState }))
+            setFailedStage(stage as StageKey)
+          }
+        },
+        onRetryInfo: (attempt, max) => {
+          setRetryInfo({ attempt, max })
+        },
+      }),
+      [stages]
+    )
+  )
 
   const startPipeline = useCallback(
     (versionId: number, stage?: string) => {
@@ -2021,7 +2027,9 @@ export default function NewPlanPage({
                   projectId={projectId}
                   versionId={versionId}
                   versionLabel={masterModalTarget === "web" ? "Web" : "Mobile"}
-                  stage={masterModalTarget === "web" ? "master_web" : "master_mobile"}
+                  stage={
+                    masterModalTarget === "web" ? "master_web" : "master_mobile"
+                  }
                   artifact={artifact}
                 />
               )
