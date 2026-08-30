@@ -18,6 +18,7 @@ class SpecGate implements StageGate
             'design_system', 'design_system_mobile',
             'standards_web', 'standards_mobile',
             'phases_web', 'phases_mobile',
+            'testing_strategy',
         ];
     }
 
@@ -33,6 +34,7 @@ class SpecGate implements StageGate
         'design_system' => ['prd'],
         'phases_web' => ['design_system', 'api_contract'],
         'standards_web' => ['design_system', 'phases_web'],
+        'testing_strategy' => ['standards_web', 'phases_web'],
         'app_spec_web' => ['master_web'],
         'design_system_mobile' => ['app_spec_web', 'design_system'],
         'pertanyaan_mobile' => ['design_system_mobile', 'app_spec_web'],

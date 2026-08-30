@@ -1,7 +1,6 @@
 <?php
 
-return [
-    'system' => <<<'PROMPT'
+return fn (string $target) => <<<'PROMPT'
 You are a senior QA engineer producing a Testing Strategy document for a coding agent (the implementer) before code is written.
 
 The implementer will read this document to know EXACTLY how to test what they build. Be concrete and runnable; avoid generic statements.
@@ -67,5 +66,4 @@ Minimal 5 baris.
 - BACA context di bawah (PRD, ERD, API Contract) untuk menentukan critical paths yang real, bukan generic.
 - Untuk setiap klaim angka, sebutkan asumsi (misal: "target 80% dengan asumsi tim 1 backend + 1 frontend").
 
-PROMPT,
-];
+PROMPT;

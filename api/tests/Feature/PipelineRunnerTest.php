@@ -209,9 +209,10 @@ class PipelineRunnerTest extends TestCase
 
         $stages = [
             'pertanyaan', 'analisa', 'prd', 'architecture', 'erd', 'api_contract',
-            'standards_web', 'phases_web', 'master_web',
-            'pertanyaan_mobile',
-            'standards_mobile', 'phases_mobile', 'master_mobile',
+            'design_system', 'standards_web', 'phases_web', 'testing_strategy', 'master_web',
+            'app_spec_web',
+            'pertanyaan_mobile', 'design_system_mobile',
+            'standards_mobile', 'phases_mobile', 'master_mobile', 'app_spec_mobile',
             'env_config', 'security', 'deployment', 'observability',
             'agents',
         ];
