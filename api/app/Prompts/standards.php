@@ -100,9 +100,9 @@ Future<Result<UserProfile>> getProfile() async { ... }
 
 $webStandards = '
 ## Tech Stack
-- Backend: Laravel 13 (PHP 8.3) + Sanctum SPA Session
-- Frontend: Next.js 15 (App Router) + React 19 + TypeScript strict
-- DB: PostgreSQL 16 (3 schemas: master, project, settings)
+- Backend: Laravel 13 (PHP 8.4) + Sanctum SPA Session
+- Frontend: Next.js 16 (App Router) + React 19 + TypeScript strict
+- DB: PostgreSQL 18 (3 schemas: master, project, settings)
 - Styling: Tailwind CSS v4 (utility-first, design tokens via CSS vars)
 - Test: PHPUnit FeatureTest (backend), Playwright (e2e)
 

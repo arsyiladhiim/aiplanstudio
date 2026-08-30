@@ -65,8 +65,8 @@ export default function AboutPage() {
               <Badge>React 19</Badge>
               <Badge>Tailwind CSS v4</Badge>
               <Badge>Laravel 13</Badge>
-              <Badge>PHP 8.3</Badge>
-              <Badge>PostgreSQL 16</Badge>
+              <Badge>PHP 8.4</Badge>
+              <Badge>PostgreSQL 18</Badge>
               <Badge>Redis</Badge>
               <Badge>Docker Compose</Badge>
               <Badge>Sanctum SPA</Badge>

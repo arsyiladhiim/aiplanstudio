@@ -10,10 +10,10 @@ Keputusan stack (hasil konfirmasi): **PHP 8.4 · Laravel 13.x · Next.js 16 · N
 
 ## Fase G — StackSpec single source of truth
 
-- [ ] G1. Buat `api/app/Support/StackSpec.php` (PHP 8.4, Laravel 13, Next.js 16, Node 24, PostgreSQL 18, React 19, Tailwind v4)
-- [ ] G2. Ganti versi hardcoded: `StageContextBuilder.php:219-220` (Laravel 11!), `Prompts/helpers.php`, `architecture.php`, `phased_master.php`, `standards.php:104` (Next.js 15), `agents.php`, mobile master bila relevan
-- [ ] G3. `web/src/app/(app)/settings/about/page.tsx` badge: PHP 8.4 / PostgreSQL 18 (prompt platform target)
-- [ ] G4. Pesannya konsisten untuk target web & both; test prompt-loadable tetap hijau
+- [x] G1. Buat `api/app/Support/StackSpec.php` (PHP 8.4, Laravel 13, Next.js 16, Node 24, PostgreSQL 18, React 19, Tailwind v4)
+- [x] G2. Ganti versi hardcoded: `StageContextBuilder.php:219-220` (Laravel 11!), `Prompts/helpers.php`, `architecture.php`, `phased_master.php`, `standards.php:104` (Next.js 15), `agents.php`, mobile master bila relevan
+- [x] G3. `web/src/app/(app)/settings/about/page.tsx` badge: PHP 8.4 / PostgreSQL 18 (prompt platform target)
+- [x] G4. Pesannya konsisten untuk target web & both; test prompt-loadable tetap hijau
 
 ## Fase H — Wizard & Projects fixes
 

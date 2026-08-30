@@ -85,7 +85,7 @@ $webAgents = '
 
 ## Project Context
 - Target Platform: Web App
-- Tech Stack: Laravel 13 (PHP 8.3) + Next.js (App Router, React 19) + TypeScript + Tailwind CSS v4 + PostgreSQL 16
+- Tech Stack: Laravel 13 (PHP 8.4) + Next.js (App Router, React 19) + TypeScript + Tailwind CSS v4 + PostgreSQL 18
 - Auth: Sanctum SPA Session (HttpOnly cookie + CSRF, BUKAN Bearer token di browser)
 - API call: Browser fetch direct ke Laravel via `NEXT_PUBLIC_API_URL` (no BFF layer — see docs/25-bypass-bff.md)
 
@@ -177,7 +177,7 @@ web/
 - Dev (full stack): `docker compose up`
 - Dev (BE only): `php artisan serve` di port 8000
 - Dev (FE only): `npm run dev` di port 3000
-- Database: PostgreSQL 16 (3 schemas: master, project, settings)
+- Database: PostgreSQL 18 (3 schemas: master, project, settings)
 
 ## Commands
 - `php artisan test` — backend tests

@@ -15,9 +15,9 @@ return fn (string $target) => 'Anda senior prompt engineer. Buat MASTER PROMPT d
 <Ringkasan padat dari analisa + PRD: apa masalahnya, untuk siapa, bagaimana aplikasi menyelesaikannya. Singkat dan tajam — JANGAN copy paste penuh analisa/PRD di sini.>
 
 ## 2. Tech Stack (final, tidak bisa diubah)
-- Backend: Laravel 13 (PHP 8.3) + Sanctum SPA Session
+- Backend: Laravel 13 (PHP 8.4) + Sanctum SPA Session
 - Frontend: Next.js (App Router) + React 19 + TypeScript + Tailwind CSS v4
-- DB: PostgreSQL 16 (3 schemas: master/project/settings)
+- DB: PostgreSQL 18 (3 schemas: master/project/settings)
 - Infra: Docker Compose + Cloudflare Tunnel (no BFF layer — see docs/25-bypass-bff.md)
 - Auth: HttpOnly cookie + CSRF (JANGAN Bearer token di browser)
 - API gateway: browser fetch DIRECT ke Laravel via `NEXT_PUBLIC_API_URL` (cross-origin, `credentials: "include"`)

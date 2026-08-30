@@ -214,10 +214,6 @@ class StageContextBuilder
 
     private function techStackForTarget(string $target): string
     {
-        return match ($target) {
-            'mobile' => 'Flutter + Dart + Riverpod + GoRouter + Material Design 3 + drift/sqflite',
-            'both' => 'Web: Laravel 11 + Next.js + React 19 + Tailwind CSS v4 + PostgreSQL 16 | Mobile: Flutter + Dart + Riverpod + GoRouter + Material Design 3 + drift/sqflite',
-            default => 'Laravel 13 (PHP 8.3) + Next.js (App Router, React 19, TypeScript) + Tailwind CSS v4 + PostgreSQL 16',
-        };
+        return \App\Support\StackSpec::line($target);
     }
 }

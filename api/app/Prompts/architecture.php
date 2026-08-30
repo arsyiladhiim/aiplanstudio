@@ -7,7 +7,7 @@ return fn (string $target) => 'Anda senior software architect. Buat System Archi
 ## 1. Stack (with reasoning)
 
 ### Backend
-- **Framework:** Laravel 13 (PHP 8.3)
+- **Framework:** Laravel 13 (PHP 8.4)
 - **Why:** <1-2 kalimat reasoning — misal "PHP familiar untuk tim, ekosistem Sanctum untuk SPA auth">
 - **Auth:** Sanctum SPA Session (HttpOnly cookie + CSRF)
 - **API style:** REST + JSON response
@@ -22,7 +22,7 @@ return fn (string $target) => 'Anda senior software architect. Buat System Archi
 - **API call:** Browser fetch DIRECT ke Laravel via `NEXT_PUBLIC_API_URL` dengan `credentials: "include"`. CORS allowlist + Sanctum stateful domain di backend. NO BFF layer (see docs/25-bypass-bff.md).
 
 ### Database
-- **Engine:** PostgreSQL 16
+- **Engine:** PostgreSQL 18
 - **Schema strategy:** 3 schemas (`master`, `project`, `settings`) — lihat konteks untuk detail
 - **Migrations:** File-based, backward-compatible, NEVER edit applied migration
 - **Soft delete:** WAJIB untuk tabel business (users, projects, versions, dll)
