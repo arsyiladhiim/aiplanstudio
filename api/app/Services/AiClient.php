@@ -33,6 +33,7 @@ class AiClient
         try {
             $res = Http::withHeaders($this->provider->authHeaders())
                 ->timeout(15)
+                ->withOptions(['allow_redirects' => false])
                 ->post($this->provider->chatEndpoint(), $this->provider->chatBody(
                     [['role' => 'user', 'content' => 'Hi.']], 5
                 ));
@@ -58,6 +59,7 @@ class AiClient
         try {
             $res = Http::withHeaders($this->provider->authHeaders())
                 ->timeout(30)
+                ->withOptions(['allow_redirects' => false])
                 ->post($this->provider->chatEndpoint(), $this->provider->chatBody(
                     [['role' => 'user', 'content' => $prompt]]
                 ));
@@ -201,7 +203,7 @@ class AiClient
         $this->ensureHostStillSafe($this->provider->base_url ?? '');
         $budget = $maxTokens ?? 8192;
         $res = Http::withHeaders($this->provider->authHeaders())
-            ->timeout(300)->withOptions(['stream' => true])
+            ->timeout(300)->withOptions(['stream' => true, 'allow_redirects' => false])
             ->post($this->provider->chatEndpoint(), $this->provider->chatBody($messages, $budget, true));
 
         if (! $res->successful()) {
@@ -283,6 +285,7 @@ class AiClient
 
         $res = Http::withHeaders($this->provider->authHeaders())
             ->timeout(120)
+            ->withOptions(['allow_redirects' => false])
             ->post($this->provider->chatEndpoint(), $this->provider->chatBody($messages, $maxTokens ?? 4096, false));
 
         if (! $res->successful()) {

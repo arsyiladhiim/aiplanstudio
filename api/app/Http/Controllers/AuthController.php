@@ -23,12 +23,13 @@ class AuthController extends Controller
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $isFirst = User::query()->doesntExist();
+        $bootstrap = User::bootstrapRole($data['email']);
+        $isFirst = $bootstrap['role'] === 'admin';
         $user = User::create([
             ...$data,
             'password' => Hash::make($data['password']),
-            'role' => $isFirst ? 'admin' : 'member',
-            'status' => $isFirst ? 'active' : 'pending',
+            'role' => $bootstrap['role'],
+            'status' => $bootstrap['status'],
         ]);
 
         event(new Registered($user));
@@ -100,6 +101,7 @@ class AuthController extends Controller
         // CP-18.F1: if admin has 2FA enabled, defer session finalization and demand TOTP code.
         if ($authenticated->hasTwoFactorEnabled()) {
             $request->session()->put('2fa.pending', $authenticated->id);
+
             // We do NOT regenerate session yet — wait until TOTP verified, then regenerate in verify2fa.
             return response()->json([
                 'two_factor_required' => true,
@@ -144,6 +146,7 @@ class AuthController extends Controller
         $user = User::find($pendingId);
         if (! $user || ! $user->hasTwoFactorEnabled()) {
             $request->session()->forget('2fa.pending');
+
             return response()->json(['message' => 'User tidak valid.'], 422);
         }
 
@@ -182,6 +185,7 @@ class AuthController extends Controller
     public function cancel2fa(Request $request): JsonResponse
     {
         $request->session()->forget('2fa.pending');
+
         return response()->json(null, 204);
     }
 

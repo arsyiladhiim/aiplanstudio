@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPassword;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -26,6 +27,26 @@ class User extends Authenticatable
             'two_factor_confirmed_at' => 'datetime',
             'two_factor_recovery_codes' => 'array',
         ];
+    }
+
+    /**
+     * Role+status bootstrap untuk user pertama (registrasi manual & OAuth).
+     * Dev: SEED_ADMIN_EMAIL kosong → first user admin+active.
+     * Prod: set SEED_ADMIN_EMAIL — hanya email itu yang instan admin,
+     * user pertama lain tetap pending. Cegat: siapa pun yang register
+     * duluan di instance publik tidak otomatis jadi admin.
+     *
+     * @return array{role: string, status: string}
+     */
+    public static function bootstrapRole(string $email): array
+    {
+        if (self::query()->exists()) {
+            return ['role' => 'member', 'status' => 'pending'];
+        }
+        $adminEmail = (string) env('SEED_ADMIN_EMAIL', '');
+        $isAdmin = $adminEmail === '' || strcasecmp($adminEmail, $email) === 0;
+
+        return $isAdmin ? ['role' => 'admin', 'status' => 'active'] : ['role' => 'member', 'status' => 'pending'];
     }
 
     public function hasTwoFactorEnabled(): bool
@@ -55,6 +76,6 @@ class User extends Authenticatable
 
     public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
     {
-        $this->notify(new \App\Notifications\ResetPassword($token));
+        $this->notify(new ResetPassword($token));
     }
 }

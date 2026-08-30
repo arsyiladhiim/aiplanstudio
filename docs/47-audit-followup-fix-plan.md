@@ -11,8 +11,8 @@ Sumber temuan: audit menyeluruh 30 Aug 2026 (post fix resume loop). Setiap fase:
 
 ## Fase B — Keamanan
 
-- [ ] B1. SSRF redirect bypass: Guzzle `allow_redirects` tidak divalidasi ulang (`AiClient.php:203-205`)
-- [ ] B2. Registrasi pertama otomatis admin tanpa gate (`AuthController.php:30`, `SocialiteController.php:49`)
+- [x] B1. SSRF redirect bypass: Guzzle `allow_redirects` tidak divalidasi ulang (`AiClient.php:203-205`)
+- [x] B2. Registrasi pertama otomatis admin tanpa gate (`AuthController.php:30`, `SocialiteController.php:49`)
 
 ## Fase C — Operasional
 
