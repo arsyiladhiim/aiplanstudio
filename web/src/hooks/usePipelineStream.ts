@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { createSSEPost } from "@/lib/api";
 import type { StageState } from "@/lib/mock";
 
@@ -160,5 +160,8 @@ export function usePipelineStream(
 
   const retryCount = useCallback(() => retryCountRef.current, []);
 
-  return { startPipeline, abort, cancelAll, retryCount };
+  return useMemo(
+    () => ({ startPipeline, abort, cancelAll, retryCount }),
+    [startPipeline, abort, cancelAll, retryCount]
+  );
 }

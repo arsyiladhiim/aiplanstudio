@@ -5,20 +5,14 @@ services:
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://api-aiplanstudio.arsyiladm.my.id}
-      # NEXT_PUBLIC_SENTRY_DSN DISABLED (GlitchTip mati) — aktifkan lagi bila dibutuhkan
-      # args:
-      #   - NEXT_PUBLIC_SENTRY_DSN=${SENTRY_FRONTEND_PUBLIC_DSN:-}
     container_name: aiplanstudio_web
     expose: ["3000"]
     environment:
-      # - LARAVEL_URL=http://aiplanstudionginx_api:8000   # Deprecated: BFF removed (docs/25)
-      # - SENTRY_DSN=${SENTRY_FRONTEND_DSN:-}
-      # - NEXT_PUBLIC_SENTRY_DSN=${SENTRY_FRONTEND_PUBLIC_DSN:-}
       - HOSTNAME=0.0.0.0
     depends_on: []
     networks:
       - aiplanstudio
-      - cloudflare_tunnel_default
+      - cloudflare_tunnel
     mem_limit: 512m
     restart: unless-stopped
     healthcheck:
@@ -40,7 +34,7 @@ services:
         condition: service_healthy
     networks:
       - aiplanstudio
-      - cloudflare_tunnel_default
+      - cloudflare_tunnel
     mem_limit: 128m
     restart: unless-stopped
     healthcheck:
@@ -58,9 +52,6 @@ services:
     image: aiplanstudio-api
     expose: ["9000"]
     environment:
-      # SENTRY DISABLED (GlitchTip mati) — aktifkan lagi bila dibutuhkan
-      # - SENTRY_LARAVEL_DSN=${SENTRY_BACKEND_DSN:-}
-      # - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-local}
       - HOSTNAME=0.0.0.0
     depends_on:
       aiplanstudio_db:
@@ -135,5 +126,5 @@ services:
 networks:
   aiplanstudio:
     driver: bridge
-  cloudflare_tunnel_default:
+  cloudflare_tunnel:
     external: true

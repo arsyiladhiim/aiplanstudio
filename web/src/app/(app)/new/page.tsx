@@ -290,6 +290,7 @@ export default function NewPlanPage({
   const cancelled = useRef(false)
   const creatingRef = useRef(false)
   const fallbackFetched = useRef(new Set<string>())
+  const resumeAutoStartedRef = useRef(false)
   const outputRef = useRef<HTMLDivElement>(null)
   const webPhasesRef = useRef<PhaseItem[]>([])
   const mobilePhasesRef = useRef<PhaseItem[]>([])
@@ -679,9 +680,15 @@ export default function NewPlanPage({
       setStatus((s) => ({ ...s, master_web: "running" as StageState }))
     }
 
-    // Auto-start pipeline jika ada stage belum done.
+    // Auto-start pipeline jika ada stage belum done. One-shot: tanpa guard ini
+    // efek re-run tiap render (startPipeline berganti identity) → POST
+    // /generate/stream berulang tanpa henti → flash loop + 429.
     if (r.resumeInfo && r.currentStageIdx < r.resumeInfo.total) {
-      startPipeline(r.versionId, r.resumeInfo.stage)
+      const st = r.status[r.resumeInfo.stage as StageKey]
+      if (!resumeAutoStartedRef.current && st !== "running") {
+        resumeAutoStartedRef.current = true
+        startPipeline(r.versionId, r.resumeInfo.stage)
+      }
     }
   }, [resumeResult, startPipeline])
 
