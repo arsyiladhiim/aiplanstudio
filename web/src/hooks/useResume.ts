@@ -168,11 +168,13 @@ export function useResume(resumeVersionId: number | null, isResume: boolean, alr
           status: loadedStatus,
           artifacts: loadedArtifacts as Record<StageKey, string>,
           phaseProg: prog as NonNullable<VersionLite["phase_progress"]>,
-          resumeInfo: {
-            stage: resumeStages[firstIdx]?.key ?? resumeStages[0].key,
-            remaining: resumeStages.length - firstIdx,
-            total: resumeStages.length,
-          },
+          resumeInfo: firstIdx >= 0
+            ? {
+                stage: resumeStages[firstIdx].key,
+                remaining: resumeStages.length - firstIdx,
+                total: resumeStages.length,
+              }
+            : null,
           resumeError,
         });
       })

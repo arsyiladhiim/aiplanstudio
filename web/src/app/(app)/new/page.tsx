@@ -797,10 +797,7 @@ export default function NewPlanPage({
 
   function cancelGeneration() {
     cancelled.current = true
-    if (abortRef.current) {
-      abortRef.current.abort()
-      abortRef.current = null
-    }
+    streamApi.cancelAll()
     setStatus((s) => ({ ...s, [activeKeyRef.current]: "error" }))
     setError("Pembuatan plan dibatalkan.")
     setShowCancelConfirm(false)
@@ -815,9 +812,10 @@ export default function NewPlanPage({
       abortRef.current = null
     }
     fallbackFetched.current.clear()
+    resumeAutoStartedRef.current = false
+    setResumeInfo(null)
 
     const pid = projectId
-    setDeleting(true)
     setError("")
 
     // Hapus project yang sedang berjalan secara permanen (backend cascade menghapus versions).
