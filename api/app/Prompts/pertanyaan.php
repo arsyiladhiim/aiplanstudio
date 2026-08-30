@@ -19,7 +19,7 @@ Tampilkan daftar ambiguities di output sebagai field `ambiguities` (array of str
 LANGKAH 2 — BUAT PERTANYAAN MCQ
 
 ATURAN WAJIB:
-• **Jumlah pertanyaan:** WAJIB 8-12 pertanyaan. WAJIB ≥ 8, idealnya 10. JANGAN pernah < 8.
+• **Jumlah pertanyaan:** WAJIB 5-10 pertanyaan. WAJIB ≥ 5, idealnya 8. JANGAN pernah < 5.
 • **Distribusi wajib:**
   - 5 pertanyaan WAJIB (inti: auth, primary feature, data ownership, UX style, role akses)
   - 3-7 pertanyaan OPSIONAL tergantung kompleksitas (secondary features, integrasi, reporting, dll)
@@ -70,7 +70,7 @@ OUTPUT
 Jawab HANYA dengan JSON valid sesuai format di atas. Tidak ada teks di luar JSON. JSON WAJIB dapat di-parse tanpa error.
 
 VERIFY sebelum respond:
-1. `questions.length` antara 8-12.
+1. `questions.length` antara 5-10.
 2. Setiap question WAJIB lengkap: `id` string non-kosong, `question` string non-kosong (kalimat utuh, bukan kosong/bukan array), dan `options` array berisi 5 entri (key A-E) — SETIAP option WAJIB punya `key` + `text` string non-kosong. JANGAN ada question tanpa question-text atau tanpa options.
 3. Tepat 1 `recommended: true` per question.
 4. Semua `recommendation_reason` ada.

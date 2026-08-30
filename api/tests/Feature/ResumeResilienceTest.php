@@ -95,7 +95,12 @@ class ResumeResilienceTest extends TestCase
         $this->assertNotNull($res);
         $this->assertCount(6, $res);
         $this->assertSame('mq1', $res[0]['id']);
-        $this->assertSame(['Ya', 'Tidak'], $res[0]['options']);
+        $this->assertSame([
+            ['key' => 'A', 'text' => 'Ya'],
+            ['key' => 'B', 'text' => 'Tidak'],
+            ['key' => 'C', 'text' => 'Tidak yakin'],
+            ['key' => 'D', 'text' => 'Butuh diskusi'],
+        ], $res[0]['options']);
     }
 
     public function test_mcq_text_fallback_requires_minimum(): void
@@ -105,7 +110,7 @@ class ResumeResilienceTest extends TestCase
         $ref = new \ReflectionMethod($runner, 'buildQuestionsFromText');
         $ref->setAccessible(true);
 
-        $res = $ref->invoke($runner, "1. Hanya satu pertanyaan di sini?");
+        $res = $ref->invoke($runner, '1. Hanya satu pertanyaan di sini?');
         $this->assertNull($res);
     }
 }

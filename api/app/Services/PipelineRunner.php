@@ -45,14 +45,14 @@ class PipelineRunner
 
     private const MAX_MCQ_QUESTIONS = 10;
 
-    private const MAX_MCQ_RETRIES = 10;
+    private const MAX_MCQ_RETRIES = 3;
 
     private const MAX_VALIDATE_RETRIES = 3;
 
     /** P2 — budget token output per stage (MCQ kecil; dokumen panjang tetap tinggi agar tak tambah truncation). */
     private const STAGE_MAX_TOKENS = [
-        'pertanyaan' => 1500,
-        'pertanyaan_mobile' => 1500,
+        'pertanyaan' => 3000,
+        'pertanyaan_mobile' => 3000,
         'analisa' => 4096,
         'erd' => 4096,
         'api_contract' => 4096,
@@ -249,6 +249,18 @@ class PipelineRunner
             // CP-46.C: composite gates (verify.* + smoke_test) — agent posts evidence, no AI text gen.
             if (in_array($key, ['verify.review', 'smoke_test', 'verify.production_readiness'], true)) {
                 $this->processCompositeGate($key);
+
+                continue;
+            }
+
+            // Idempotency: stage sudah done + artifact tersimpan → re-emit, jangan regen.
+            $artifactCol = $this->artifactColumn($key);
+            if ($artifactCol
+                && ($this->version->stage_status[$key] ?? 'pending') === 'done'
+                && filled($this->version->{$artifactCol})) {
+                $this->sse->emit('artifact', ['stage' => $key, 'content' => (string) $this->version->{$artifactCol}]);
+                $this->sse->emit('done', ['stage' => $key]);
+                $this->sse->emit('status', ['stage' => $key, 'state' => 'done']);
 
                 continue;
             }
@@ -616,10 +628,8 @@ class PipelineRunner
         }
     }
 
-    private function saveArtifact(string $key, string $content): void
+    private function artifactColumn(string $key): ?string
     {
-        $this->detectGenericOutput($key, $content);
-
         $map = [
             'pertanyaan' => 'pertanyaan',
             'pertanyaan_mobile' => 'pertanyaan_mobile',
@@ -646,7 +656,14 @@ class PipelineRunner
             'agents' => 'agents',
         ];
 
-        $col = $map[$key] ?? null;
+        return $map[$key] ?? null;
+    }
+
+    private function saveArtifact(string $key, string $content): void
+    {
+        $this->detectGenericOutput($key, $content);
+
+        $col = $this->artifactColumn($key);
         if (! $col) {
             return;
         }
@@ -1094,7 +1111,7 @@ class PipelineRunner
 
     private function retryPertanyaanForMinimum(string $content, string $stage = 'pertanyaan'): string
     {
-        if ($this->outputParser->mcqCount($content) >= self::MIN_MCQ_QUESTIONS) {
+        if ($this->outputParser->mcqValidCount($content) >= self::MIN_MCQ_QUESTIONS) {
             return $content;
         }
 
@@ -1121,7 +1138,7 @@ class PipelineRunner
 
                 continue;
             }
-            $count = $this->outputParser->mcqCount($content);
+            $count = $this->outputParser->mcqValidCount($content);
 
             if ($count >= self::MIN_MCQ_QUESTIONS) {
                 $this->sse->emit('status', ['stage' => $stage, 'state' => 'running']);
@@ -1135,9 +1152,12 @@ class PipelineRunner
                 return $content;
             }
 
-            if ($count > $bestCount) {
+            // Track kandidat terbaik dengan counter toleran (teks non-JSON
+            // tetap dihitung) supaya fallback teks punya material.
+            $tolerant = $this->outputParser->mcqCount($content);
+            if ($tolerant > $bestCount) {
                 $best = $content;
-                $bestCount = $count;
+                $bestCount = $tolerant;
             }
         }
 
@@ -1164,7 +1184,7 @@ class PipelineRunner
 
     /**
      * R5 — Bangun pertanyaan MCQ minimal dari teks berformat list (1. / - / ###).
-     * Return null bila < MIN. Opsi default Ya/Tidak agar tetap lolos mcqValidCount.
+     * Return null bila < MIN. Opsi default 4 entri {key,text} agar lolos sanitizeMcqData.
      */
     private function buildQuestionsFromText(string $text): ?array
     {
@@ -1180,7 +1200,16 @@ class PipelineRunner
                 continue;
             }
             $used[$q] = true;
-            $items[] = ['id' => 'mq'.(count($items) + 1), 'question' => $q, 'options' => ['Ya', 'Tidak']];
+            $items[] = [
+                'id' => 'mq'.(count($items) + 1),
+                'question' => $q,
+                'options' => [
+                    ['key' => 'A', 'text' => 'Ya'],
+                    ['key' => 'B', 'text' => 'Tidak'],
+                    ['key' => 'C', 'text' => 'Tidak yakin'],
+                    ['key' => 'D', 'text' => 'Butuh diskusi'],
+                ],
+            ];
             if (count($items) >= self::MAX_MCQ_QUESTIONS) {
                 break;
             }

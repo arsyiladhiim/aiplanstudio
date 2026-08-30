@@ -826,7 +826,7 @@ class PipelineRunnerTest extends TestCase
 
             public function stream(array $messages, callable $onToken, ?int $maxTokens = null): string
             {
-                $payload = "1. fitur?\n2. user?\n3. biaya?\n4. rilis?\n5. platform?";
+                $payload = "1. Fitur utama apa?\n2. Siapa user utamanya?\n3. Berapa anggaran biaya?\n4. Kapan target rilis?\n5. Platform mana saja?";
                 $onToken($payload);
 
                 return $payload;
@@ -844,8 +844,8 @@ class PipelineRunnerTest extends TestCase
 
         $result = $ref->invoke($runner, '1. a?', 'pertanyaan');
 
-        $this->assertStringContainsString('fitur?', $result);
-        $this->assertStringContainsString('platform?', $result);
+        $this->assertStringContainsString('Fitur utama apa?', $result);
+        $this->assertStringContainsString('Platform mana saja?', $result);
     }
 
     public function test_mcq_valid_count_counts_only_well_formed_questions(): void

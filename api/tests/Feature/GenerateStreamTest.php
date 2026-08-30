@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\User;
 use App\Models\Version;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class GenerateStreamTest extends TestCase
@@ -99,6 +100,24 @@ class GenerateStreamTest extends TestCase
         // StreamedResponse — content is streamed directly, not available in response body
         $response->assertStatus(200);
         $this->assertStringContainsString('text/event-stream', $response->headers->get('Content-Type') ?? '');
+    }
+
+    public function test_stage_done_with_artifact_is_not_regenerated(): void
+    {
+        // Idempotency guard: stage done + artifact tersimpan → skip regen.
+        Http::fake(['*' => Http::response(['choices' => [['message' => ['content' => 'x']]]], 200)]);
+
+        $this->version->update([
+            'stage_status' => array_merge(Version::defaultStageStatus(), ['pertanyaan' => 'done']),
+            'pertanyaan' => '{"questions":[]}',
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->post("/api/generate/stream?version={$this->version->id}&stage=pertanyaan&auto=0");
+
+        $response->assertStatus(200);
+        Http::assertNothingSent();
+        $this->assertSame('done', $this->version->fresh()->stage_status['pertanyaan']);
     }
 
     public function test_unauthenticated_request_returns_401(): void
