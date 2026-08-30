@@ -3,10 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_show_returns_accent_color(): void
     {
         $user = User::factory()->create(['accent_color' => '#7c3aed']);

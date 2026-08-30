@@ -16,8 +16,8 @@ Sumber temuan: audit menyeluruh 30 Aug 2026 (post fix resume loop). Setiap fase:
 
 ## Fase C — Operasional
 
-- [ ] C1. Stage stuck `running` selamanya setelah container restart — sweeper terjadwal (`PipelineRunner.php:186-193`; `console.php` hanya `research:collect`)
-- [ ] C2. Scheduler tanpa healthcheck di `docker-compose.yml`
+- [x] C1. Stage stuck `running` selamanya setelah container restart — sweeper terjadwal (`PipelineRunner.php:186-193`; `console.php` hanya `research:collect`)
+- [x] C2. Scheduler tanpa healthcheck di `docker-compose.yml`
 
 ## Fase D — Housekeeping
 

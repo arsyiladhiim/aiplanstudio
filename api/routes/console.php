@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('research:collect')->hourly()->withoutOverlapping();
 Schedule::command('research:collect')->dailyAt('06:00')->withoutOverlapping();
+Schedule::command('pipeline:sweep-stuck')->everyFifteenMinutes();
