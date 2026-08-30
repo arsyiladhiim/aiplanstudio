@@ -292,6 +292,10 @@ export default function NewPlanPage({
   const creatingRef = useRef(false)
   const fallbackFetched = useRef(new Set<string>())
   const resumeAutoStartedRef = useRef(false)
+  const [apiContractDbItems, setApiContractDbItems] = useState<
+    ApiContractItem[] | null
+  >(null)
+  const apiContractFetchRef = useRef(false)
   const outputRef = useRef<HTMLDivElement>(null)
   const webPhasesRef = useRef<PhaseItem[]>([])
   const mobilePhasesRef = useRef<PhaseItem[]>([])
@@ -391,23 +395,69 @@ export default function NewPlanPage({
     return parsed
   }, [artifacts.pertanyaan_mobile, mcqMobileData])
 
+  // API contract parser toleran: array | {endpoints:[...]} | resource-keyed object.
+  // auth backend bisa "none"/"required" (string) atau boolean.
+  function parseApiContractItems(raw: unknown): ApiContractItem[] {
+    try {
+      let v: unknown = raw
+      if (typeof v === "string") v = JSON.parse(v)
+      let arr: unknown[] = []
+      if (Array.isArray(v)) arr = v
+      else if (v && typeof v === "object") {
+        const o = v as Record<string, unknown>
+        if (Array.isArray(o.endpoints)) arr = o.endpoints
+        else arr = Object.values(o).flatMap((x) => (Array.isArray(x) ? x : []))
+      }
+      return arr
+        .filter(
+          (it): it is Record<string, unknown> => !!it && typeof it === "object"
+        )
+        .filter((it) => it.method || it.path)
+        .map((it) => ({
+          method: String(it.method ?? "GET").toUpperCase(),
+          path: String(it.path ?? ""),
+          description: String(it.description ?? ""),
+          auth: it.auth === true || it.auth === "required" || it.auth === "yes",
+        }))
+    } catch {
+      return []
+    }
+  }
+
+  // Normalisasi item api_contract: auth backend bisa string, paksa boolean.
+  const normalizeApiItems = useCallback(
+    (items: unknown): ApiContractItem[] => parseApiContractItems(items),
+    []
+  )
+
   // Parse ERD artifact toleran: strip code fence + ambil blok JSON terluar.
-  const parseErdArtifact = useCallback((raw: string): ErdParsed | null => {
-    try {
-      return JSON.parse(raw) as ErdParsed
-    } catch {
-      /* fallthrough */
-    }
-    try {
-      const unFenced = raw.replace(/```(?:json)?/gi, "").trim()
-      const first = unFenced.indexOf("{")
-      const last = unFenced.lastIndexOf("}")
-      if (first === -1 || last === -1) return null
-      return JSON.parse(unFenced.slice(first, last + 1)) as ErdParsed
-    } catch {
-      return null
-    }
-  }, [])
+  const parseErdArtifact = useCallback(
+    (raw: string): ErdParsed | null => {
+      const withNorm = (p: ErdParsed): ErdParsed => ({
+        ...p,
+        api_contract: Array.isArray(p.api_contract)
+          ? normalizeApiItems(p.api_contract)
+          : p.api_contract,
+      })
+      try {
+        return withNorm(JSON.parse(raw) as ErdParsed)
+      } catch {
+        /* fallthrough */
+      }
+      try {
+        const unFenced = raw.replace(/```(?:json)?/gi, "").trim()
+        const first = unFenced.indexOf("{")
+        const last = unFenced.lastIndexOf("}")
+        if (first === -1 || last === -1) return null
+        return withNorm(
+          JSON.parse(unFenced.slice(first, last + 1)) as ErdParsed
+        )
+      } catch {
+        return null
+      }
+    },
+    [normalizeApiItems]
+  )
 
   // CP-46.D step 2 — wire usePipelineStream.
   const streamApi = usePipelineStream(
@@ -587,6 +637,18 @@ export default function NewPlanPage({
     return () => pp.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [versionId])
+
+  // api_contract: kalau parse artifact SSE gagal/kosong walau stage done,
+  // fetch kolom DB sekali (artifact stream bisa non-normalized).
+  useEffect(() => {
+    if (status.api_contract !== "done" || !versionId) return
+    if (apiContractFetchRef.current) return
+    if (parseApiContractItems(artifacts.api_contract).length > 0) return
+    apiContractFetchRef.current = true
+    apiGet<Record<string, unknown>>(`/versions/${versionId}`)
+      .then((v) => setApiContractDbItems(parseApiContractItems(v.api_contract)))
+      .catch(() => setApiContractDbItems([]))
+  }, [status.api_contract, versionId, artifacts.api_contract])
 
   // Fallback: fetch artifact from DB when SSE artifact event was lost
   useEffect(() => {
@@ -1537,12 +1599,11 @@ export default function NewPlanPage({
                       {activeKey === "api_contract" &&
                         artifacts.api_contract &&
                         (() => {
-                          let parsed: ApiContractItem[] = []
-                          try {
-                            parsed = JSON.parse(artifacts.api_contract)
-                          } catch {
-                            parsed = []
-                          }
+                          const parsed =
+                            parseApiContractItems(artifacts.api_contract)
+                              .length > 0
+                              ? parseApiContractItems(artifacts.api_contract)
+                              : (apiContractDbItems ?? [])
                           if (parsed.length === 0)
                             return (
                               <p className="text-sm text-[var(--color-fg-subtle)] italic">
