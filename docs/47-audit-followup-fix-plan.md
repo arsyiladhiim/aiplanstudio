@@ -21,5 +21,5 @@ Sumber temuan: audit menyeluruh 30 Aug 2026 (post fix resume loop). Setiap fase:
 
 ## Fase D — Housekeeping
 
-- [ ] D1. Rebuild graphify (`/graphify .`)
-- [ ] D2. Final verification: tsc + lint + `php artisan test` + commit/push
+- [x] D1. Rebuild graphify (`/graphify .`)
+- [x] D2. Final verification: tsc + lint + `php artisan test` + commit/push
