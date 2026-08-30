@@ -32,6 +32,10 @@ class ProjectController extends Controller
             $query->where('is_favorite', true);
         }
 
+        if (in_array($target = $request->query('target', ''), ['web', 'both'], true)) {
+            $query->where('target', $target);
+        }
+
         if ($request->boolean('pinned')) {
             $query->where('is_pinned', true);
         }

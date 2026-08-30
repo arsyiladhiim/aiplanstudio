@@ -237,6 +237,19 @@ class ProjectTest extends TestCase
         $this->assertSame('Pinned', $titles[0]);
     }
 
+    public function test_index_filter_target(): void
+    {
+        Project::factory()->create(['user_id' => $this->user->id, 'title' => 'WebApp', 'target' => 'web']);
+        Project::factory()->create(['user_id' => $this->user->id, 'title' => 'BothApp', 'target' => 'both']);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->getJson('/api/projects?target=web');
+
+        $response->assertStatus(200);
+        $titles = collect($response->json('data'))->pluck('title')->all();
+        $this->assertSame(['WebApp'], $titles);
+    }
+
     public function test_index_filter_pinned(): void
     {
         $pinned = Project::factory()->create(['user_id' => $this->user->id, 'title' => 'Pin', 'is_pinned' => true]);

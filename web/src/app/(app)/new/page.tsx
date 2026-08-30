@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useResume } from "@/hooks/useResume"
 import { usePipelineStream } from "@/hooks/usePipelineStream"
 import { Card, Badge, Textarea, Label, Markdown, Modal } from "@/components/ui"
+import { ButtonLink } from "@/components/ui/Button"
 import { Button } from "@/components/ui/Button"
 import dynamic from "next/dynamic"
 const ErdDiagramDynamic = dynamic(
@@ -860,6 +861,18 @@ export default function NewPlanPage({
   // ===== Input screen =====
   if (!started) {
     if (isResume) {
+      if (resumeError) {
+        return (
+          <div className="mx-auto max-w-lg space-y-4 py-24 text-center">
+            <div className="rounded-lg border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-4 py-3 text-sm text-[var(--color-danger)]">
+              {resumeError}
+            </div>
+            <ButtonLink href="/projects" variant="secondary">
+              Kembali ke Projects
+            </ButtonLink>
+          </div>
+        )
+      }
       return (
         <div className="mx-auto flex max-w-lg items-center justify-center py-24">
           <div className="text-center">
@@ -1077,6 +1090,21 @@ export default function NewPlanPage({
                     ) : st === "running" ? (
                       <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--color-brand)] text-white">
                         <Loader2 size={14} className="animate-spin" />
+                      </span>
+                    ) : st === "error" ? (
+                      <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--color-danger)] text-white">
+                        <AlertCircle size={14} />
+                      </span>
+                    ) : st === "blocked" ? (
+                      <span
+                        className="grid h-6 w-6 place-items-center rounded-full border border-[var(--color-warning,#f59e0b)] text-[var(--color-warning,#f59e0b)]"
+                        title="Stage diblokir gate — selesaikan dependensi/approve tracking dulu"
+                      >
+                        <AlertCircle size={13} />
+                      </span>
+                    ) : st === "skipped" ? (
+                      <span className="grid h-6 w-6 place-items-center rounded-full border border-dashed border-[var(--color-border)] text-[var(--color-fg-subtle)]">
+                        <CircleDot size={13} />
                       </span>
                     ) : (
                       <span className="grid h-6 w-6 place-items-center rounded-full border border-[var(--color-border)] text-[var(--color-fg-subtle)]">

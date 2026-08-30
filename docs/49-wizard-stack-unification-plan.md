@@ -17,12 +17,12 @@ Keputusan stack (hasil konfirmasi): **PHP 8.4 · Laravel 13.x · Next.js 16 · N
 
 ## Fase H — Wizard & Projects fixes
 
-- [ ] H1. `ProjectController::index` dukung filter `target` (UI sudah kirim)
-- [ ] H2. `projects/[id]/page.tsx` error banner: tampilkan error pasca-load (kondisi `error && !project` dibuang)
-- [ ] H3. `/new` resume spinner render `resumeError` (sekarang dead-end tanpa pesan)
-- [ ] H4. Render status `blocked`/`skipped` di rail & `StageRow` (tipe + UI + reason) — verify.* stages jelas
-- [ ] H5. Verify: tsc, lint, pint, `php artisan test` penuh, e2e ringan manual
-- [ ] H6. Update checkpoint doc + commit/push
+- [x] H1. `ProjectController::index` dukung filter `target` (UI sudah kirim)
+- [x] H2. `projects/[id]/page.tsx` error banner: tampilkan error pasca-load (kondisi `error && !project` dibuang)
+- [x] H3. `/new` resume spinner render `resumeError` (sekarang dead-end tanpa pesan)
+- [x] H4. Render status `blocked`/`skipped` di rail & `StageRow` (tipe + UI + reason) — verify.* stages jelas
+- [x] H5. Verify: tsc, lint, pint, `php artisan test` penuh, e2e ringan manual
+- [x] H6. Update checkpoint doc + commit/push
 
 ## Batasan
 - Tidak upgrade DB repo ke PG18 (output prompt saja).
