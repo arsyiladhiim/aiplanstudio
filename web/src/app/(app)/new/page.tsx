@@ -2280,7 +2280,8 @@ export default function NewPlanPage({
             </strong>{" "}
             dan <strong>semua stage setelahnya</strong> akan di-generate ulang.
             Jika pipeline sedang berjalan, proses akan dihentikan terlebih
-            dahulu.
+            dahulu. Proses bisa memakan waktu 1-3 menit — jangan tutup
+            halaman.
           </p>
           <div className="mt-5 flex justify-end gap-2">
             <Button

@@ -872,7 +872,6 @@ class VersionController extends Controller
             $runner = new PipelineRunner($version->fresh(['project']), $client, $stream);
             $resetDependents = $runner->invalidateDependents($stage);
             $version->refresh();
-            $runner = new PipelineRunner($version->fresh(['project']), $client, $stream);
             $runner->run($stage, true);
             rewind($stream);
             $sse = stream_get_contents($stream);

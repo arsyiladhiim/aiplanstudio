@@ -7,14 +7,18 @@ class SseEmitter
     /** @var resource */
     private $stdout;
 
+    /** Stream diinjeksikan = milik caller; jangan ditutup di sini. */
+    private bool $owned;
+
     public function __construct($stdout = null)
     {
+        $this->owned = $stdout === null;
         $this->stdout = $stdout ?? fopen('php://output', 'w');
     }
 
     public function __destruct()
     {
-        if (is_resource($this->stdout)) {
+        if ($this->owned && is_resource($this->stdout)) {
             fclose($this->stdout);
         }
     }

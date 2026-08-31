@@ -658,6 +658,35 @@ class VersionTest extends TestCase
         $response->assertStatus(422);
     }
 
+    public function test_regenerate_stage_succeeds_when_all_done_idempotent(): void
+    {
+        // Regression #54: regenerate harus tidak lagi crash "fwrite(): supplied
+        // resource is not a valid stream resource" (runner ganda tutup stream).
+        // Dengan seluruh stage done + artifact terisi, idempotency guard
+        // meng-short-circuit — cepat, tanpa panggilan AI, tapi tetap menulis SSE
+        // ke stream injeksi (pipeline yang bermasalah pada PR sebelumnya).
+        AiProvider::query()->delete();
+        AiProvider::create([
+            'name' => 'Test',
+            'base_url' => 'https://api.openai.com/v1',
+            'api_key' => 'sk-test',
+            'model' => 'gpt-4o',
+            'provider_type' => 'openai',
+            'is_active' => true,
+        ]);
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+            'stage_status' => array_fill_keys(Version::ALL_STAGES, 'done'),
+            'analysis' => str_repeat("## Analisa\nkonten cukup panjang ", 30),
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$version->id}/regenerate", ['stage' => 'analisa']);
+
+        $response->assertStatus(200)->assertJson(['ok' => true]);
+        $this->assertSame('done', $version->fresh()->stage_status['analisa']);
+    }
+
     public function test_regenerate_stage_returns_400_without_provider(): void
     {
         AiProvider::query()->delete();
