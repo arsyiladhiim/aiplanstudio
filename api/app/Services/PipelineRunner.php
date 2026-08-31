@@ -258,7 +258,10 @@ class PipelineRunner
             if ($artifactCol
                 && ($this->version->stage_status[$key] ?? 'pending') === 'done'
                 && filled($this->version->{$artifactCol})) {
-                $this->sse->emit('artifact', ['stage' => $key, 'content' => (string) $this->version->{$artifactCol}]);
+                $stored = $this->version->{$artifactCol};
+                // Kolom JSONB (erd/api_contract/app_spec_*) di-cast array — encode, jangan cast string.
+                $stored = is_array($stored) ? json_encode($stored, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) : (string) $stored;
+                $this->sse->emit('artifact', ['stage' => $key, 'content' => $stored]);
                 $this->sse->emit('done', ['stage' => $key]);
                 $this->sse->emit('status', ['stage' => $key, 'state' => 'done']);
 
@@ -828,6 +831,12 @@ class PipelineRunner
 
         $content = is_string($content) ? $content : json_encode($content);
 
+        // Stage JSON (erd/api_contract/app_spec_*) tidak punya heading markdown —
+        // rubric markdown akan mengap selalu rendah. Pakai rubric struktural JSON.
+        if (in_array($stage, ['erd', 'api_contract', 'app_spec_web', 'app_spec_mobile'], true)) {
+            return $this->computeJsonStageQuality($stage, $content);
+        }
+
         $score = 0.0;
         $checks = 0;
 
@@ -885,6 +894,71 @@ class PipelineRunner
         }
 
         return $checks > 0 ? round($score, 2) : null;
+    }
+
+    /**
+     * Rubric kualitas untuk stage artifact JSON (erd/api_contract/app_spec_*).
+     * Skala: JSON valid = 0.4 base + coverage struktur (0.4) + kelengkapan
+     * field per item (0.2) − penalti pola generik (0.1).
+     */
+    private function computeJsonStageQuality(string $stage, string $content): float
+    {
+        $decoded = json_decode($this->jsonParser->extractJson($content), true);
+        if (! is_array($decoded)) {
+            return 0.3;
+        }
+
+        $score = 0.4;
+
+        if ($stage === 'erd') {
+            $nodes = is_array($decoded['nodes'] ?? null) ? $decoded['nodes'] : [];
+            $edges = is_array($decoded['edges'] ?? null) ? $decoded['edges'] : [];
+            $n = count($nodes);
+            $score += 0.25 * min(1, $n / 8);
+            $score += 0.15 * min(1, count($edges) / max(1, $n));
+            $filled = 0;
+            foreach ($nodes as $node) {
+                if (is_array($node) && ! empty($node['id']) && ! empty($node['fields'])) {
+                    $filled++;
+                }
+            }
+            if ($n > 0) {
+                $score += 0.2 * ($filled / $n);
+            }
+        } elseif ($stage === 'api_contract') {
+            $items = $decoded;
+            if (isset($decoded['endpoints']) && is_array($decoded['endpoints'])) {
+                $items = $decoded['endpoints'];
+            }
+            if (! array_is_list($items)) {
+                $items = [];
+            }
+            $count = count($items);
+            $score += 0.4 * min(1, $count / 10);
+            $filled = 0;
+            foreach ($items as $it) {
+                if (is_array($it) && ! empty($it['method']) && ! empty($it['path'])) {
+                    $filled++;
+                }
+            }
+            if ($count > 0) {
+                $score += 0.2 * ($filled / $count);
+            }
+        } else { // app_spec_web / app_spec_mobile
+            $screens = $decoded['screens'] ?? $decoded['pages'] ?? [];
+            $count = is_array($screens) ? count($screens) : 0;
+            $score += 0.6 * min(1, $count / 6);
+        }
+
+        foreach (self::GENERIC_PATTERNS as $pattern) {
+            if (preg_match($pattern, $content)) {
+                $score -= 0.1;
+
+                break;
+            }
+        }
+
+        return round(max(0.0, min(1.0, $score)), 2);
     }
 
     /** Buang pertanyaan rusak dari MCQ data (id/question/options invalid); re-index. */

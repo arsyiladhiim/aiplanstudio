@@ -74,4 +74,56 @@ class StageQualityScoreTest extends TestCase
         $score = $ref->invoke($runner, 'prd', $content);
         $this->assertGreaterThanOrEqual(0.7, $score);
     }
+
+    public function test_quality_score_erd_json_rubric(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'computeStageQuality');
+        $ref->setAccessible(true);
+
+        // 8 tabel lengkap + 8 relasi → harus tinggi (>0.7), bukan 0.4 saja.
+        $nodes = [];
+        $edges = [];
+        for ($i = 1; $i <= 8; $i++) {
+            $nodes[] = ['id' => "t{$i}", 'label' => "t{$i}", 'fields' => ['id', 'name', 'created_at']];
+            $edges[] = ['from' => 't1', 'to' => "t{$i}", 'relation' => 'one-to-many'];
+        }
+        $content = json_encode(['nodes' => $nodes, 'edges' => $edges]);
+        $score = $ref->invoke($runner, 'erd', $content);
+        $this->assertGreaterThan(0.7, $score);
+
+        // ERD kecil 2 tabel → rendah tapi terukur (< 0.7), tetap valid.
+        $small = json_encode([
+            'nodes' => [['id' => 'a', 'label' => 'a', 'fields' => ['id']], ['id' => 'b', 'label' => 'b', 'fields' => ['id']]],
+            'edges' => [['from' => 'a', 'to' => 'b', 'relation' => 'one-to-one']],
+        ]);
+        $scoreSmall = $ref->invoke($runner, 'erd', $small);
+        $this->assertLessThan($score, $scoreSmall);
+        $this->assertGreaterThanOrEqual(0.4, $scoreSmall);
+
+        // Bukan JSON → skor rendah (0.3).
+        $scoreInvalid = $ref->invoke($runner, 'erd', 'bukan json sama sekali');
+        $this->assertSame(0.3, $scoreInvalid);
+    }
+
+    public function test_quality_score_api_contract_json_rubric(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'computeStageQuality');
+        $ref->setAccessible(true);
+
+        $endpoints = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $endpoints[] = ['method' => 'GET', 'path' => "/api/r{$i}", 'description' => "ep {$i}", 'auth' => true];
+        }
+        $score = $ref->invoke($runner, 'api_contract', json_encode($endpoints));
+        $this->assertGreaterThan(0.9, $score);
+
+        // {endpoints:[...]} wrapper juga didukung.
+        $wrapped = $ref->invoke($runner, 'api_contract', json_encode(['endpoints' => array_slice($endpoints, 0, 5)]));
+        $this->assertGreaterThan(0.5, $wrapped);
+        $this->assertLessThan(0.9, $wrapped);
+    }
 }
