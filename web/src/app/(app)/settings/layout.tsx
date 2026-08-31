@@ -35,7 +35,7 @@ export default function SettingsLayout({
         title="Settings"
         subtitle="Kelola profil dan pengaturan akun."
       />
-      <div className="flex gap-2 border-b border-[var(--color-border)]">
+      <div className="flex gap-2 overflow-x-auto border-b border-[var(--color-border)]">
         {tabs.map((t) => {
           const active = pathname === t.href
           return (

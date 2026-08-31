@@ -627,7 +627,7 @@ export default function ProjectDetail({
       )}
 
       {!versionLoading && selectedVersion && (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_300px]">
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
           {/* Artifacts */}
           <Card className="overflow-hidden p-0">
             <div

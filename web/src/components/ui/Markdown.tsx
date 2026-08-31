@@ -1,11 +1,11 @@
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown from "react-markdown"
 
 export function Markdown({
   children,
   className,
 }: {
-  children?: string;
-  className?: string;
+  children?: string
+  className?: string
 }) {
   return (
     <div className={className}>
@@ -13,42 +13,45 @@ export function Markdown({
         components={{
           h1: (p) => (
             <h1
-              className="mb-3 mt-1 text-xl font-bold text-[var(--color-fg)]"
+              className="mt-1 mb-3 text-xl font-bold text-[var(--color-fg)]"
               {...p}
             />
           ),
           h2: (p) => (
             <h2
-              className="mb-2 mt-5 text-lg font-bold text-[var(--color-fg)]"
+              className="mt-5 mb-2 text-lg font-bold text-[var(--color-fg)]"
               {...p}
             />
           ),
           h3: (p) => (
             <h3
-              className="mb-2 mt-4 text-base font-semibold text-[var(--color-fg)]"
+              className="mt-4 mb-2 text-base font-semibold text-[var(--color-fg)]"
               {...p}
             />
           ),
           h4: (p) => (
             <h4
-              className="mb-2 mt-3 text-sm font-semibold text-[var(--color-fg)]"
+              className="mt-3 mb-2 text-sm font-semibold text-[var(--color-fg)]"
               {...p}
             />
           ),
           h5: (p) => (
             <h5
-              className="mb-2 mt-3 text-sm font-semibold text-[var(--color-fg)]"
+              className="mt-3 mb-2 text-sm font-semibold text-[var(--color-fg)]"
               {...p}
             />
           ),
           h6: (p) => (
             <h6
-              className="mb-2 mt-3 text-sm font-semibold text-[var(--color-fg)]"
+              className="mt-3 mb-2 text-sm font-semibold text-[var(--color-fg)]"
               {...p}
             />
           ),
           p: (p) => (
-            <p className="my-2 leading-relaxed text-[var(--color-fg)]" {...p} />
+            <p
+              className="my-2 leading-relaxed break-words text-[var(--color-fg)]"
+              {...p}
+            />
           ),
           strong: (p) => (
             <strong className="font-semibold text-[var(--color-fg)]" {...p} />
@@ -56,7 +59,7 @@ export function Markdown({
           em: (p) => <em className="text-[var(--color-fg-muted)]" {...p} />,
           ul: (p) => <ul className="my-2 list-disc space-y-1 pl-5" {...p} />,
           ol: (p) => <ol className="my-2 list-decimal space-y-1 pl-5" {...p} />,
-          li: (p) => <li className="leading-relaxed" {...p} />,
+          li: (p) => <li className="leading-relaxed break-words" {...p} />,
           a: ({ href, ...p }) => (
             <a
               href={href}
@@ -114,5 +117,5 @@ export function Markdown({
         {children ?? ""}
       </ReactMarkdown>
     </div>
-  );
+  )
 }

@@ -57,6 +57,7 @@ body {
   color: var(--color-fg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
 /* Ambient gradient background — emerald-teal Aurora */

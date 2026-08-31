@@ -53,6 +53,7 @@ import { StageThroughputBar } from "@/components/wizard/StageThroughputBar"
 import { BuildWall } from "@/components/wizard/BuildWall"
 import {
   getStages,
+  ARTIFACT_COL_MAP,
   type StageKey,
   type StageState,
   type Target,
@@ -188,6 +189,9 @@ export default function NewPlanPage({
   const [viewingKey, setViewingKey] = useState<StageKey | null>(null)
   const [regenFromStage, setRegenFromStage] = useState<StageKey | null>(null)
   const [regenBusy, setRegenBusy] = useState(false)
+  // Review mode: artifact diambil dari DB sebagai sumber kebenaran (di-merge
+  // ke artifacts). reviewFetchedRef invalidasi dilakukan saat regen/retry/reset.
+  const reviewFetchedRef = useRef(new Set<string>())
   const displayKey = viewingKey ?? activeKey
   const displayStage =
     stages.find((s) => s.key === displayKey) ?? stages[current]
@@ -658,33 +662,29 @@ export default function NewPlanPage({
       .catch(() => setApiContractDbItems([]))
   }, [status.api_contract, versionId, artifacts.api_contract])
 
+  // Review mode: fetch artifact dari DB saat stage lain dilihat (sekali per stage).
+  // Hasil langsung di-merge ke artifacts (sumber render yang sudah ada).
+  useEffect(() => {
+    if (!viewingKey || !versionId) return
+    const col = ARTIFACT_COL_MAP[viewingKey]
+    if (!col) return
+    if (reviewFetchedRef.current.has(viewingKey)) return
+    reviewFetchedRef.current.add(viewingKey)
+    apiGet<Record<string, unknown>>(`/versions/${versionId}`)
+      .then((v) => {
+        const c = v[col]
+        if (c != null && c !== "") {
+          const val = typeof c === "string" ? c : JSON.stringify(c, null, 2)
+          setArtifacts((p) => ({ ...p, [viewingKey]: val }))
+        }
+      })
+      .catch(() => reviewFetchedRef.current.delete(viewingKey))
+  }, [viewingKey, versionId])
+
   // Fallback: fetch artifact from DB when SSE artifact event was lost
   useEffect(() => {
     if (!versionId) return
-    const colMap: Record<string, string> = {
-      pertanyaan: "pertanyaan",
-      pertanyaan_mobile: "pertanyaan_mobile",
-      analisa: "analysis",
-      prd: "prd",
-      architecture: "architecture",
-      erd: "erd",
-      api_contract: "api_contract",
-      phases_web: "phases",
-      standards_web: "standards",
-      master_web: "master_prompt",
-      phases_mobile: "mobile_phases",
-      standards_mobile: "mobile_standards",
-      master_mobile: "mobile_master_prompt",
-      env_config: "env_config",
-      security: "security",
-      deployment: "deployment",
-      observability: "observability",
-      design_system: "design_system",
-      design_system_mobile: "design_system_mobile",
-      app_spec_web: "app_spec_web",
-      app_spec_mobile: "app_spec_mobile",
-      agents: "agents",
-    }
+    const colMap = ARTIFACT_COL_MAP
     const missing = stages.filter(
       (s) =>
         status[s.key] === "done" &&
@@ -729,6 +729,8 @@ export default function NewPlanPage({
     // Reset fallback cache agar resume bisa re-fetch artifact dari DB bila SSE
     // 'artifact' event hilang saat restart.
     fallbackFetched.current.clear()
+    reviewFetchedRef.current.clear()
+    setViewingKey(null)
 
     setProjectId(r.projectId)
     setVersionId(r.versionId)
@@ -878,6 +880,7 @@ export default function NewPlanPage({
     setError("")
     try {
       // Keputusan UX: pipeline yang berjalan di-stop dulu, lalu regen dari stage terpilih.
+      reviewFetchedRef.current.clear()
       streamApi.abort()
       const res = await apiPost<{ ok?: boolean; message?: string }>(
         `/versions/${versionId}/regenerate`,
@@ -918,6 +921,7 @@ export default function NewPlanPage({
       abortRef.current = null
     }
     fallbackFetched.current.clear()
+    reviewFetchedRef.current.clear()
     resumeAutoStartedRef.current = false
     setResumeInfo(null)
 
@@ -1140,11 +1144,9 @@ export default function NewPlanPage({
           </div>
         )}
 
-        <div
-          className={`grid gap-6 ${showTrackingPanel ? "lg:grid-cols-[260px_1fr_340px]" : "lg:grid-cols-[280px_1fr]"}`}
-        >
+        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
           {/* Stage tracker */}
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             {(() => {
               const totalTokens = Object.values(
                 stageTokens ?? {}
@@ -1174,7 +1176,10 @@ export default function NewPlanPage({
               const reviewable =
                 st === "done" &&
                 s.key !== "master_web" &&
-                s.key !== "master_mobile"
+                s.key !== "master_mobile" &&
+                s.key !== "verify.review" &&
+                s.key !== "smoke_test" &&
+                s.key !== "verify.production_readiness"
               return (
                 <div
                   key={rowKey}
@@ -1280,7 +1285,7 @@ export default function NewPlanPage({
           )}
 
           {/* Artifact panel */}
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <Card className="p-5">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1691,7 +1696,7 @@ export default function NewPlanPage({
                           />
                         )}
                       {displayKey === "api_contract" &&
-                        artifacts.api_contract &&
+                        (artifacts.api_contract || apiContractDbItems) &&
                         (() => {
                           const parsed =
                             parseApiContractItems(artifacts.api_contract)
@@ -1804,6 +1809,12 @@ export default function NewPlanPage({
                           {artifacts[displayKey] || "Menunggu hasil AI..."}
                         </div>
                       )}
+                      {status.erd === "done" && !artifacts.erd && (
+                        <p className="text-sm text-[var(--color-fg-subtle)] italic">
+                          Artifact ERD belum termuat — muat ulang halaman atau
+                          generate ulang.
+                        </p>
+                      )}
                       {status.erd === "done" &&
                         artifacts.erd &&
                         (() => {
@@ -1825,22 +1836,23 @@ export default function NewPlanPage({
                         })()}
                     </>
                   )}
-                  {activeKey === "phases_web" && artifacts.phases_web && (
+                  {displayKey === "phases_web" && artifacts.phases_web && (
                     <PhasesView
                       markdown={artifacts.phases_web}
                       label="Phase Breakdown Web"
                     />
                   )}
-                  {activeKey === "phases_mobile" && artifacts.phases_mobile && (
-                    <PhasesView
-                      markdown={artifacts.phases_mobile}
-                      label="Phase Breakdown Mobile"
-                    />
-                  )}
-                  {(activeKey === "master_web" ||
-                    activeKey === "master_mobile") &&
+                  {displayKey === "phases_mobile" &&
+                    artifacts.phases_mobile && (
+                      <PhasesView
+                        markdown={artifacts.phases_mobile}
+                        label="Phase Breakdown Mobile"
+                      />
+                    )}
+                  {(displayKey === "master_web" ||
+                    displayKey === "master_mobile") &&
                     (() => {
-                      const isWeb = activeKey === "master_web"
+                      const isWeb = displayKey === "master_web"
                       const artifact = isWeb
                         ? artifacts.master_web
                         : artifacts.master_mobile
@@ -2012,18 +2024,26 @@ export default function NewPlanPage({
 
           {/* Tracking side panel — selalu tampil di stage master (web/mobile) agar user melihat progres
             komunikasi agent ↔ webhook secara live; untuk agents hanya bila ada fase. */}
-          {showTrackingPanel &&
-            (activeKey === "master_web" ||
-              activeKey === "master_mobile" ||
-              trackingPhases.length > 0) && (
-              <TrackingPanel
-                phases={trackingPhases}
-                progMap={progMap}
-                webhookUrl={WEBHOOK_URL}
-                projectId={projectId}
-                versionId={versionId}
-              />
-            )}
+          <div
+            className={
+              showTrackingPanel
+                ? ""
+                : "pointer-events-none invisible hidden lg:block"
+            }
+          >
+            {showTrackingPanel &&
+              (activeKey === "master_web" ||
+                activeKey === "master_mobile" ||
+                trackingPhases.length > 0) && (
+                <TrackingPanel
+                  phases={trackingPhases}
+                  progMap={progMap}
+                  webhookUrl={WEBHOOK_URL}
+                  projectId={projectId}
+                  versionId={versionId}
+                />
+              )}
+          </div>
         </div>
 
         {/* Full-screen Build Wall untuk master_* + agents */}

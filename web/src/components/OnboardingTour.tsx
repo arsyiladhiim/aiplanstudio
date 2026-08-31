@@ -1,14 +1,14 @@
-"use client";
-import { useEffect, useState, useRef, useCallback } from "react";
-import { Button } from "@/components/ui/Button";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+"use client"
+import { useEffect, useState, useRef, useCallback } from "react"
+import { Button } from "@/components/ui/Button"
+import { X, ChevronLeft, ChevronRight } from "lucide-react"
 
-const STORAGE_KEY = "onboarding:completed";
+const STORAGE_KEY = "onboarding:completed"
 
 interface Step {
-  selector: string;
-  title: string;
-  body: string;
+  selector: string
+  title: string
+  body: string
 }
 
 const STEPS: Step[] = [
@@ -32,87 +32,104 @@ const STEPS: Step[] = [
     title: "Pengaturan",
     body: "Atur AI provider, profil, dan preferensi lain di menu Settings.",
   },
-];
+]
 
-interface Rect { top: number; left: number; width: number; height: number; }
+interface Rect {
+  top: number
+  left: number
+  width: number
+  height: number
+}
 
 function getRect(selector: string): Rect | null {
-  const el = document.querySelector(selector);
-  if (!el) return null;
-  const r = el.getBoundingClientRect();
-  return { top: r.top, left: r.left, width: r.width, height: r.height };
+  const el = document.querySelector(selector)
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  return { top: r.top, left: r.left, width: r.width, height: r.height }
 }
 
 export function OnboardingTour() {
-  const [active, setActive] = useState(false);
-  const [step, setStep] = useState(0);
-  const [rect, setRect] = useState<Rect | null>(null);
-  const completedRef = useRef(false);
+  const [active, setActive] = useState(false)
+  const [step, setStep] = useState(0)
+  const [rect, setRect] = useState<Rect | null>(null)
+  const completedRef = useRef(false)
 
   const finish = useCallback(() => {
-    try { localStorage.setItem(STORAGE_KEY, "1"); } catch {}
-    completedRef.current = true;
-    setActive(false);
-  }, []);
+    try {
+      localStorage.setItem(STORAGE_KEY, "1")
+    } catch {}
+    completedRef.current = true
+    setActive(false)
+  }, [])
 
-  const skip = useCallback(() => finish(), [finish]);
-
-  useEffect(() => {
-    if (completedRef.current) return;
-    let seen = "0";
-    try { seen = localStorage.getItem(STORAGE_KEY) ?? "0"; } catch {}
-    if (seen === "1") return;
-    completedRef.current = false;
-    setActive(true);
-  }, []);
+  const skip = useCallback(() => finish(), [finish])
 
   useEffect(() => {
-    if (!active) return;
-    const sel = STEPS[step].selector;
-    const update = () => setRect(getRect(sel));
-    update();
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
+    if (completedRef.current) return
+    let seen = "0"
+    try {
+      seen = localStorage.getItem(STORAGE_KEY) ?? "0"
+    } catch {}
+    if (seen === "1") return
+    completedRef.current = false
+    setActive(true)
+  }, [])
+
+  useEffect(() => {
+    if (!active) return
+    const sel = STEPS[step].selector
+    const update = () => setRect(getRect(sel))
+    update()
+    window.addEventListener("resize", update)
+    window.addEventListener("scroll", update, true)
     return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
-    };
-  }, [active, step]);
+      window.removeEventListener("resize", update)
+      window.removeEventListener("scroll", update, true)
+    }
+  }, [active, step])
 
   const next = useCallback(() => {
     setStep((s) => {
       if (s + 1 >= STEPS.length) {
-        finish();
-        return s;
+        finish()
+        return s
       }
-      return s + 1;
-    });
-  }, [finish]);
-  const prev = useCallback(() => setStep((s) => (s > 0 ? s - 1 : s)), []);
+      return s + 1
+    })
+  }, [finish])
+  const prev = useCallback(() => setStep((s) => (s > 0 ? s - 1 : s)), [])
 
-  const nextRef = useRef(next);
-  const prevRef = useRef(prev);
-  useEffect(() => { nextRef.current = next; prevRef.current = prev; }, [next, prev]);
+  const nextRef = useRef(next)
+  const prevRef = useRef(prev)
+  useEffect(() => {
+    nextRef.current = next
+    prevRef.current = prev
+  }, [next, prev])
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") return skip();
-      if (e.key === "ArrowRight") return nextRef.current();
-      if (e.key === "ArrowLeft") return prevRef.current();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [active, skip]);
+      if (e.key === "Escape") return skip()
+      if (e.key === "ArrowRight") return nextRef.current()
+      if (e.key === "ArrowLeft") return prevRef.current()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [active, skip])
 
-  if (!active || !rect) return null;
+  if (!active || !rect) return null
 
-  const current = STEPS[step];
-  const pad = 8;
-  const tooltipW = 320;
-  const tooltipBelow = rect.top + rect.height + pad + 200 < window.innerHeight;
-  const tipTop = tooltipBelow ? rect.top + rect.height + pad : Math.max(pad, rect.top - 180);
-  const tipLeft = Math.min(Math.max(pad, rect.left + rect.width / 2 - tooltipW / 2), window.innerWidth - tooltipW - pad);
+  const current = STEPS[step]
+  const pad = 8
+  const tooltipW = 320
+  const tooltipBelow = rect.top + rect.height + pad + 200 < window.innerHeight
+  const tipTop = tooltipBelow
+    ? rect.top + rect.height + pad
+    : Math.max(pad, rect.top - 180)
+  const tipLeft = Math.min(
+    Math.max(pad, rect.left + rect.width / 2 - tooltipW / 2),
+    window.innerWidth - tooltipW - pad
+  )
 
   return (
     <div className="fixed inset-0 z-[60]" data-testid="onboarding-tour">
@@ -130,7 +147,12 @@ export function OnboardingTour() {
             />
           </mask>
         </defs>
-        <rect width="100%" height="100%" fill="rgba(0,0,0,0.6)" mask="url(#onb-mask)" />
+        <rect
+          width="100%"
+          height="100%"
+          fill="rgba(0,0,0,0.6)"
+          mask="url(#onb-mask)"
+        />
         <rect
           x={rect.left - pad}
           y={rect.top - pad}
@@ -144,13 +166,13 @@ export function OnboardingTour() {
       </svg>
 
       <div
-        className="absolute z-10 w-[320px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-2xl"
+        className="absolute z-10 w-[min(320px,calc(100vw-2rem))] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-2xl"
         style={{ top: tipTop, left: tipLeft }}
       >
         <button
           onClick={skip}
           aria-label="Lewati tour"
-          className="absolute right-2 top-2 text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+          className="absolute top-2 right-2 text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
         >
           <X size={16} />
         </button>
@@ -158,9 +180,13 @@ export function OnboardingTour() {
           Step {step + 1} dari {STEPS.length}
         </div>
         <div className="mt-1 font-semibold">{current.title}</div>
-        <p className="mt-2 text-sm text-[var(--color-fg-muted)]">{current.body}</p>
+        <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
+          {current.body}
+        </p>
         <div className="mt-4 flex items-center justify-between gap-2">
-          <Button variant="ghost" size="sm" onClick={skip}>Lewati</Button>
+          <Button variant="ghost" size="sm" onClick={skip}>
+            Lewati
+          </Button>
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -179,5 +205,5 @@ export function OnboardingTour() {
         </div>
       </div>
     </div>
-  );
+  )
 }

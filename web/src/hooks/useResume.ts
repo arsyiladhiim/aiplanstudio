@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { apiGet } from "@/lib/api"
 import type { PhaseItem, StageKey, StageState, Target } from "@/lib/mock"
-import { getStages } from "@/lib/mock"
+import { getStages, ARTIFACT_COL_MAP } from "@/lib/mock"
 
 export interface VersionLite {
   id: number
@@ -32,6 +32,7 @@ export interface VersionLite {
   phases?: unknown
   standards?: string | null
   master_prompt?: string | null
+  testing_strategy?: string | null
   mobile_phases?: unknown
   mobile_standards?: string | null
   mobile_master_prompt?: string | null
@@ -114,35 +115,12 @@ export function useResume(
           }
         })
 
-        const colMap: Record<string, keyof VersionLite> = {
-          pertanyaan: "pertanyaan",
-          pertanyaan_mobile: "pertanyaan_mobile",
-          analisa: "analysis",
-          prd: "prd",
-          architecture: "architecture",
-          erd: "erd",
-          api_contract: "api_contract",
-          phases_web: "phases",
-          standards_web: "standards",
-          master_web: "master_prompt",
-          phases_mobile: "mobile_phases",
-          standards_mobile: "mobile_standards",
-          master_mobile: "mobile_master_prompt",
-          env_config: "env_config",
-          security: "security",
-          deployment: "deployment",
-          observability: "observability",
-          design_system: "design_system",
-          design_system_mobile: "design_system_mobile",
-          app_spec_web: "app_spec_web",
-          app_spec_mobile: "app_spec_mobile",
-          agents: "agents",
-        }
+        const colMap = ARTIFACT_COL_MAP
         const loadedArtifacts: Record<string, string> = {}
         resumeStages.forEach((s) => {
           const col = colMap[s.key]
           if (!col) return
-          const val = v[col]
+          const val = v[col as keyof VersionLite]
           if (val) {
             loadedArtifacts[s.key] =
               typeof val === "object" ? JSON.stringify(val) : String(val)
