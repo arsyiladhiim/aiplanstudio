@@ -184,6 +184,14 @@ export default function NewPlanPage({
     }
   }, [allDone])
   const activeKey = stages[current]?.key
+  // K-mode: review stage sebelumnya (done) tanpa mengubah posisi pipeline.
+  const [viewingKey, setViewingKey] = useState<StageKey | null>(null)
+  const [regenFromStage, setRegenFromStage] = useState<StageKey | null>(null)
+  const [regenBusy, setRegenBusy] = useState(false)
+  const displayKey = viewingKey ?? activeKey
+  const displayStage =
+    stages.find((s) => s.key === displayKey) ?? stages[current]
+  const isViewing = viewingKey !== null && viewingKey !== activeKey
   const activeKeyRef = useRef(activeKey)
   useEffect(() => {
     activeKeyRef.current = activeKey
@@ -864,6 +872,35 @@ export default function NewPlanPage({
     startPipeline(versionId, currentStage)
   }
 
+  async function handleRegenFromStage() {
+    if (!regenFromStage || !versionId || regenBusy) return
+    setRegenBusy(true)
+    setError("")
+    try {
+      // Keputusan UX: pipeline yang berjalan di-stop dulu, lalu regen dari stage terpilih.
+      streamApi.abort()
+      const res = await apiPost<{ ok?: boolean; message?: string }>(
+        `/versions/${versionId}/regenerate`,
+        { stage: regenFromStage }
+      )
+      if (res && res.ok === false) {
+        setError(res.message || "Generate ulang gagal — state dikembalikan.")
+        setRegenFromStage(null)
+        return
+      }
+      setRegenFromStage(null)
+      setViewingKey(null)
+      // Reload via resume flow agar state + auto start konsisten. Hard reload
+      // sengaja: reset React state sepenuhnya sebelum resume dari DB.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign(`/new?resume=1&version=${versionId}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal regenerate.")
+    } finally {
+      setRegenBusy(false)
+    }
+  }
+
   function cancelGeneration() {
     cancelled.current = true
     streamApi.cancelAll()
@@ -1133,15 +1170,45 @@ export default function NewPlanPage({
               const st = status[s.key]
               // CP-3: key mencakup status agar CSS animation re-trigger saat transisi ke 'done'.
               const rowKey = `${s.key}:${st}`
+              // Review mode: row stage done (non-master) clickable untuk melihat lagi.
+              const reviewable =
+                st === "done" &&
+                s.key !== "master_web" &&
+                s.key !== "master_mobile"
               return (
                 <div
                   key={rowKey}
                   data-testid={`stage-${s.key}`}
                   data-state={st}
+                  role={reviewable ? "button" : undefined}
+                  tabIndex={reviewable ? 0 : undefined}
+                  onClick={
+                    reviewable
+                      ? () => {
+                          setViewingKey((cur) =>
+                            cur === s.key ? null : (s.key as StageKey)
+                          )
+                        }
+                      : undefined
+                  }
+                  onKeyDown={
+                    reviewable
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            setViewingKey(s.key as StageKey)
+                          }
+                        }
+                      : undefined
+                  }
                   className={`flex items-start gap-3 rounded-xl border p-3 transition ${
-                    i === current && st === "running"
-                      ? "border-[var(--color-brand)] bg-[color-mix(in_oklab,var(--color-brand)_8%,transparent)]"
-                      : "border-[var(--color-border)]"
+                    reviewable ? "cursor-pointer" : ""
+                  } ${
+                    viewingKey === s.key
+                      ? "border-[var(--color-brand-2,#8b5cf6)] bg-[color-mix(in_oklab,var(--color-brand)_6%,transparent)]"
+                      : i === current && st === "running"
+                        ? "border-[var(--color-brand)] bg-[color-mix(in_oklab,var(--color-brand)_8%,transparent)]"
+                        : "border-[var(--color-border)]"
                   } ${st === "done" ? "done-flash" : ""}`}
                 >
                   <span className="mt-0.5">
@@ -1185,28 +1252,55 @@ export default function NewPlanPage({
             })}
           </div>
 
+          {/* Review banner untuk stage yang sedang dilihat (bukan posisi pipeline) */}
+          {isViewing && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-brand-2,#8b5cf6)]/40 bg-[color-mix(in_oklab,var(--color-brand)_6%,transparent)] px-4 py-3">
+              <div className="text-sm">
+                Sedang melihat <strong>{displayStage.label}</strong>. Pipeline
+                tidak berubah.
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setViewingKey(null)}
+                >
+                  Kembali ke stage aktif
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setRegenFromStage(displayKey)}
+                  disabled={regenBusy}
+                >
+                  <RotateCcw size={13} /> Generate ulang dari sini
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Artifact panel */}
           <div className="space-y-4">
             <Card className="p-5">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold">{stages[current].label}</h3>
-                  {status[activeKey] === "running" && (
+                  <h3 className="font-semibold">{displayStage.label}</h3>
+                  {status[displayKey] === "running" && (
                     <Badge tone="brand">Menyusun…</Badge>
                   )}
-                  {status[activeKey] === "done" && (
+                  {status[displayKey] === "done" && (
                     <Badge tone="success">
                       <Check size={12} /> Selesai
                     </Badge>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {status[activeKey] === "done" &&
-                    editingStage !== activeKey && (
+                  {status[displayKey] === "done" &&
+                    editingStage !== displayKey && (
                       <button
                         onClick={() => {
-                          setEditingStage(activeKey)
-                          setEditContent(artifacts[activeKey] || "")
+                          setEditingStage(displayKey)
+                          setEditContent(artifacts[displayKey] || "")
                         }}
                         className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)]"
                       >
@@ -1215,7 +1309,7 @@ export default function NewPlanPage({
                     )}
                   <button
                     onClick={() => {
-                      const text = artifacts[activeKey]
+                      const text = artifacts[displayKey]
                       if (text) copyToClipboard(text)
                     }}
                     className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-2)]"
@@ -1225,15 +1319,15 @@ export default function NewPlanPage({
                 </div>
               </div>
 
-              {status[activeKey] === "running" ? (
+              {status[displayKey] === "running" ? (
                 <div className="max-h-80 overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] p-3">
                   <StreamingMarkdown
-                    content={artifacts[activeKey] || "Menunggu hasil AI..."}
+                    content={artifacts[displayKey] || "Menunggu hasil AI..."}
                     live
                     className="border-0 bg-transparent"
                   />
                 </div>
-              ) : editingStage === activeKey ? (
+              ) : editingStage === displayKey ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex gap-1 rounded-lg border border-[var(--color-border)] p-0.5 text-xs">
@@ -1273,7 +1367,7 @@ export default function NewPlanPage({
                       onClick={async () => {
                         setArtifacts((prev) => ({
                           ...prev,
-                          [activeKey]: editContent,
+                          [displayKey]: editContent,
                         }))
                         setEditingStage(null)
                         setEditContent("")
@@ -1281,7 +1375,7 @@ export default function NewPlanPage({
                           setSavingArtifact(true)
                           try {
                             await apiPatch(`/versions/${versionId}/artifacts`, {
-                              stage: activeKey,
+                              stage: displayKey,
                               content: editContent,
                             })
                           } catch (err) {
@@ -1317,7 +1411,7 @@ export default function NewPlanPage({
                 </div>
               ) : (
                 <>
-                  {activeKey === "pertanyaan" &&
+                  {displayKey === "pertanyaan" &&
                   status.pertanyaan === "done" ? (
                     <div className="space-y-4">
                       {mcqData ? (
@@ -1431,7 +1525,7 @@ export default function NewPlanPage({
                         </>
                       )}
                     </div>
-                  ) : activeKey === "pertanyaan_mobile" &&
+                  ) : displayKey === "pertanyaan_mobile" &&
                     status.pertanyaan_mobile === "done" ? (
                     <div className="space-y-4">
                       {mcqMobileData ? (
@@ -1559,44 +1653,44 @@ export default function NewPlanPage({
                         </>
                       )}
                     </div>
-                  ) : (activeKey === "erd" && status.erd === "done") ||
-                    (activeKey === "architecture" &&
+                  ) : (displayKey === "erd" && status.erd === "done") ||
+                    (displayKey === "architecture" &&
                       status.architecture === "done") ||
-                    (activeKey === "master_web" &&
+                    (displayKey === "master_web" &&
                       status.master_web === "done") ? null : (
                     <>
-                      {activeKey === "analisa" && artifacts.analisa && (
+                      {displayKey === "analisa" && artifacts.analisa && (
                         <AnalysisView markdown={artifacts.analisa} />
                       )}
-                      {activeKey === "prd" && artifacts.prd && (
+                      {displayKey === "prd" && artifacts.prd && (
                         <PrdView markdown={artifacts.prd} />
                       )}
-                      {activeKey === "standards_web" &&
+                      {displayKey === "standards_web" &&
                         artifacts.standards_web && (
                           <StandardsView markdown={artifacts.standards_web} />
                         )}
-                      {activeKey === "standards_mobile" &&
+                      {displayKey === "standards_mobile" &&
                         artifacts.standards_mobile && (
                           <StandardsView
                             markdown={artifacts.standards_mobile}
                           />
                         )}
-                      {activeKey === "agents" && artifacts.agents && (
+                      {displayKey === "agents" && artifacts.agents && (
                         <AgentsView markdown={artifacts.agents} />
                       )}
-                      {activeKey === "design_system" &&
+                      {displayKey === "design_system" &&
                         artifacts.design_system && (
                           <DesignSystemView
                             markdown={artifacts.design_system}
                           />
                         )}
-                      {activeKey === "design_system_mobile" &&
+                      {displayKey === "design_system_mobile" &&
                         artifacts.design_system_mobile && (
                           <DesignSystemMobileView
                             markdown={artifacts.design_system_mobile}
                           />
                         )}
-                      {activeKey === "api_contract" &&
+                      {displayKey === "api_contract" &&
                         artifacts.api_contract &&
                         (() => {
                           const parsed =
@@ -1612,43 +1706,44 @@ export default function NewPlanPage({
                             )
                           return <ApiContractTable items={parsed} />
                         })()}
-                      {activeKey === "app_spec_web" &&
+                      {displayKey === "app_spec_web" &&
                         artifacts.app_spec_web && (
                           <AppSpecWebView data={artifacts.app_spec_web} />
                         )}
-                      {activeKey === "app_spec_mobile" &&
+                      {displayKey === "app_spec_mobile" &&
                         artifacts.app_spec_mobile && (
                           <AppSpecMobileView data={artifacts.app_spec_mobile} />
                         )}
                       {!(
-                        (activeKey === "analisa" && artifacts.analisa) ||
-                        (activeKey === "prd" && artifacts.prd) ||
-                        (activeKey === "standards_web" &&
+                        (displayKey === "analisa" && artifacts.analisa) ||
+                        (displayKey === "prd" && artifacts.prd) ||
+                        (displayKey === "standards_web" &&
                           artifacts.standards_web) ||
-                        (activeKey === "standards_mobile" &&
+                        (displayKey === "standards_mobile" &&
                           artifacts.standards_mobile) ||
-                        (activeKey === "agents" && artifacts.agents) ||
-                        (activeKey === "design_system" &&
+                        (displayKey === "agents" && artifacts.agents) ||
+                        (displayKey === "design_system" &&
                           artifacts.design_system) ||
-                        (activeKey === "design_system_mobile" &&
+                        (displayKey === "design_system_mobile" &&
                           artifacts.design_system_mobile) ||
-                        (activeKey === "api_contract" &&
+                        (displayKey === "api_contract" &&
                           artifacts.api_contract) ||
-                        (activeKey === "app_spec_web" &&
+                        (displayKey === "app_spec_web" &&
                           artifacts.app_spec_web) ||
-                        (activeKey === "app_spec_mobile" &&
+                        (displayKey === "app_spec_mobile" &&
                           artifacts.app_spec_mobile)
                       ) && (
                         <Markdown className="text-sm leading-relaxed text-[var(--color-fg-muted)]">
-                          {status[activeKey] === "done" && !artifacts[activeKey]
+                          {status[displayKey] === "done" &&
+                          !artifacts[displayKey]
                             ? "Tidak ada output"
-                            : artifacts[activeKey] || "Menunggu hasil AI..."}
+                            : artifacts[displayKey] || "Menunggu hasil AI..."}
                         </Markdown>
                       )}
                     </>
                   )}
 
-                  {activeKey === "architecture" &&
+                  {displayKey === "architecture" &&
                     artifacts.architecture &&
                     (() => {
                       const text = artifacts.architecture
@@ -1702,11 +1797,11 @@ export default function NewPlanPage({
                       )
                     })()}
 
-                  {activeKey === "erd" && (
+                  {displayKey === "erd" && (
                     <>
                       {status.erd === "running" && (
                         <div className="mt-4 text-sm whitespace-pre-wrap text-[var(--color-fg-muted)]">
-                          {artifacts[activeKey] || "Menunggu hasil AI..."}
+                          {artifacts[displayKey] || "Menunggu hasil AI..."}
                         </div>
                       )}
                       {status.erd === "done" &&
@@ -1782,8 +1877,9 @@ export default function NewPlanPage({
               )}
             </Card>
 
-            {/* Checkpoint bar */}
-            {(status[activeKey] === "done" || status[activeKey] === "error") &&
+            {/* Checkpoint bar — hanya untuk stage aktif pipeline, tidak di mode review */}
+            {!isViewing &&
+              (status[activeKey] === "done" || status[activeKey] === "error") &&
               !allDone && (
                 <Card className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-3">
@@ -2151,6 +2247,45 @@ export default function NewPlanPage({
         </Modal>
 
         {/* Konfirmasi mulai ulang — menghapus project permanen */}
+        <Modal
+          open={regenFromStage !== null}
+          onClose={() => setRegenFromStage(null)}
+          title="Generate Ulang Stage"
+          size="sm"
+        >
+          <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
+            Stage{" "}
+            <strong>
+              {stages.find((s) => s.key === regenFromStage)?.label}
+            </strong>{" "}
+            dan <strong>semua stage setelahnya</strong> akan di-generate ulang.
+            Jika pipeline sedang berjalan, proses akan dihentikan terlebih
+            dahulu.
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setRegenFromStage(null)}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleRegenFromStage}
+              disabled={regenBusy}
+            >
+              {regenBusy ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RotateCcw size={14} />
+              )}
+              Ya, Generate Ulang
+            </Button>
+          </div>
+        </Modal>
+
         <Modal
           open={showResetConfirm}
           onClose={() => setShowResetConfirm(false)}
