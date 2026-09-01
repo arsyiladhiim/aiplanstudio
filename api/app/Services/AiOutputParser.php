@@ -131,7 +131,10 @@ class AiOutputParser
 
         // Validate components (or widgets for mobile)
         if (! is_array($decoded[$componentsKey]) || count($decoded[$componentsKey]) < 3) {
-            $errors[] = "Field '{$componentsKey}' WAJIB array dengan minimal 3 entry.";
+            // 55-2.5 fix: bukan error fatal; pipeline deriveSpecComponents akan
+            // mengisi dari halaman/screens (anti-stuck). Pastikan array kosong
+            // saja agar derive tahu harus menurunkan.
+            $decoded[$componentsKey] = [];
         }
 
         // Cross-reference checks

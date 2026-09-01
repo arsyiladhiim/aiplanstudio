@@ -54,10 +54,10 @@ class PipelineRunner
         'pertanyaan' => 3000,
         'pertanyaan_mobile' => 3000,
         'analisa' => 4096,
-        'erd' => 4096,
-        'api_contract' => 4096,
-        'app_spec_web' => 4096,
-        'app_spec_mobile' => 4096,
+        'erd' => 8192,
+        'api_contract' => 12288,
+        'app_spec_web' => 12288,
+        'app_spec_mobile' => 12288,
         'prd' => 8192,
         'architecture' => 8192,
         'design_system' => 8192,
@@ -66,8 +66,8 @@ class PipelineRunner
         'phases_mobile' => 8192,
         'standards_web' => 8192,
         'standards_mobile' => 8192,
-        'master_web' => 8192,
-        'master_mobile' => 8192,
+        'master_web' => 12288,
+        'master_mobile' => 12288,
         'env_config' => 8192,
         'security' => 8192,
         'deployment' => 8192,
@@ -434,6 +434,10 @@ class PipelineRunner
             }
             if ($this->client->lastFinishReason === 'length') {
                 // Terpotong oleh token limit → lanjut continuation
+            } elseif (in_array($key, ['erd', 'api_contract', 'app_spec_web', 'app_spec_mobile', 'pertanyaan', 'pertanyaan_mobile'], true)
+                && $this->jsonParser->tryJsonDecode($this->jsonParser->extractJson($buffer)) === null) {
+                // JSON stage belum lengkap (finish unmarked) — paksa continuation
+                // bila budget chunk masih ada. Cegat artifact JSON terpotong senyap.
             } elseif ($added < 20 || $this->client->lastFinishReason === '') {
                 break;
             }
@@ -693,6 +697,7 @@ class PipelineRunner
         } elseif ($key === 'erd') {
             $parsed = $this->outputParser->parseErdText($content);
             if ($parsed !== null) {
+                $this->assertErdArtifact($parsed);
                 $value = $parsed;
                 if (isset($parsed['api_contract'])) {
                     $this->version->update(['api_contract' => $parsed['api_contract']]);
@@ -706,6 +711,7 @@ class PipelineRunner
             if ($phases === null) {
                 throw new \RuntimeException('Phases: Gagal parse output AI. Stage ditandai error.');
             }
+            $this->assertPhasesQuality($key, $phases);
             $value = $phases;
             $this->sse->emit('artifact', ['stage' => $key, 'content' => json_encode($phases, JSON_PRETTY_PRINT)]);
         } elseif ($key === 'api_contract') {
@@ -721,6 +727,7 @@ class PipelineRunner
                 }
                 $value = $this->normalizeApiContract($value);
                 $this->assertApiContractSchema($value);
+                $this->assertApiContractDepth($value);
                 $this->sse->emit('artifact', ['stage' => $key, 'content' => json_encode($value, JSON_PRETTY_PRINT)]);
             } else {
                 \Log::error('[api_contract] JSON gagal di-parse', [
@@ -894,6 +901,100 @@ class PipelineRunner
         }
 
         return $checks > 0 ? round($score, 2) : null;
+    }
+
+    /**
+     * api_contract depth (55-2.3): flat endpoint minimal 12, dan ≥2× jumlah
+     * entitas ERD (resource CRUD minimum per entitas inti). Gagal → retry loop.
+     *
+     * @param array<int, array> $value normalized contract
+     */
+    private function assertApiContractDepth(array $value): void
+    {
+        $erdNodes = $this->version->erd['nodes'] ?? [];
+        $erdCount = is_array($erdNodes) ? count($erdNodes) : 0;
+        $min = max(12, $erdCount * 2);
+        if (count($value) < $min) {
+            throw new \RuntimeException("api_contract: endpoint terlalu sedikit (".count($value)." < {$min}). Target minimal 2 endpoint per tabel ERD ({$erdCount} tabel). Stage ditandai error.");
+        }
+    }
+
+    /**
+     * Phases enforcement (55-2.5): min 5 fase, tiap fase ≥3 task, prompt
+     * instruksi ≥100 kata. Gagal → RuntimeException → retryAndValidate loop.
+     */
+    private function assertPhasesQuality(string $stage, array $phases): void
+    {
+        if (count($phases) < 5) {
+            throw new \RuntimeException($stage.': fase terlalu sedikit ('.count($phases).' < 5). Stage ditandai error.');
+        }
+        foreach ($phases as $i => $phase) {
+            $tasks = $phase['tasks'] ?? [];
+            if (! is_array($tasks) || count($tasks) < 3) {
+                throw new \RuntimeException($stage.": phase #".($i + 1)." punya ".count((array) $tasks)." task (min 3). Stage ditandai error.");
+            }
+            $prompt = (string) ($phase['prompt'] ?? '');
+            if ($prompt !== '' && str_word_count(preg_replace('/[^\w\s]/u', ' ', $prompt)) < 60) {
+                throw new \RuntimeException($stage.": phase #".($i + 1)." instruksi terlalu pendek (min 60 kata). Stage ditandai error.");
+            }
+        }
+    }
+
+    /**
+     * ERD enforcement (55-2.2): cegat output dangkal. Ambang dinamis:
+     * maks(8, 2 × jumlah modul dari section 'Daftar Halaman' di analisa).
+     * Throw RuntimeException → retryAndValidate retry otomatis.
+     */
+    private function assertErdArtifact(array $erd): void
+    {
+        $nodes = $erd['nodes'] ?? [];
+        $edges = $erd['edges'] ?? [];
+        if (! is_array($nodes) || $nodes === []) {
+            throw new \RuntimeException('ERD: nodes kosong. Stage ditandai error.');
+        }
+
+        $modules = 4;
+        $analysis = (string) ($this->version->analysis ?? '');
+        if (preg_match('/##\s*\d+\.\s*(?:Daftar\s+)?Halaman[^\n]*\n(.*?)(?=^##\s|\z)/msi', $analysis, $m)) {
+            preg_match_all('/^\s*[-*]\s+/m', $m[1], $items);
+            if (count($items[0]) > 0) {
+                $modules = count($items[0]);
+            }
+        }
+        $minNodes = max(8, $modules * 2);
+
+        $n = count($nodes);
+        if ($n < $minNodes) {
+            throw new \RuntimeException("ERD: entitas terlalu sedikit ({$n}), minimum {$minNodes} dari {$modules} modul analisa. Tambahkan tabel per modul (master data, transaksi, log, settings). Stage ditandai error.");
+        }
+
+        $ids = [];
+        foreach ($nodes as $i => $node) {
+            $id = $node['id'] ?? null;
+            if (! is_string($id) || $id === '') {
+                throw new \RuntimeException("ERD: node#{$i} tidak punya id. Stage ditandai error.");
+            }
+            $ids[$id] = true;
+            $fields = $node['fields'] ?? [];
+            if (! is_array($fields) || $fields === []) {
+                throw new \RuntimeException("ERD: node {$id} tanpa fields. Stage ditandai error.");
+            }
+            $joined = implode(' ', array_map('strval', $fields));
+            if (! preg_match('/(^|\s)id\s*\(/i', $joined)) {
+                throw new \RuntimeException("ERD: tabel {$id} tidak punya PK `id`. Stage ditandai error.");
+            }
+            if (! str_contains($joined, 'created_at')) {
+                throw new \RuntimeException("ERD: tabel {$id} tidak punya kolom created_at. Stage ditandai error.");
+            }
+        }
+
+        foreach ($edges as $i => $edge) {
+            $from = $edge['from'] ?? null;
+            $to = $edge['to'] ?? null;
+            if (! is_string($from) || ! isset($ids[$from]) || ! is_string($to) || ! isset($ids[$to])) {
+                throw new \RuntimeException("ERD: edge#{$i} merujuk node tidak dikenal. Stage ditandai error.");
+            }
+        }
     }
 
     /**

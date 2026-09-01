@@ -107,6 +107,44 @@ class StageQualityScoreTest extends TestCase
         $this->assertSame(0.3, $scoreInvalid);
     }
 
+    public function test_erd_enforcement_rejects_too_few_nodes(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'assertErdArtifact');
+        $ref->setAccessible(true);
+
+        $small = ['nodes' => [
+            ['id' => 'users', 'label' => 'U', 'fields' => ['id (PK bigint)', 'created_at (timestamp)']],
+            ['id' => 'projects', 'label' => 'P', 'fields' => ['id (PK bigint)', 'created_at (timestamp)']],
+        ], 'edges' => [['from' => 'users', 'to' => 'projects', 'relation' => 'one-to-many']]];
+
+        try {
+            $ref->invoke($runner, $small);
+            $this->fail('harus throw untuk 2 node');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('entitas terlalu sedikit', $e->getMessage());
+        }
+    }
+
+    public function test_erd_enforcement_rejects_edge_unknown_node(): void
+    {
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'assertErdArtifact');
+        $ref->setAccessible(true);
+        $nodes = [];
+        for ($i = 1; $i <= 8; $i++) {
+            $nodes[] = ['id' => "t{$i}", 'label' => "t{$i}", 'fields' => ['id (PK bigint)', 'created_at (timestamp)']];
+        }
+        try {
+            $ref->invoke($runner, ['nodes' => $nodes, 'edges' => [['from' => 't1', 'to' => 'ghost', 'relation' => 'one-to-many']]]);
+            $this->fail('harus throw pada edge ghost');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('node tidak dikenal', $e->getMessage());
+        }
+    }
+
     public function test_quality_score_api_contract_json_rubric(): void
     {
         $client = new AiClient;

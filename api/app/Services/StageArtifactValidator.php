@@ -162,21 +162,32 @@ class StageArtifactValidator
 
     public function validateDesignSystemSectionRules(string $stage, string $content): void
     {
-        // Section 2: Token System — must have a code fence (css or dart) with at least 4 color vars.
-        $codeFence = $this->outputParser->extractCodeFence($content, 'css')
-            ?? $this->outputParser->extractCodeFence($content, 'dart');
-        if ($codeFence === null) {
+        // Section 2: Token System — css fence (web) atau dart fence (Flutter).
+        $cssFence = $this->outputParser->extractCodeFence($content, 'css');
+        $dartFence = $this->outputParser->extractCodeFence($content, 'dart');
+        if ($cssFence === null && $dartFence === null) {
             throw new \RuntimeException($stage.': Section 2 (Token System) WAJIB punya code fence (```css untuk web atau ```dart untuk Flutter). Stage ditandai error.');
         }
 
-        $colorVars = preg_match_all('/--color-[a-z0-9_-]+/i', $codeFence);
-        if ($colorVars < 4) {
-            throw new \RuntimeException($stage.': Section 2 (Token System) WAJIB punya minimal 4 variabel --color-*. Saat ini: '.$colorVars.'. Stage ditandai error.');
-        }
+        if ($dartFence !== null && $cssFence === null) {
+            $colors = preg_match_all('/Color\s*\(\s*0x|Colors\./i', $dartFence);
+            if ($colors < 4) {
+                throw new \RuntimeException($stage.': Section 2 (dart) WAJIB punya minimal 4 definisi warna (Color(0x…)/Colors.*). Saat ini: '.$colors.'. Stage ditandai error.');
+            }
+            $fonts = preg_match_all('/TextStyle|fontFamily|GoogleFonts/i', $dartFence);
+            if ($fonts < 2) {
+                throw new \RuntimeException($stage.': Section 2 (dart) WAJIB punya minimal 2 definisi font (TextStyle/GoogleFonts). Saat ini: '.$fonts.'. Stage ditandai error.');
+            }
+        } else {
+            $colorVars = preg_match_all('/--color-[a-z0-9_-]+/i', $cssFence ?? '');
+            if ($colorVars < 4) {
+                throw new \RuntimeException($stage.': Section 2 (Token System) WAJIB punya minimal 4 variabel --color-*. Saat ini: '.$colorVars.'. Stage ditandai error.');
+            }
 
-        $fontVars = preg_match_all('/--font-[a-z0-9_-]+/i', $codeFence);
-        if ($fontVars < 2) {
-            throw new \RuntimeException($stage.': Section 2 (Token System) WAJIB punya minimal 2 variabel --font-*. Stage ditandai error.');
+            $fontVars = preg_match_all('/--font-[a-z0-9_-]+/i', $cssFence ?? '');
+            if ($fontVars < 2) {
+                throw new \RuntimeException($stage.': Section 2 (Token System) WAJIB punya minimal 2 variabel --font-*. Saat ini: '.$fontVars.'. Stage ditandai error.');
+            }
         }
 
         // Section 3: Signature Element — must have ≥3 screens (### Screen N: ...)

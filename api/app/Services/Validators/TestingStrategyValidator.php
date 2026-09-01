@@ -37,9 +37,21 @@ class TestingStrategyValidator
         $this->core->validateMarkdownArtifact($stage, $content, self::REQUIRED_HEADINGS);
 
         // Critical Paths minimal 5 — cek sebelum length agar pesan error akurat.
+        // Terima kedua bentuk penulisan: **PATH-N**: (prompt) dan **PATH-N:** (gaya alternatif).
+        // Fallback: hitung baris list yang diawali PATH-N di section Critical Paths.
         preg_match_all('/\*\*PATH-\d+:\*\*/', $content, $m);
-        if (count($m[0]) < 5) {
-            throw new \RuntimeException($stage.': Critical Paths minimal 5 (sekarang '.count($m[0]).'). Stage ditandai error.');
+        $count = count($m[0]);
+        if ($count < 5) {
+            preg_match_all('/\*\*PATH-\d+\*\*:/', $content, $m);
+            $count = count($m[0]);
+        }
+        if ($count < 5) {
+            // Longgar: nomor PATH tanpa bold (penulis AI yang tidak konsisten format).
+            preg_match_all('/PATH-\d+\s*:/', $content, $m);
+            $count = count($m[0]);
+        }
+        if ($count < 5) {
+            throw new \RuntimeException($stage.': Critical Paths minimal 5 (sekarang '.$count.'). Stage ditandai error.');
         }
 
         // Length check terakhir (semua heading + 5 critical paths sudah terpenuhi).

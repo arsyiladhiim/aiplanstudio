@@ -14,12 +14,12 @@ Keputusan user: ERD min dinamis (≥2×modul PRD, floor 8); retry loop maks 2; c
 
 ## Batch 2 — Kualitas output pipeline (backend)
 
-- [ ] 2.1 TestingStrategyValidator: regex `**PATH-N**:` DAN `**PATH-N:**` + fallback count baris list di section; + unit test
-- [ ] 2.2 ERD: prompt richness (modul dari PRD); backend enforce `MIN_NODES = max(8, 2 × fitur/modul)`; PK/FK/audit/timestamps; retry maks 2
-- [ ] 2.3 api_contract: min endpoints `max(12, 2 × resource ERD)`; coverage resource↔nodes ≥80%
-- [ ] 2.4 Token budget: master_/api_contract/app_spec → 12288; continuation tangguh (length ATAU json belum lengkap); jangan berhenti pada chunk kecil
-- [ ] 2.5 Drift fixes: phases (≥5 fase, ≥3 tasks, instruksi ≥100 kata), design_system_mobile tanpa syarat CSS var, app_spec_mobile prompt ≥3 widgets, PRD per-story AC ringan, deriveSpecComponents aktif sebelum throw
-- [ ] 2.6 Advisory lock: `pg_try_advisory_lock` di GenerateStream + regenerate; 409 duplikat; unlock finally; test duplikat
+- [x] 2.1 TestingStrategyValidator: regex `**PATH-N**:` DAN `**PATH-N:**` + fallback count baris list di section; + unit test
+- [x] 2.2 ERD: prompt richness (modul dari PRD); backend enforce `MIN_NODES = max(8, 2 × fitur/modul)`; PK/FK/audit/timestamps; retry maks 2
+- [x] 2.3 api_contract: min endpoints `max(12, 2 × resource ERD)`; coverage resource↔nodes ≥80%
+- [x] 2.4 Token budget: master_/api_contract/app_spec → 12288; continuation tangguh (length ATAU json belum lengkap); jangan berhenti pada chunk kecil
+- [x] 2.5 Drift fixes: phases (≥5 fase, ≥3 tasks, instruksi ≥100 kata), design_system_mobile tanpa syarat CSS var, app_spec_mobile prompt ≥3 widgets, PRD per-story AC ringan, deriveSpecComponents aktif sebelum throw
+- [x] 2.6 Advisory lock: `pg_try_advisory_lock` di GenerateStream + regenerate; 409 duplikat; unlock finally; test duplikat
 
 ## Batch 3 — Robustness + housekeeping
 

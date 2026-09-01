@@ -121,6 +121,48 @@ class GenerateStreamTest extends TestCase
         $this->assertSame('done', $this->version->fresh()->stage_status['erd']);
     }
 
+    public function test_concurrent_generate_same_stage_returns_409(): void
+    {
+        // 55-2.6: pegang lock dari koneksi PDO lain (beda session) — request app
+        // memakai koneksi default → try_lock gagal → 409.
+        $cfg = config('database.connections.pgsql');
+        $pdo = new \PDO(
+            sprintf('pgsql:host=%s;port=%s;dbname=%s', $cfg['host'], $cfg['port'], $cfg['database']),
+            $cfg['username'],
+            $cfg['password'],
+        );
+        $pdo->exec('SET search_path TO aiplanstudio_project, public');
+        $obj = crc32('analisa') >= 2147483648 ? crc32('analisa') - 4294967296 : crc32('analisa');
+        $stmt = $pdo->prepare('SELECT pg_try_advisory_lock(?, ?)');
+        $stmt->execute([$this->version->id, $obj]);
+        $locked = (bool) $stmt->fetchColumn();
+        $this->assertTrue($locked, 'lock dari koneksi lain harus bisa dipegang');
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->post("/api/generate/stream?version={$this->version->id}&stage=analisa&auto=0");
+
+        $response->assertStatus(409);
+        $pdo->exec("SELECT pg_advisory_unlock({$this->version->id}, {$obj})");
+        $pdo = null;
+    }
+
+    public function test_generate_stage_releases_lock_after_run(): void
+    {
+        $this->version->update([
+            'stage_status' => array_merge(Version::defaultStageStatus(), ['erd' => 'done']),
+            'erd' => ['nodes' => [['id' => 'users', 'label' => 'users']], 'edges' => []],
+        ]);
+
+        $this->actingAs($this->user, 'sanctum')
+            ->post("/api/generate/stream?version={$this->version->id}&stage=erd&auto=0");
+
+        // Lock harus dilepas pasca request — call kedua tidak 409.
+        $this->assertTrue(
+            \App\Http\Controllers\GenerateStreamController::tryAcquireLock($this->version->id, 'erd')
+        );
+        \App\Http\Controllers\GenerateStreamController::releaseLock($this->version->id, 'erd');
+    }
+
     public function test_stage_done_with_artifact_is_not_regenerated(): void
     {
         // Idempotency guard: stage done + artifact tersimpan → skip regen.

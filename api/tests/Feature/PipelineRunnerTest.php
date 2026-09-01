@@ -252,9 +252,37 @@ class PipelineRunnerTest extends TestCase
         $this->assertSame($content, $this->version->analysis);
     }
 
+    private function contractFixtureJson(string $fmt = 'plain'): string
+    {
+        $endpoints = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $endpoints[] = ['resource' => 'r'.($i % 4 + 1), 'method' => $i % 2 ? 'GET' : 'POST', 'path' => '/r'.$i, 'description' => 'ep '.$i, 'auth' => 'session'];
+        }
+        $json = json_encode($endpoints);
+
+        return match ($fmt) {
+            'wrapped' => json_encode(['base_url' => '/api', 'endpoints' => $endpoints]),
+            'prose' => "Berikut contract:\n```json\n".$json."\n```\nSelesai.",
+            default => $json,
+        };
+    }
+
+    private function erdTextFixture(int $n = 8): string
+    {
+        $lines = [];
+        for ($i = 1; $i <= $n; $i++) {
+            $lines[] = "TABEL: t{$i} | id (PK bigint), name (string), created_at (timestamp)";
+        }
+        for ($i = 2; $i <= $n; $i++) {
+            $lines[] = "RELASI: t1 -> t{$i} | one-to-many";
+        }
+
+        return implode("\n", $lines);
+    }
+
     public function test_save_artifact_parses_erd_lines(): void
     {
-        $content = "TABEL: users | id, name, email\nRELASI: posts -> users | belongs_to\nAPI: GET | /users | list users | true";
+        $content = $this->erdTextFixture()."\nAPI: GET | /users | list users | true";
 
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
@@ -265,8 +293,8 @@ class PipelineRunnerTest extends TestCase
 
         $this->version->refresh();
         $this->assertIsArray($this->version->erd);
-        $this->assertSame('users', $this->version->erd['nodes'][0]['id']);
-        $this->assertSame('posts', $this->version->erd['edges'][0]['from']);
+        $this->assertSame('t1', $this->version->erd['nodes'][0]['id']);
+        $this->assertSame('t1', $this->version->erd['edges'][0]['from']);
         $this->assertSame('GET', $this->version->erd['api_contract'][0]['method']);
     }
 
@@ -283,7 +311,16 @@ class PipelineRunnerTest extends TestCase
 
     public function test_save_artifact_parses_erd_json_block(): void
     {
-        $content = "Berikut ERD:\n```json\n{\n\"nodes\": [{\"id\": \"users\", \"label\": \"users\", \"fields\": [\"id\", \"name\"]}],\n\"edges\": [{\"from\": \"posts\", \"to\": \"users\", \"relation\": \"belongs_to\"}],\n\"api_contract\": [{\"resource\": \"users\", \"method\": \"GET\", \"path\": \"/users\", \"description\": \"list users\", \"auth\": \"session\"}]\n}\n```";
+        $nodes = [];
+        $edges = [];
+        for ($i = 1; $i <= 8; $i++) {
+            $nodes[] = ['id' => "t{$i}", 'label' => "t{$i}", 'fields' => ['id (PK bigint)', 'name (string)', 'created_at (timestamp)']];
+            if ($i > 1) {
+                $edges[] = ['from' => 't1', 'to' => "t{$i}", 'relation' => 'one-to-many'];
+            }
+        }
+        $payload = json_encode(['nodes' => $nodes, 'edges' => $edges, 'api_contract' => [['resource' => 't1', 'method' => 'GET', 'path' => '/t1', 'description' => 'list', 'auth' => 'session']]]);
+        $content = "Berikut ERD:\n```json\n".$payload."\n```";
 
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
@@ -294,14 +331,14 @@ class PipelineRunnerTest extends TestCase
 
         $this->version->refresh();
         $this->assertIsArray($this->version->erd);
-        $this->assertSame('users', $this->version->erd['nodes'][0]['id']);
-        $this->assertSame('belongs_to', $this->version->erd['edges'][0]['relation']);
+        $this->assertSame('t1', $this->version->erd['nodes'][0]['id']);
+        $this->assertSame('one-to-many', $this->version->erd['edges'][0]['relation']);
         $this->assertSame('GET', $this->version->erd['api_contract'][0]['method']);
     }
 
     public function test_save_artifact_fills_missing_api_contract_from_json(): void
     {
-        $content = "TABEL: users | id, name\n{\"api_contract\": [{\"resource\": \"users\", \"method\": \"POST\", \"path\": \"/users\", \"description\": \"create\", \"auth\": \"session\"}]}";
+        $content = $this->erdTextFixture()."\n{\"api_contract\": [{\"resource\": \"users\", \"method\": \"POST\", \"path\": \"/users\", \"description\": \"create\", \"auth\": \"session\"}]}";
 
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
@@ -311,7 +348,7 @@ class PipelineRunnerTest extends TestCase
         $ref->invoke($runner, 'erd', $content);
 
         $this->version->refresh();
-        $this->assertSame('users', $this->version->erd['nodes'][0]['id']);
+        $this->assertSame('t1', $this->version->erd['nodes'][0]['id']);
         $this->assertSame('POST', $this->version->erd['api_contract'][0]['method']);
         $this->assertSame('/users', $this->version->erd['api_contract'][0]['path']);
     }
@@ -355,7 +392,7 @@ class PipelineRunnerTest extends TestCase
 
     public function test_api_contract_save_accepts_plain_array(): void
     {
-        $content = '[{"resource":"users","method":"GET","path":"/users","description":"List user","auth":"session"}]';
+        $content = $this->contractFixtureJson();
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
@@ -366,27 +403,12 @@ class PipelineRunnerTest extends TestCase
 
         $this->assertIsArray($this->version->api_contract);
         $this->assertSame('GET', $this->version->api_contract[0]['method']);
-        $this->assertSame('/users', $this->version->api_contract[0]['path']);
+        $this->assertSame('/r1', $this->version->api_contract[0]['path']);
     }
 
     public function test_api_contract_save_accepts_wrapped_object_endpoints(): void
     {
-        $content = '{"base_url":"/api","endpoints":[{"resource":"auth","method":"POST","path":"/auth/login","description":"login","auth":"none"}]}';
-        $client = new AiClient;
-        $runner = new PipelineRunner($this->version, $client);
-        $ref = new \ReflectionMethod($runner, 'saveArtifact');
-        $ref->setAccessible(true);
-
-        $ref->invoke($runner, 'api_contract', $content);
-        $this->version->refresh();
-
-        $this->assertIsArray($this->version->api_contract);
-        $this->assertSame('POST', $this->version->api_contract[0]['method']);
-    }
-
-    public function test_api_contract_save_handles_prose_and_fence_wrap(): void
-    {
-        $content = "Berikut adalah contract:\n```json\n[{\"resource\":\"health\",\"method\":\"GET\",\"path\":\"/ping\",\"description\":\"ping\",\"auth\":\"none\"}]\n```\nSemoga membantu.";
+        $content = $this->contractFixtureJson('wrapped');
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
@@ -399,19 +421,33 @@ class PipelineRunnerTest extends TestCase
         $this->assertSame('GET', $this->version->api_contract[0]['method']);
     }
 
-    public function test_api_contract_save_handles_unquoted_and_single_quotes(): void
+    public function test_api_contract_save_handles_prose_and_fence_wrap(): void
     {
+        $content = $this->contractFixtureJson('prose');
+        $client = new AiClient;
+        $runner = new PipelineRunner($this->version, $client);
+        $ref = new \ReflectionMethod($runner, 'saveArtifact');
+        $ref->setAccessible(true);
+
+        $ref->invoke($runner, 'api_contract', $content);
+        $this->version->refresh();
+
+        $this->assertIsArray($this->version->api_contract);
+        $this->assertSame('GET', $this->version->api_contract[0]['method']);
+    }
+
+    public function test_api_contract_save_rejects_too_few_endpoints(): void
+    {
+        // Kedalaman rule baru: <12 endpoint selalu error (meski format lolos).
         $content = "[{resource:'health',method:'GET',path:'/healthz',description:'health',auth:'none'}]";
         $client = new AiClient;
         $runner = new PipelineRunner($this->version, $client);
         $ref = new \ReflectionMethod($runner, 'saveArtifact');
         $ref->setAccessible(true);
 
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('endpoint terlalu sedikit');
         $ref->invoke($runner, 'api_contract', $content);
-        $this->version->refresh();
-
-        $this->assertIsArray($this->version->api_contract);
-        $this->assertSame('GET', $this->version->api_contract[0]['method']);
     }
 
     public function test_api_contract_save_throws_when_invalid_json(): void

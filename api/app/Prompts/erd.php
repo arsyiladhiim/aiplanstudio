@@ -40,17 +40,16 @@ Frontend pakai React Flow untuk render visual: tabel sebagai nodes (id/label/fie
 
 Tambahkan tabel/relasi spesifik sesuai domain project di bawah nodes + edges di atas. Untuk field baru, format eksplisit: `nama_field (tipe_data [constraint])` — contoh: `slug (string UK)`, `email (string UK)`, `created_at (timestamp)`, `metadata (jsonb)`. Untuk FK: `user_id (FK bigint → users.id)`.
 
-[ATURAN]
+[ATURAN UTAMA]
 - Output HANYA JSON block valid. JANGAN ada teks sebelum/ sesudahnya.
-- Minimal 4 entitas (`nodes`) yang relevan dengan aplikasi.
+- **Cakupan entitas (WAJIB):** untuk setiap modul/halaman yang disebut di PRD/analisa, WAJIB ada minimal 1 tabel. Sistem kompleks (ERP/POS/management) pada umumnya butuh 10-20 tabel (users perusahaan, master data, transaksi/header+detail, log/audit, settings, reporting materialized) — JANGAN puas hanya 4-6 tabel. Ambang minimum backend: maks(8, 2 × jumlah modul dari analisa), dihitung automatis — sistem akan menolak output yang terlalu dangkal.
 - Setiap node WAJIB punya `id`, `label`, dan `fields` (array string dengan format `(tipe [constraint])`).
-- Setiap tabel WAJIB punya PK `id` (bigint).
-- FK fields WAJIB reference `tabel_lain.id` di label notation.
-- Soft delete (`deleted_at` timestamp nullable) WAJIB untuk tabel business (users, projects, versions).
-- Setiap tabel WAJIB punya `created_at`, `updated_at`.
+- Setiap tabel WAJIB punya PK `id` (bigint) dan `created_at`, `updated_at`.
+- Setiap FK wajib ada di `fields` dengan pola `namafk (FK bigint → tabel.id)` DAN relasi yang sama muncul di `edges`.
+- Soft delete (`deleted_at` timestamp nullable) WAJIB untuk tabel business inti.
+- Relasi many-to-many WAJIB pakai tabel pivot (contoh: `project_user`, `product_tag`) sebagai node tersendiri.
 - Relasi (`edges`): `from`/`to` pakai node `id`, `relation` salah satu dari `one-to-one`, `one-to-many`, `many-to-one`, `many-to-many`.
 - JANGAN tulis Mermaid, markdown table, atau format visual lain — JSON saja.
-- Self-check: parse JSON sebelum respond. Pastikan valid dan React Flow compatible.
-- Mulai langsung dengan ```json pada baris pertama (setelah "# ERD:" heading optional).
+- Self-check sebelum respond: (1) JSON valid, (2) jumlah nodes ≥ ambang di atas, (3) setiap modul PRD punya tabel, (4) semua FK merujuk node yang ada.
 
 ' . platformSuffix($target);

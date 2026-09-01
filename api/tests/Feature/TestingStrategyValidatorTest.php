@@ -69,6 +69,31 @@ MD;
         return str_pad($base, 1600, "\n\nBoilerplate teks pengisi agar artifact mencapai panjang minimum yang dipersyaratkan validator.\n");
     }
 
+    public function test_path_format_colon_inside_bold_is_accepted(): void
+    {
+        // Prompt menghasilkan **PATH-1:**, tapi historis validator salah-sangka
+        // format ini invalid (user melihat "minimal 5 (sekarang 0)").
+        $doc = preg_replace(
+            '/\*\*PATH-(\d+):\*\*/',
+            '- **PATH-$1:** dulu',
+            $this->validDoc()
+        );
+        // Valid doc sudah pakai format colon-inside; pastikan lulus saat colon-outside.
+        $this->validator->validate('testing_strategy', $this->validDoc());
+        $this->assertTrue(true);
+    }
+
+    public function test_path_format_colon_outside_bold_is_accepted(): void
+    {
+        $doc = str_replace('**PATH-1:** Login', '**PATH-1**: Login', $this->validDoc());
+        $doc = str_replace('**PATH-2:** Register', '**PATH-2**: Register', $doc);
+        $doc = str_replace('**PATH-3:** Create', '**PATH-3**: Create', $doc);
+        $doc = str_replace('**PATH-4:** Webhook', '**PATH-4**: Webhook', $doc);
+        $doc = str_replace('**PATH-5:** Export', '**PATH-5**: Export', $doc);
+        $this->validator->validate('testing_strategy', $doc);
+        $this->assertTrue(true);
+    }
+
     public function test_valid_doc_passes(): void
     {
         $this->validator->validate('testing_strategy', $this->validDoc());

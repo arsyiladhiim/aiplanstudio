@@ -861,6 +861,12 @@ class VersionController extends Controller
             return response()->json(['ok' => false, 'message' => 'AI Provider belum dikonfigurasi.'], 400);
         }
 
+        // 55-2.6: lock yang sama dengan GenerateStreamController — regenerate
+        // tidak boleh jalan bersamaan dengan pipeline stream stage lain.
+        if (! GenerateStreamController::tryAcquireLock($id, $stage)) {
+            return response()->json(['ok' => false, 'message' => 'Stage sedang diproses pipeline lain. Coba lagi sebentar.'], 409);
+        }
+
         $snapshot = $version->only([
             'master_prompt', 'mobile_master_prompt', 'phases', 'mobile_phases',
             'standards', 'mobile_standards', 'agents', 'mobile_agents',
@@ -912,6 +918,8 @@ class VersionController extends Controller
                 'ok' => false,
                 'message' => 'Gagal meregenerasi stage. State dikembalikan ke sebelum regenerate.',
             ], 500);
+        } finally {
+            GenerateStreamController::releaseLock($id, $stage);
         }
     }
 
