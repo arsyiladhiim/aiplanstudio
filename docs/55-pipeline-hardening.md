@@ -23,9 +23,9 @@ Keputusan user: ERD min dinamis (≥2×modul PRD, floor 8); retry loop maks 2; c
 
 ## Batch 3 — Robustness + housekeeping
 
-- [ ] 3.1 SSE client: idle timeout 30s restart; 419 → CSRF refresh auto-retry; multi-line data
-- [ ] 3.2 Scoring: keyword groups analisa/phases/master/testing_strategy; generic-pattern skip pada JSON stage
-- [ ] 3.3 Lazy-load viewer berat di /new (AnalysisView/PrdView/dst)
-- [ ] 3.4 projects: guard latest_version null, countdown interval stop saat done, debounce refetch fase 2s
-- [ ] 3.5 A11y: modal focus-return, radio arrow-key, drawer aria-expanded
-- [ ] 3.6 Test gaps: erd min, api_contract fallback, master SELESAI, phases min, 419, duplikat concurrent
+- [x] 3.1 SSE client: idle timeout 30s restart; 419 → CSRF refresh auto-retry; multi-line data
+- [x] 3.2 Scoring: keyword groups analisa/phases/master/testing_strategy; generic-pattern skip pada JSON stage
+- [x] 3.3 Lazy-load viewer berat di /new (AnalysisView/PrdView/dst)
+- [x] 3.4 projects: guard latest_version null, countdown interval stop saat done, debounce refetch fase 2s
+- [x] 3.5 A11y: modal focus-return, radio arrow-key, drawer aria-expanded
+- [x] 3.6 Test gaps: erd min, api_contract fallback, master SELESAI, phases min, 419, duplikat concurrent

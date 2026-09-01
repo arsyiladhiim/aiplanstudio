@@ -213,7 +213,6 @@ export async function apiSetupAutoTracking(
   )
 }
 
-
 /** POST-based SSE stream (alternative to EventSource, supports CSRF) */
 export async function createSSEPost(
   path: string,
@@ -243,7 +242,9 @@ export async function createSSEPost(
       try {
         const retryController = new AbortController()
         const onOuterAbort = () => retryController.abort()
-        controller.signal.addEventListener("abort", onOuterAbort, { once: true })
+        controller.signal.addEventListener("abort", onOuterAbort, {
+          once: true,
+        })
         res = await fetch(`${BASE}/api${path}`, {
           method: "POST",
           headers: csrfHeaders("POST"),
@@ -262,6 +263,23 @@ export async function createSSEPost(
     } else {
       const e = err instanceof Error ? err : new Error(String(err))
       onError?.(e)
+      return controller
+    }
+  }
+
+  // 419 mid-life → CSRF refresh + retry sekali (jalan yang sama dengan apiFetch).
+  if (res.status === 419) {
+    try {
+      await fetchCsrfToken()
+      res = await fetch(`${BASE}/api${path}`, {
+        method: "POST",
+        headers: csrfHeaders("POST"),
+        credentials: "include",
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+    } catch (err) {
+      onError?.(err instanceof Error ? err : new Error(String(err)))
       return controller
     }
   }
@@ -287,35 +305,92 @@ export async function createSSEPost(
   const decoder = new TextDecoder()
   let buffer = ""
 
+  // Idle timeout: stream tak terikat di tengah (server/network) → error →
+  // caller retry. Tanpa ini fetch menggantung selamanya dan user terjebak.
+  const IDLE_TIMEOUT_MS = 30_000
+  let idleTimer: ReturnType<typeof setTimeout> | null = null
+  const resetIdle = () => {
+    if (idleTimer) clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      if (finished) return
+      finished = true
+      onError?.(new Error("Stream idle (30 detik tanpa data)."))
+      reader.cancel().catch(() => {})
+    }, IDLE_TIMEOUT_MS)
+  }
+  const clearIdle = () => {
+    if (idleTimer) {
+      clearTimeout(idleTimer)
+      idleTimer = null
+    }
+  }
+
   const pump = async (): Promise<void> => {
+    resetIdle()
     while (true) {
       const { done, value } = await reader.read()
       if (done || finished) break
+      resetIdle()
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split("\n")
       buffer = lines.pop() || ""
 
       let eventName = "message"
+      let dataLines: string[] = []
+      const flushData = () => {
+        if (dataLines.length === 0) return
+        const raw = dataLines.join("\n").trim()
+        dataLines = []
+        if (!raw || raw === "[DONE]") return
+        try {
+          const parsed = JSON.parse(raw)
+          const eventType = parsed.type || eventName
+          if (eventType === "done" || eventType === "fail") finished = true
+          onEvent(eventType, parsed)
+        } catch {
+          // skip unparseable lines
+        }
+        eventName = "message"
+      }
       for (const line of lines) {
         if (line.startsWith("event: ")) {
           eventName = line.slice(7).trim()
           continue
         }
         if (line.startsWith("data: ")) {
-          const data = line.slice(6).trim()
-          if (!data || data === "[DONE]") continue
-          try {
-            const parsed = JSON.parse(data)
-            const eventType = parsed.type || eventName
-            if (eventType === "done" || eventType === "fail") finished = true
-            onEvent(eventType, parsed)
-          } catch {
-            // skip unparseable lines
+          dataLines.push(line.slice(6))
+          if (
+            !dataLines.join("\n").trim().startsWith("{") ||
+            dataLines.join("\n").trim().endsWith("}") ||
+            dataLines.join("\n").trim().endsWith("]")
+          ) {
+            const raw = dataLines.join("\n").trim()
+            try {
+              const parsed = JSON.parse(raw)
+              const eventType = parsed.type || eventName
+              if (eventType === "done" || eventType === "fail") finished = true
+              onEvent(eventType, parsed)
+              dataLines = []
+              eventName = "message"
+            } catch {
+              // belum lengkap — kumpulkan baris berikutnya (multi-line)
+            }
+            continue
           }
-          eventName = "message"
+        } else if (!line.startsWith(":")) {
+          // blank/comment — jika ada akumulasi data coba flush
+          try {
+            if (dataLines.length) {
+              JSON.parse(dataLines.join("\n").trim())
+              flushData()
+            }
+          } catch {
+            /* tunggu */
+          }
         }
       }
     }
+    clearIdle()
     reader.releaseLock()
   }
 

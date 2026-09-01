@@ -116,6 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <aside
+        id="app-mobile-drawer"
         className={`glass fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-[var(--color-border)] p-4 transition-transform lg:static lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="flex items-center justify-between">
@@ -216,6 +217,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="lg:hidden"
             onClick={() => setOpen(true)}
             aria-label="Buka menu"
+            aria-expanded={open}
+            aria-controls="app-mobile-drawer"
             data-testid="menu-open"
           >
             <Menu size={22} />

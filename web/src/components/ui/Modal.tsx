@@ -41,6 +41,7 @@ export function Modal({
 
   useEffect(() => {
     if (!open) return
+    const prevActive = document.activeElement as HTMLElement | null
     const dialog = dialogRef.current
     if (!dialog) return
 
@@ -75,6 +76,7 @@ export function Modal({
     return () => {
       document.removeEventListener("keydown", handleKey)
       document.body.style.overflow = ""
+      prevActive?.focus?.()
     }
   }, [open])
 

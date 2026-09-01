@@ -191,12 +191,12 @@ export default function ProjectDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVersion?.id])
 
-  // Update countdown every second for the timer display
+  // Update countdown every second for the timer display; hentikan saat pipeline selesai.
   useEffect(() => {
-    if (!lastRefreshed) return
+    if (!lastRefreshed || allDoneRef.current) return
     const tick = setInterval(() => setCountdown((c) => c + 1), 1000)
     return () => clearInterval(tick)
-  }, [lastRefreshed])
+  }, [lastRefreshed, allDoneRef.current])
 
   const [activities, setActivities] = useState<Activity[]>([])
   const activitiesLoading = tab === "activities" && activities.length === 0

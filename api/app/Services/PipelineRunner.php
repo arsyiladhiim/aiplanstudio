@@ -91,6 +91,12 @@ class PipelineRunner
         'env_config' => [['environment', 'lingkungan'], ['variable', 'variabel'], ['configuration', 'konfigurasi']],
         'deployment' => [['Docker', 'docker'], ['rollback']],
         'agents' => [['AGENTS.md', 'agents'], ['agent'], ['instruction', 'instruksi']],
+        'analisa' => [['intent', 'tujuan'], ['persona'], ['metric', 'metrik'], ['anti-goal', 'anti tujuan']],
+        'phases_web' => [['fase', 'phase'], ['task', 'tugas'], ['instruksi']],
+        'phases_mobile' => [['fase', 'phase'], ['task', 'tugas'], ['instruksi']],
+        'master_web' => [['phase', 'fase'], ['tracking', 'lacak'], ['standar', 'standard']],
+        'master_mobile' => [['flutter'], ['screen'], ['widget']],
+        'testing_strategy' => [['pyramid'], ['coverage', 'cakupan'], ['e2e'], ['path']],
     ];
 
     /**
@@ -1051,13 +1057,9 @@ class PipelineRunner
             $score += 0.6 * min(1, $count / 6);
         }
 
-        foreach (self::GENERIC_PATTERNS as $pattern) {
-            if (preg_match($pattern, $content)) {
-                $score -= 0.1;
-
-                break;
-            }
-        }
+        // Penalti pola generik tidak relevan di konten JSON (nilai field
+        // deskriptif bisa memicu false positive) — skip untuk stage JSON.
+        // Rubric JSON sudah punya sinyal kualitas yang lebih pas.
 
         return round(max(0.0, min(1.0, $score)), 2);
     }

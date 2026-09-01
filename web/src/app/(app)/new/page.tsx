@@ -22,17 +22,57 @@ const ErdDiagramDynamic = dynamic(
 import type { ApiContractItem } from "@/components/wizard/ApiContractTable"
 import { ApiContractTable } from "@/components/wizard/ApiContractTable"
 import type { PhaseItem } from "@/components/wizard/PhaseBreakdownCard"
-import { AnalysisView } from "@/components/wizard/AnalysisView"
-import { PrdView } from "@/components/wizard/PrdView"
-import { ArchitectureView } from "@/components/wizard/ArchitectureView"
-import { StandardsView } from "@/components/wizard/StandardsView"
-import { PhasesView } from "@/components/wizard/PhasesView"
-import { AgentsView } from "@/components/wizard/AgentsView"
-import { DesignSystemView } from "@/components/wizard/DesignSystemView"
-import { DesignSystemMobileView } from "@/components/wizard/DesignSystemMobileView"
-import { AppSpecWebView } from "@/components/wizard/AppSpecWebView"
-import { AppSpecMobileView } from "@/components/wizard/AppSpecMobileView"
-import { ErdTabs } from "@/components/wizard/ErdTabs"
+const AnalysisView = dynamic(() =>
+  import("@/components/wizard/AnalysisView").then((m) => ({
+    default: m.AnalysisView,
+  }))
+)
+const PrdView = dynamic(() =>
+  import("@/components/wizard/PrdView").then((m) => ({ default: m.PrdView }))
+)
+const ArchitectureView = dynamic(() =>
+  import("@/components/wizard/ArchitectureView").then((m) => ({
+    default: m.ArchitectureView,
+  }))
+)
+const StandardsView = dynamic(() =>
+  import("@/components/wizard/StandardsView").then((m) => ({
+    default: m.StandardsView,
+  }))
+)
+const PhasesView = dynamic(() =>
+  import("@/components/wizard/PhasesView").then((m) => ({
+    default: m.PhasesView,
+  }))
+)
+const AgentsView = dynamic(() =>
+  import("@/components/wizard/AgentsView").then((m) => ({
+    default: m.AgentsView,
+  }))
+)
+const DesignSystemView = dynamic(() =>
+  import("@/components/wizard/DesignSystemView").then((m) => ({
+    default: m.DesignSystemView,
+  }))
+)
+const DesignSystemMobileView = dynamic(() =>
+  import("@/components/wizard/DesignSystemMobileView").then((m) => ({
+    default: m.DesignSystemMobileView,
+  }))
+)
+const AppSpecWebView = dynamic(() =>
+  import("@/components/wizard/AppSpecWebView").then((m) => ({
+    default: m.AppSpecWebView,
+  }))
+)
+const AppSpecMobileView = dynamic(() =>
+  import("@/components/wizard/AppSpecMobileView").then((m) => ({
+    default: m.AppSpecMobileView,
+  }))
+)
+const ErdTabs = dynamic(() =>
+  import("@/components/wizard/ErdTabs").then((m) => ({ default: m.ErdTabs }))
+)
 import {
   MasterPromptViewer,
   hasMasterPromptArtifact,
