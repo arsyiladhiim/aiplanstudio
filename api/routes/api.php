@@ -94,6 +94,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::get('/projects/{id}/tasks', [ProjectController::class, 'tasks']);
     Route::get('/projects/{id}/export-all', [ProjectController::class, 'exportAll']);
     Route::post('/versions/{id}/regenerate', [VersionController::class, 'regenerateStage']);
+    Route::post('/versions/{id}/cancel', [VersionController::class, 'cancelStage']);
     Route::post('/versions/{id}/restart-from-analisa', [VersionController::class, 'restartFromAnalisa']);
     Route::post('/versions/{id}/skip-stage', [VersionController::class, 'skipStage']);
     Route::post('/versions/{id}/regenerate-standards', [VersionController::class, 'regenerateStandards']);

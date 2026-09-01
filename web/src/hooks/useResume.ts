@@ -54,6 +54,7 @@ export interface ResumeResult {
   idea: string
   target: Target
   answers: Record<string, unknown>
+  mobileAnswers: Record<string, unknown>
   liteMode: boolean
   started: boolean
   currentStageIdx: number
@@ -169,6 +170,7 @@ export function useResume(
           idea: v.project?.idea ?? "",
           target: projectTarget,
           answers: (v.answers ?? {}) as Record<string, unknown>,
+          mobileAnswers: (v.mobile_answers ?? {}) as Record<string, unknown>,
           liteMode: liteReasons,
           started: true,
           currentStageIdx: idx,

@@ -140,6 +140,9 @@ export default function NewPlanPage({
   } | null>(null)
   const [failedStage, setFailedStage] = useState<StageKey | null>(null)
   const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [resumedMobileAnswers, setResumedMobileAnswers] = useState<
+    Record<string, string>
+  >({})
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, McqAnswer>>({})
   const [mobileMcqAnswers, setMobileMcqAnswers] = useState<
     Record<string, McqAnswer>
@@ -299,7 +302,6 @@ export default function NewPlanPage({
     [phaseProg]
   )
 
-  const abortRef = useRef<AbortController | null>(null)
   const cancelled = useRef(false)
   const creatingRef = useRef(false)
   const fallbackFetched = useRef(new Set<string>())
@@ -372,6 +374,48 @@ export default function NewPlanPage({
     if (!artifacts.pertanyaan_mobile) return null
     return parseMcq(artifacts.pertanyaan_mobile)
   }, [artifacts.pertanyaan_mobile, parseMcq])
+
+  // Restore pilihan radio MCQ dari jawaban tersimpan (format: "q5: ..." → "A. ..." / "E. Lainnya: ...").
+  // Dipisah dari useResume effect karena butuh questions dari artifact yang
+  // di-parse (mcqData) — baru tersedia setelah artifacts diload.
+  const restoreMcq = useCallback(
+    (
+      stored: Record<string, string>,
+      data: McqData | null,
+      dataSetter: (k: Record<string, McqAnswer>) => void
+    ) => {
+      if (!data || Object.keys(stored).length === 0) return
+      const restored: Record<string, McqAnswer> = {}
+      Object.entries(stored).forEach(([k, v]) => {
+        const qm = k.match(/^q(\d+)\s*:/i)
+        if (!qm) return
+        const q = data.questions[parseInt(qm[1], 10) - 1]
+        if (!q) return
+        const vm = String(v).match(/^([A-E])\.\s*(.+)$/)
+        if (!vm) return
+        if (vm[1] === "E") {
+          restored[q.id] = {
+            selected: "E",
+            custom_text: vm[2].replace(/^Lainnya\s*:\s*/i, ""),
+          }
+        } else {
+          restored[q.id] = { selected: vm[1] }
+        }
+      })
+      if (Object.keys(restored).length > 0) dataSetter(restored)
+    },
+    []
+  )
+
+  useEffect(() => {
+    if (Object.keys(mcqAnswers).length > 0) return
+    restoreMcq(answers, mcqData, setMcqAnswers)
+  }, [mcqData, answers, mcqAnswers, restoreMcq])
+
+  useEffect(() => {
+    if (Object.keys(mobileMcqAnswers).length > 0) return
+    restoreMcq(resumedMobileAnswers, mcqMobileData, setMobileMcqAnswers)
+  }, [mcqMobileData, resumedMobileAnswers, mobileMcqAnswers, restoreMcq])
 
   // Legacy plain-text questions fallback
   const questions = useMemo(() => {
@@ -601,23 +645,23 @@ export default function NewPlanPage({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (abortRef.current) {
-        abortRef.current.abort()
-        abortRef.current = null
-      }
+      streamApi.abort()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Tracking fase real-time — SSE via EventSource saat berada di stage master.
-  // Effect hanya depend on versionId agar tidak re-subscribe tiap advance stage.
-  useEffect(() => {
-    if (!versionId) return
-    const showTracking =
-      activeKey === "master_web" ||
+  // Deps: versionId + showTracking (bukan hanya versionId) agar subscribe ulang
+  // saat masuk master_*/agents — sebelumnya panel tak pernah hidup (bug 55-1.1).
+  const showTrackingNow =
+    versionId !== null &&
+    (activeKey === "master_web" ||
       activeKey === "master_mobile" ||
       (activeKey === "agents" &&
-        (webPhasesRef.current.length > 0 || mobilePhasesRef.current.length > 0))
-    if (!showTracking) return
+        (webPhasesRef.current.length > 0 ||
+          mobilePhasesRef.current.length > 0)))
+  useEffect(() => {
+    if (!versionId || !showTrackingNow) return
 
     // Initial fetch for immediate render
     apiGet<Version>(`/versions/${versionId}`)
@@ -648,7 +692,7 @@ export default function NewPlanPage({
     )
     return () => pp.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [versionId])
+  }, [versionId, showTrackingNow])
 
   // api_contract: kalau parse artifact SSE gagal/kosong walau stage done,
   // fetch kolom DB sekali (artifact stream bisa non-normalized).
@@ -739,6 +783,9 @@ export default function NewPlanPage({
     setTarget(r.target)
     if (r.answers && Object.keys(r.answers).length > 0) {
       setAnswers(r.answers as Record<string, string>)
+    }
+    if (r.mobileAnswers && Object.keys(r.mobileAnswers).length > 0) {
+      setResumedMobileAnswers(r.mobileAnswers as Record<string, string>)
     }
     if (r.liteMode) setLiteMode(true)
     setStarted(r.started)
@@ -837,9 +884,7 @@ export default function NewPlanPage({
 
     const nextStage = stages[current + 1].key
 
-    if (abortRef.current) {
-      abortRef.current.abort()
-    }
+    streamApi.abort()
 
     startPipeline(versionId, nextStage)
   }
@@ -848,9 +893,7 @@ export default function NewPlanPage({
     setPendingConfirmMaster(false)
     if (!versionId || current + 1 >= stages.length) return
     const nextStage = stages[current + 1].key
-    if (abortRef.current) {
-      abortRef.current.abort()
-    }
+    streamApi.abort()
     startPipeline(versionId, nextStage)
   }
 
@@ -867,9 +910,7 @@ export default function NewPlanPage({
     })
     setError("")
 
-    if (abortRef.current) {
-      abortRef.current.abort()
-    }
+    streamApi.abort()
 
     startPipeline(versionId, currentStage)
   }
@@ -899,6 +940,11 @@ export default function NewPlanPage({
       window.location.assign(`/new?resume=1&version=${versionId}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal regenerate.")
+      // Jangan tinggalkan stage 'running' tanpa stream — pipeline sudah diabort.
+      if (status[activeKey] === "running") {
+        setStatus((s) => ({ ...s, [activeKey]: "error" }))
+        setFailedStage(activeKey)
+      }
     } finally {
       setRegenBusy(false)
     }
@@ -907,19 +953,21 @@ export default function NewPlanPage({
   function cancelGeneration() {
     cancelled.current = true
     streamApi.cancelAll()
-    setStatus((s) => ({ ...s, [activeKeyRef.current]: "error" }))
-    setError("Pembuatan plan dibatalkan.")
+    const stage = activeKeyRef.current
+    setFailedStage(null)
+    setStatus((s) => ({ ...s, [stage]: "pending" }))
+    setError("Pembuatan plan dibatalkan. Stage bisa diulang kapan saja.")
     setShowCancelConfirm(false)
+    if (versionId && stage) {
+      apiPost(`/versions/${versionId}/cancel`, { stage }).catch(() => {})
+    }
   }
 
   async function reset() {
     if (deleting) return
     setShowResetConfirm(false)
     cancelled.current = true
-    if (abortRef.current) {
-      abortRef.current.abort()
-      abortRef.current = null
-    }
+    streamApi.abort()
     fallbackFetched.current.clear()
     reviewFetchedRef.current.clear()
     resumeAutoStartedRef.current = false
@@ -2280,8 +2328,7 @@ export default function NewPlanPage({
             </strong>{" "}
             dan <strong>semua stage setelahnya</strong> akan di-generate ulang.
             Jika pipeline sedang berjalan, proses akan dihentikan terlebih
-            dahulu. Proses bisa memakan waktu 1-3 menit — jangan tutup
-            halaman.
+            dahulu. Proses bisa memakan waktu 1-3 menit — jangan tutup halaman.
           </p>
           <div className="mt-5 flex justify-end gap-2">
             <Button

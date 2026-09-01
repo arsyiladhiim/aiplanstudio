@@ -687,6 +687,34 @@ class VersionTest extends TestCase
         $this->assertSame('done', $version->fresh()->stage_status['analisa']);
     }
 
+    public function test_cancel_running_stage_marks_pending(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+            'stage_status' => array_merge(Version::defaultStageStatus(), ['prd' => 'running']),
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$version->id}/cancel", ['stage' => 'prd']);
+
+        $response->assertStatus(200)->assertJson(['ok' => true, 'status' => 'pending']);
+        $this->assertSame('pending', $version->fresh()->stage_status['prd']);
+    }
+
+    public function test_cancel_done_stage_is_noop(): void
+    {
+        $version = Version::factory()->create([
+            'project_id' => $this->project->id,
+            'stage_status' => array_merge(Version::defaultStageStatus(), ['prd' => 'done']),
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/versions/{$version->id}/cancel", ['stage' => 'prd']);
+
+        $response->assertStatus(200)->assertJson(['ok' => true, 'status' => 'done']);
+        $this->assertSame('done', $version->fresh()->stage_status['prd']);
+    }
+
     public function test_regenerate_stage_returns_400_without_provider(): void
     {
         AiProvider::query()->delete();

@@ -222,6 +222,27 @@ export default function ProjectDetail({
       .finally(() => setVersionLoading(false))
   }
 
+  // Pasca-regen: regenerate server-side synchronous; response 200 = selesai.
+  // Fetch sekali untuk sinkron, lalu ulangi hingga 3× (jeda 3s) hanya jika
+  // stage target masih kosong (race dengan snapshot akhir).
+  function refetchAfterRegen(versionId: number, stageCol?: string) {
+    fetchVersion(versionId)
+    if (!stageCol) return
+    let tries = 0
+    const t = setInterval(() => {
+      apiGet<Version>(`/versions/${versionId}`)
+        .then((v) => {
+          const val = (v as unknown as Record<string, unknown>)[stageCol]
+          const has = val != null && val !== ""
+          if (has) setSelectedVersion(v)
+          if (has || ++tries >= 3) clearInterval(t)
+        })
+        .catch(() => {
+          if (++tries >= 3) clearInterval(t)
+        })
+    }, 3000)
+  }
+
   async function handleDelete() {
     setConfirmDeleteProject(false)
     try {
@@ -289,7 +310,7 @@ export default function ProjectDetail({
         done: !currentDone,
       })
       // Refresh version to get updated phase progress
-      fetchVersion(selectedVersion.id)
+      refetchAfterRegen(selectedVersion.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal toggle phase")
     }
@@ -825,7 +846,7 @@ export default function ProjectDetail({
                             `/versions/${selectedVersion.id}/regenerate`,
                             { stage: "design_system" }
                           )
-                          fetchVersion(selectedVersion.id)
+                          refetchAfterRegen(selectedVersion.id, "design_system")
                         } catch (err) {
                           setError(
                             err instanceof Error
@@ -853,7 +874,7 @@ export default function ProjectDetail({
                             `/versions/${selectedVersion.id}/regenerate`,
                             { stage: "app_spec_web" }
                           )
-                          fetchVersion(selectedVersion.id)
+                          refetchAfterRegen(selectedVersion.id, "app_spec_web")
                         } catch (err) {
                           setError(
                             err instanceof Error
@@ -982,7 +1003,10 @@ export default function ProjectDetail({
                             `/versions/${selectedVersion.id}/regenerate`,
                             { stage: "design_system_mobile" }
                           )
-                          fetchVersion(selectedVersion.id)
+                          refetchAfterRegen(
+                            selectedVersion.id,
+                            "design_system_mobile"
+                          )
                         } catch (err) {
                           setError(
                             err instanceof Error
@@ -1010,7 +1034,7 @@ export default function ProjectDetail({
                             `/versions/${selectedVersion.id}/regenerate`,
                             { stage: "app_spec_mobile" }
                           )
-                          fetchVersion(selectedVersion.id)
+                          refetchAfterRegen(selectedVersion.id)
                         } catch (err) {
                           setError(
                             err instanceof Error
@@ -1214,7 +1238,7 @@ export default function ProjectDetail({
                               await apiPost(
                                 `/versions/${selectedVersion.id}/regenerate-standards`
                               )
-                              fetchVersion(selectedVersion.id)
+                              refetchAfterRegen(selectedVersion.id)
                             } catch (err) {
                               setError(
                                 err instanceof Error
@@ -1245,7 +1269,7 @@ export default function ProjectDetail({
                             await apiPost(
                               `/versions/${selectedVersion.id}/regenerate-standards`
                             )
-                            fetchVersion(selectedVersion.id)
+                            refetchAfterRegen(selectedVersion.id)
                           } catch (err) {
                             setError(
                               err instanceof Error
@@ -1339,7 +1363,7 @@ export default function ProjectDetail({
                                   await apiPost(
                                     `/versions/${selectedVersion.id}/regenerate-standards/mobile`
                                   )
-                                  fetchVersion(selectedVersion.id)
+                                  refetchAfterRegen(selectedVersion.id)
                                 } catch (err) {
                                   setError(
                                     err instanceof Error
@@ -1370,7 +1394,7 @@ export default function ProjectDetail({
                                 await apiPost(
                                   `/versions/${selectedVersion.id}/regenerate-standards/mobile`
                                 )
-                                fetchVersion(selectedVersion.id)
+                                refetchAfterRegen(selectedVersion.id)
                               } catch (err) {
                                 setError(
                                   err instanceof Error
@@ -1452,7 +1476,7 @@ export default function ProjectDetail({
                           await apiPost(
                             `/versions/${selectedVersion.id}/restart-from-analisa`
                           )
-                          fetchVersion(selectedVersion.id)
+                          refetchAfterRegen(selectedVersion.id)
                         } catch (err) {
                           setError(
                             err instanceof Error
@@ -1526,7 +1550,7 @@ export default function ProjectDetail({
                                       `/versions/${selectedVersion.id}/regenerate`,
                                       { stage: s.key }
                                     )
-                                    fetchVersion(selectedVersion.id)
+                                    refetchAfterRegen(selectedVersion.id)
                                   } catch (err) {
                                     setError(
                                       err instanceof Error
@@ -1544,7 +1568,7 @@ export default function ProjectDetail({
                                       `/versions/${selectedVersion.id}/skip-stage`,
                                       { stage: s.key, reason }
                                     )
-                                    fetchVersion(selectedVersion.id)
+                                    refetchAfterRegen(selectedVersion.id)
                                   } catch (err) {
                                     setError(
                                       err instanceof Error

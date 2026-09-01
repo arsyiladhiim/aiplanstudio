@@ -37,6 +37,7 @@ export function usePipelineStream(
   const abortRef = useRef<AbortController | null>(null)
   const cancelledRef = useRef(false)
   const retryCountRef = useRef(0)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleSSEEvent = useCallback(
     (event: string, rawData: unknown) => {
@@ -126,7 +127,10 @@ export function usePipelineStream(
             ) {
               retryCountRef.current = retries + 1
               console.warn(`SSE retry ${retries + 1}/3:`, err.message)
-              setTimeout(() => attempt(retries + 1), 2000 * (retries + 1))
+              retryTimerRef.current = setTimeout(
+                () => attempt(retries + 1),
+                2000 * (retries + 1)
+              )
             } else {
               console.error("SSE error (max retries):", err)
               handlers.onStatus(stage, "error")
@@ -157,6 +161,10 @@ export function usePipelineStream(
   )
 
   const abort = useCallback(() => {
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current)
+      retryTimerRef.current = null
+    }
     if (abortRef.current) abortRef.current.abort()
     abortRef.current = null
   }, [])

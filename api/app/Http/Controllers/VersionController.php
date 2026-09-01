@@ -952,4 +952,32 @@ class VersionController extends Controller
             'skipped' => true,
         ]);
     }
+
+    /**
+     * Cancel dari wizard: tandai stage running sebagai pending (aman untuk
+     * resume ulang) + catat alasan. SSE request sisi server ditutup klien
+     * (abort) terpisah; stage yang sudah done tidak disentuh.
+     */
+    public function cancelStage(Request $request, int $id): JsonResponse
+    {
+        $version = Version::whereHas('project', fn ($q) => $q->where('user_id', $request->user()->id))
+            ->findOrFail($id);
+
+        $data = $request->validate([
+            'stage' => ['required', 'string', 'in:'.implode(',', Version::ALL_STAGES)],
+        ]);
+        $stage = $data['stage'];
+
+        $status = $version->stage_status ?? [];
+        if (($status[$stage] ?? null) === 'running') {
+            $status[$stage] = 'pending';
+            $errors = $version->stage_errors ?? [];
+            $errors[$stage] = 'Dibatalkan oleh pengguna.';
+            $version->stage_status = $status;
+            $version->stage_errors = $errors;
+            $version->save();
+        }
+
+        return response()->json(['ok' => true, 'stage' => $stage, 'status' => $status[$stage] ?? 'pending']);
+    }
 }
